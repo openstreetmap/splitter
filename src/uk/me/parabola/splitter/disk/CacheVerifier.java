@@ -64,7 +64,7 @@ public class CacheVerifier {
 
 		// If no filenames were provided we use the cache (if it exists)
 		if (filenames.isEmpty())
-			return nodesExist && !existingEntries.isEmpty();
+			return nodesExist;
 
 		// Compare the existing cache entries with the .osm filenames provided. If they match we can use the cache
 		List<CacheEntry> entries = new ArrayList<CacheEntry>(filenames.size());

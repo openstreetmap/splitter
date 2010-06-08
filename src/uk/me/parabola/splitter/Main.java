@@ -16,8 +16,10 @@ package uk.me.parabola.splitter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +75,9 @@ public class Main {
 
 	// Whether or not to trim tiles of any empty space around their edges.
 	private boolean trim;
+
+	// This gets set if no osm file is supplied as a parameter and the cache is empty.
+	private boolean useStdIn;
 
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
@@ -142,7 +147,9 @@ public class Main {
 				if (verifier.validateCache()) {
 					System.out.println("A suitable cache was found. All data will be loaded from cache rather than the .osm file(s)");
 				} else if (filenames.isEmpty()) {
-					throw new IllegalArgumentException("No .osm files were supplied and the --cache parameter doesn't point at a valid cache");
+					System.out.println("No .osm files were supplied and the --cache isn't populated so osm data will be read from stdin");
+					useStdIn = true;
+					generateCache = true;
 				} else if (!generateCache) {
 					System.out.println("No suitable cache was found. A new cache will be created to speed up the splitting stage");
 					generateCache = true;
@@ -152,7 +159,7 @@ public class Main {
 				e.printStackTrace();
 			}
 		} else if (filenames.isEmpty()) {
-			throw new IllegalArgumentException("No .osm files were supplied and no --cache parameter was specified to load data from");
+			throw new IllegalArgumentException("No .osm files were supplied and no --cache parameter was specified. A --cache parameter is required for splitter to read from stdin");
 		}
 
 		if (areaList == null) {
@@ -387,17 +394,27 @@ public class Main {
 	}
 
 	private void processOsmFiles(OSMParser parser) throws IOException, XmlPullParserException {
-		for (String filename : filenames) {
-			System.out.println("Processing " + filename);
-			Reader reader = Utils.openFile(filename, maxThreads > 1);
-			parser.setReader(reader);
-			try {
-				parser.parse();
-			} finally {
-				reader.close();
+		if (useStdIn) {
+			System.out.println("Reading osm data from stdin...");
+			Reader reader = new InputStreamReader(System.in, Charset.forName("UTF-8"));
+			parse(parser, reader);
+		} else {
+			for (String filename : filenames) {
+				System.out.println("Processing " + filename + "...");
+				Reader reader = Utils.openFile(filename, maxThreads > 1);
+				parse(parser, reader);
 			}
 		}
 		parser.endMap();
+	}
+
+	private void parse(OSMParser parser, Reader reader) throws IOException, XmlPullParserException {
+		parser.setReader(reader);
+		try {
+			parser.parse();
+		} finally {
+			reader.close();
+		}
 	}
 
 	/**
