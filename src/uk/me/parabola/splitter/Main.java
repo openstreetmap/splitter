@@ -47,22 +47,23 @@ public class Main {
 
 	// We can only process a maximum of 255 areas at a time because we
 	// compress an area ID into 8 bits to save memory (and 0 is reserved)
-	private int maxAreasPerPass = 255;
+	private int maxAreasPerPass;
 
+	// A list of the OSM files to parse.
 	private List<String> filenames;
 
 	// The description to write into the template.args file.
 	private String description;
 
-	// Traditional default, but please use a different one!
-	private int mapId = 63240001;
+	// The starting map ID.
+	private int mapId;
 
 	// The amount in map units that tiles overlap (note that the final img's will not overlap
 	// but the input files do).
-	private int overlapAmount = 2000;
+	private int overlapAmount;
 
 	// The max number of nodes that will appear in a single file.
-	private int maxNodes = 1600000;
+	private int maxNodes;
 
 	// The maximum resolution of the map to be produced by mkgmap. This is a value in the range
 	// 0-24. Higher numbers mean higher detail. The resolution determines how the tiles must
@@ -71,16 +72,16 @@ public class Main {
 	// of 2 * 2 ^ (24 - 13) = 4096 units. The tile widths and height multiples are double the tile
 	// alignment because the center point of the tile is stored, and that must be aligned the
 	// same as the tile edges are.
-	private int resolution = 13;
+	private int resolution;
 
 	// Whether or not to trim tiles of any empty space around their edges.
 	private boolean trim;
-
 	// This gets set if no osm file is supplied as a parameter and the cache is empty.
 	private boolean useStdIn;
-
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
+	// Whether or not the source OSM file(s) contain strictly nodes first, then ways, then rels,
+	// or they're all mixed up. Running with mixed enabled takes longer.
 	private boolean mixed;
 	// The path to the disk cache. If this is null, no cache will be generated or used.
 	private String diskCachePath;
@@ -90,14 +91,15 @@ public class Main {
 	private CacheVerifier verifier;
 	// A GeoNames file to use for naming the tiles.
 	private String geoNamesFile;
-
+	// How often (in seconds) to provide JVM status information. Zero = no information.
+	private int statusFreq;
+	// Whether to use the density map. Disabling this (not recommended) causes the splitter to
+	// revert to using legacy mode which takes MUCH more memory during phase one.
 	private boolean densityMap;
 
 	private String kmlOutputFile;
-	
+	// The maximum number of threads the splitter should use.
 	private int maxThreads;
-
-	private SplitterParams params;
 
 	public static void main(String[] args) {
 
@@ -107,8 +109,8 @@ public class Main {
 
 	private void start(String[] args) {
 		readArgs(args);
-		if (params.getStatusFreq() > 0) {
-			JVMHealthMonitor.start(params.getStatusFreq());
+		if (statusFreq > 0) {
+			JVMHealthMonitor.start(statusFreq);
 		}
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
@@ -130,36 +132,51 @@ public class Main {
 			File cacheDir = new File(diskCachePath);
 			if (!cacheDir.exists()) {
 				System.out.println("Cache directory not found. Creating directory '" + cacheDir + "' and generating cache");
-				if (!cacheDir.mkdirs()) {
+				if (cacheDir.mkdirs()) {
+					generateCache = true;
+				} else {
 					System.err.println("Unable to create cache directory! Disk cache disabled");
 					diskCachePath = null;
 				}
-				generateCache = true;
 			} else if (!cacheDir.isDirectory()) {
-				System.err.println("The --cache parameter must specify a directory. Disk cache disabled.");
+				System.err.println("The --cache parameter must specify a directory. The --cache parameter is being ignored, disk cache is disabled.");
 				diskCachePath = null;
 			}
-			verifier = new CacheVerifier(diskCachePath, filenames);
-			try {
-				if (!generateCache) {
-					System.out.println("Checking for an existing cache and verifying contents...");
-				}
-				if (verifier.validateCache()) {
-					System.out.println("A suitable cache was found. All data will be loaded from cache rather than the .osm file(s)");
-				} else if (filenames.isEmpty()) {
-					System.out.println("No .osm files were supplied and the --cache isn't populated so osm data will be read from stdin");
-					useStdIn = true;
+			if (diskCachePath != null) {
+				verifier = new CacheVerifier(diskCachePath, filenames);
+				try {
+					if (!generateCache) {
+						System.out.println("Checking for an existing cache and verifying contents...");
+					}
+					if (verifier.validateCache()) {
+						System.out.println("A suitable cache was found. All data will be loaded from cache rather than any .osm file(s) or stdin");
+					} else if (filenames.isEmpty()) {
+						System.out.println("No .osm files were supplied and the --cache isn't populated so osm data will be read from stdin");
+						useStdIn = true;
+						generateCache = true;
+					} else {
+						System.out.println("No suitable cache was found. A new cache will be created to speed up the splitting stage");
+						generateCache = true;
+					}
+				} catch (IOException e) {
+					System.err.println("Unable to verify cache content - regenerating cache. Reason: " + e.getMessage());
+					e.printStackTrace();
 					generateCache = true;
-				} else if (!generateCache) {
-					System.out.println("No suitable cache was found. A new cache will be created to speed up the splitting stage");
-					generateCache = true;
 				}
-			} catch (IOException e) {
-				System.err.println("Unable to verify cache content - regenerating cache. Reason: " + e.getMessage());
-				e.printStackTrace();
 			}
-		} else if (filenames.isEmpty()) {
-			throw new IllegalArgumentException("No .osm files were supplied and no --cache parameter was specified. A --cache parameter is required for splitter to read from stdin");
+		}
+
+		if (diskCachePath == null && filenames.isEmpty()) {
+			if (areaList == null) {
+				throw new IllegalArgumentException("No .osm files were supplied so at least one of --cache or --split-file must be specified");
+			} else {
+				int areaCount = areaList.getAreas().size();
+				int passes = getAreasPerPass(areaCount);
+				if (passes > 1) {
+					throw new IllegalArgumentException("No .osm files or --cache parameter were supplied, but stdin cannot be used because " + passes
+							+ " passes are required to write out the areas. Either provide --cache or increase --max-areas to match the number of areas (" + areaCount + ')');
+				}
+			}
 		}
 
 		if (areaList == null) {
@@ -171,12 +188,15 @@ public class Main {
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
 			}
+			nameAreas();
 			areaList.write("areas.list");
+		} else {
+			nameAreas();
 		}
 
-		nameAreas();
-		System.out.println(areaList.getAreas().size() + " areas:");
-		for (Area area : areaList.getAreas()) {
+		List<Area> areas = areaList.getAreas();
+		System.out.println(areas.size() + " areas:");
+		for (Area area : areas) {
 			System.out.print("Area " + area.getMapId() + " covers " + area.toHexString());
 			if (area.getName() != null)
 				System.out.print(' ' + area.getName());
@@ -189,8 +209,8 @@ public class Main {
 			areaList.writeKml(kmlOutputFile);
 		}
 
-		writeAreas(areaList.getAreas());
-		writeArgsFile(areaList.getAreas());
+		writeAreas(areas);
+		writeArgsFile(areas);
 	}
 
 	/**
@@ -198,7 +218,7 @@ public class Main {
 	 */
 	private void readArgs(String[] args) {
 		ParamParser parser = new ParamParser();
-		params = parser.parse(SplitterParams.class, args);
+		SplitterParams params = parser.parse(SplitterParams.class, args);
 
 		if (!parser.getErrors().isEmpty()) {
 			System.out.println();
@@ -229,6 +249,7 @@ public class Main {
 			resolution = 13;
 		}
 		mixed = params.isMixed();
+		statusFreq = params.getStatusFreq();
 		diskCachePath = params.getCache();
 		maxAreasPerPass = params.getMaxAreas();
 		if (maxAreasPerPass < 1 || maxAreasPerPass > 255) {
@@ -337,41 +358,37 @@ public class Main {
 	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
 		System.out.println("Writing out split osm files " + new Date());
 
-		int passesRequired = (int) Math.ceil((double) areas.size() / (double) maxAreasPerPass);
-		maxAreasPerPass = (int) Math.ceil((double) areas.size() / (double) passesRequired);
+		int numPasses = getAreasPerPass(areas.size());
+		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 
-		if (passesRequired > 1) {
-			System.out.println("Processing " + areas.size() + " areas in " + passesRequired + " passes, " + maxAreasPerPass + " areas at a time");
+		if (numPasses > 1) {
+			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
 		} else {
 			System.out.println("Processing " + areas.size() + " areas in a single pass");
 		}
 
-		for (int i = 0; i < passesRequired; i++) {
-			OSMWriter[] currentWriters = new OSMWriter[Math.min(maxAreasPerPass, areas.size() - i * maxAreasPerPass)];
+		for (int i = 0; i < numPasses; i++) {
+			OSMWriter[] currentWriters = new OSMWriter[Math.min(areasPerPass, areas.size() - i * areasPerPass)];
 			for (int j = 0; j < currentWriters.length; j++) {
-				Area area = areas.get(i * maxAreasPerPass + j);
+				Area area = areas.get(i * areasPerPass + j);
 				currentWriters[j] = new OSMWriter(area);
 				currentWriters[j].initForWrite(area.getMapId(), overlapAmount);
 			}
 
-			System.out.println("Starting pass " + (i + 1) + " of " + passesRequired + ", processing " + currentWriters.length +
-							" areas (" + areas.get(i * maxAreasPerPass).getMapId() + " to " +
-							areas.get(i * maxAreasPerPass + currentWriters.length - 1).getMapId() + ')');
+			System.out.println("Starting pass " + (i + 1) + " of " + numPasses + ", processing " + currentWriters.length +
+							" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
+							areas.get(i * areasPerPass + currentWriters.length - 1).getMapId() + ')');
 
 			MapProcessor processor = new SplitProcessor(currentWriters, maxThreads);
 			if (generateCache) {
-				if (passesRequired == 1) {
-					System.out.println("*********************************************************************");
-					System.out.println("* WARNING: No valid existing cache found but caching was requested. *");
-					System.out.println("*          A cache will be generated even though only one pass is   *");
-					System.out.println("*          required. This is likely to slow things down! You should *");
-					System.out.println("*          normally only do this if you plan to reuse the cache on  *");
-					System.out.println("*          additional runs of the splitter.                         *");
-					System.out.println("*********************************************************************");
+				if (numPasses == 1) {
+					System.out.println("No cache will be generated since only one pass is required");
+					generateCache = false;
+					diskCachePath = null;
 				} else {
 					System.out.println("No valid existing cache found. A cache will be generated on this pass");
+					processor = new CachingMapProcessor(diskCachePath, verifier, processor);
 				}
-				processor = new CachingMapProcessor(diskCachePath, verifier, processor);
 			}
 			MapReader mapReader = processMap(processor, !generateCache && diskCachePath != null);
 			generateCache = false;	// Make sure the cache isn't generated more than once!
@@ -379,6 +396,10 @@ public class Main {
 							Utils.format(mapReader.getWayCount()) + " ways, " +
 							Utils.format(mapReader.getRelationCount()) + " relations");
 		}
+	}
+
+	private int getAreasPerPass(int areaCount) {
+		return (int) Math.ceil((double) areaCount / (double) maxAreasPerPass);
 	}
 
 	private MapReader processMap(MapProcessor processor, boolean useCache) throws XmlPullParserException, IOException {
