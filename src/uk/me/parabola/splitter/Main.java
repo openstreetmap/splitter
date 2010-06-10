@@ -176,6 +176,7 @@ public class Main {
 					throw new IllegalArgumentException("No .osm files or --cache parameter were supplied, but stdin cannot be used because " + passes
 							+ " passes are required to write out the areas. Either provide --cache or increase --max-areas to match the number of areas (" + areaCount + ')');
 				}
+				useStdIn = true;
 			}
 		}
 
