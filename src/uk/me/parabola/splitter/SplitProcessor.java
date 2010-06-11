@@ -373,6 +373,7 @@ class SplitProcessor implements MapProcessor {
 								workPackage=null;
 								System.out.println("Thread " + Thread.currentThread().getName() + " has finished");
 								// this writer is finished
+								finished = true;
 								break;
 							} else {
 								processElement(element, workPackage.writer);
