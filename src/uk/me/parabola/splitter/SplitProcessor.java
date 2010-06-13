@@ -371,9 +371,6 @@ class SplitProcessor implements MapProcessor {
 								break;
 							} else if (element == STOP_ELEMENT) {
 								workPackage=null;
-								System.out.println("Thread " + Thread.currentThread().getName() + " has finished");
-								// this writer is finished
-								finished = true;
 								break;
 							} else {
 								processElement(element, workPackage.writer);
@@ -394,6 +391,7 @@ class SplitProcessor implements MapProcessor {
 					}
 				}
 			}
+			System.out.println("Thread " + Thread.currentThread().getName() + " has finished");
 		}
 	}
 }
