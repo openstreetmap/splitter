@@ -44,6 +44,7 @@ import org.xmlpull.v1.XmlPullParserException;
  * @author Steve Ratcliffe
  */
 public class Main {
+	private static final String DEFAULT_DIR = "." + File.separatorChar;
 
 	// We can only process a maximum of 255 areas at a time because we
 	// compress an area ID into 8 bits to save memory (and 0 is reserved)
@@ -89,6 +90,8 @@ public class Main {
 	private boolean generateCache;
 	// Used to verify whether an existing cache is valid or not.
 	private CacheVerifier verifier;
+	// The path where the results are written out to.
+	private String fileOutputDir;
 	// A GeoNames file to use for naming the tiles.
 	private String geoNamesFile;
 	// How often (in seconds) to provide JVM status information. Zero = no information.
@@ -128,6 +131,22 @@ public class Main {
 	}
 
 	private void split() throws IOException, XmlPullParserException {
+		if (fileOutputDir.charAt(fileOutputDir.length() - 1) != File.separatorChar) {
+			fileOutputDir.concat(File.separator);
+		}
+
+		File outputDir = new File(fileOutputDir);
+		if (!outputDir.exists()) {
+			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
+			if (!outputDir.mkdirs()) {
+				System.err.println("Unable to create output directory! Using default directory instead");
+				fileOutputDir = DEFAULT_DIR;
+			}
+		} else if (!outputDir.isDirectory()) {
+			System.err.println("The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
+			fileOutputDir = DEFAULT_DIR;
+		}
+
 		if (diskCachePath != null) {
 			File cacheDir = new File(diskCachePath);
 			if (!cacheDir.exists()) {
@@ -190,7 +209,7 @@ public class Main {
 				area.setMapId(mapId++);
 			}
 			nameAreas();
-			areaList.write("areas.list");
+			areaList.write(fileOutputDir.concat("areas.list"));
 		} else {
 			nameAreas();
 		}
@@ -204,8 +223,8 @@ public class Main {
 			System.out.println();
 		}
 
-
 		if (kmlOutputFile != null) {
+			kmlOutputFile = fileOutputDir.concat(kmlOutputFile);
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
@@ -252,6 +271,10 @@ public class Main {
 		mixed = params.isMixed();
 		statusFreq = params.getStatusFreq();
 		diskCachePath = params.getCache();
+		fileOutputDir = params.getOutputDir();
+		if (fileOutputDir == null) {
+			fileOutputDir = DEFAULT_DIR;
+		}
 		maxAreasPerPass = params.getMaxAreas();
 		if (maxAreasPerPass < 1 || maxAreasPerPass > 255) {
 			System.err.println("The --max-areas parameter must be a value between 1 and 255. Resetting to 255.");
@@ -372,7 +395,7 @@ public class Main {
 			OSMWriter[] currentWriters = new OSMWriter[Math.min(areasPerPass, areas.size() - i * areasPerPass)];
 			for (int j = 0; j < currentWriters.length; j++) {
 				Area area = areas.get(i * areasPerPass + j);
-				currentWriters[j] = new OSMWriter(area);
+				currentWriters[j] = new OSMWriter(area, fileOutputDir);
 				currentWriters[j].initForWrite(area.getMapId(), overlapAmount);
 			}
 
@@ -447,7 +470,7 @@ public class Main {
 	protected void writeArgsFile(List<Area> areas) {
 		PrintWriter w;
 		try {
-			w = new PrintWriter(new FileWriter("template.args"));
+			w = new PrintWriter(new FileWriter(fileOutputDir.concat("template.args")));
 		} catch (IOException e) {
 			System.err.println("Could not write template.args file");
 			return;
