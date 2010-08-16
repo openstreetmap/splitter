@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -64,10 +65,7 @@ public class SplittableDensityArea implements SplittableArea {
 			return Collections.singletonList(bounds);
 		}
 
-		List<Area> results = new ArrayList<Area>();
-
 		// Decide whether to split vertically or horizontally and go ahead with the split
-
 
 		SplittableDensityArea[] splitResult = null;
 		// Try to split it based on dimension.
@@ -89,8 +87,30 @@ public class SplittableDensityArea implements SplittableArea {
 			return Collections.singletonList(bounds);
 		}
 		densities = null;
-		results.addAll(splitResult[0].split(maxNodes));
-		results.addAll(splitResult[1].split(maxNodes));
+		return mixResults(
+				splitResult[0].split(maxNodes),
+				splitResult[1].split(maxNodes));		
+	}
+
+	/** Merge two result lists of regions */
+	List<Area> mixResults(List<Area> a1, List<Area> a2) {
+		List<Area> results = new ArrayList<Area>();
+	
+		Iterator<Area> i0 = a1.iterator();
+		Iterator<Area> i1 = a2.iterator();
+
+		while (i0.hasNext() && i1.hasNext()) {
+		    results.add(i0.next());
+		    results.add(i1.next());
+		}
+
+		while (i0.hasNext()) {
+		    results.add(i0.next());
+		}
+		while (i1.hasNext()) {
+		    results.add(i1.next());
+		}
+		Collections.reverse(results);
 		return results;
 	}
 
