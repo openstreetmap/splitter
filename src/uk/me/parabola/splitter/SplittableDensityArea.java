@@ -35,44 +35,71 @@ public class SplittableDensityArea implements SplittableArea {
 		return densities.getBounds();
 	}
 
+
+	public double getAspectRatio() {
+		Area bounds = densities.getBounds();
+		int width1 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMinLat()))));
+		int width2 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMaxLat()))));
+		int width = Math.max(width1, width2);
+		int height = densities.getHeight();
+		double ratio = ((double)width)/height;
+		return ratio;
+	}
+
+
 	@Override
 	public List<Area> split(int maxNodes) {
 		if (densities == null || densities.getNodeCount() == 0)
 			return Collections.emptyList();
 
 		Area bounds = densities.getBounds();
-		if (densities.getNodeCount() <= maxNodes) {
+		if (densities.getNodeCount() < maxNodes) {
 			densities = null;
 			return Collections.singletonList(bounds);
 		}
 
-		// Decide whether to split vertically or horizontally and go ahead with the split
-		int width1 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMinLat()))));
-		int width2 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMaxLat()))));
-		int width = Math.max(width1, width2);
-
-		SplittableDensityArea[] splitResult;
-		if (densities.getHeight() > 2 && (densities.getHeight() > width || densities.getWidth() <= 2)) {
-			splitResult = splitVert();
-		} else if (densities.getWidth() > 2) {
-			splitResult = splitHoriz();
-		} else {
+		if (densities.getWidth() < 4 && densities.getHeight() < 4) {
 			System.out.println("Area " + bounds + " contains " + Utils.format(densities.getNodeCount())
 							+ " nodes but is already at the minimum size so can't be split further");
 			return Collections.singletonList(bounds);
 		}
-		densities = null;
+
 		List<Area> results = new ArrayList<Area>();
+
+		// Decide whether to split vertically or horizontally and go ahead with the split
+
+
+		SplittableDensityArea[] splitResult = null;
+		// Try to split it based on dimension.
+		if (getAspectRatio() > 1.0 && densities.getHeight() >= 4) {
+			splitResult = splitVert(getSplitVert());
+		}
+		// Either the natural split is horizontal, or no good vertical split. Try horizontal.
+		if (splitResult == null && densities.getWidth() >= 4) {
+			splitResult = splitHoriz(getSplitHoriz());
+		}
+		// If the natural horizontal split failed. Try vertical.
+		if (getAspectRatio() < 1.0 && splitResult == null && densities.getHeight() >= 4) {
+			splitResult = splitVert(getSplitHoriz());
+		}
+		// No dice. Use this as-is.
+		if (splitResult == null) {
+			System.out.println("Area " + bounds + " contains " + Utils.format(densities.getNodeCount())
+					+ " nodes but is already at the minimum size so can't be split further");
+			return Collections.singletonList(bounds);
+		}
+		densities = null;
 		results.addAll(splitResult[0].split(maxNodes));
 		results.addAll(splitResult[1].split(maxNodes));
 		return results;
 	}
 
 	/**
-	 * Split into left and right areas
+	 * Split into left and right areas. Requires width >= 4 (so that we can have a even midpoint.
 	 */
-	protected SplittableDensityArea[] splitHoriz() {
+	protected Integer getSplitHoriz() {
 		long sum = 0, weightedSum = 0;
+		Integer splitX;
 
 		for (int x = 0; x < densities.getWidth(); x++) {
 			for (int y = 0; y < densities.getHeight(); y++) {
@@ -81,8 +108,15 @@ public class SplittableDensityArea implements SplittableArea {
 				weightedSum += (count * x);
 			}
 		}
-		int splitX = limit(0, densities.getWidth(), (int) (weightedSum / sum));
-
+		splitX = limit(0, densities.getWidth(), (int) (weightedSum / sum));
+		if (splitX == null)
+			return null;
+		return splitX;
+	}
+		
+	/** Get the actual split areas */
+	protected SplittableDensityArea[] splitHoriz(int splitX) {
+		
 		Area bounds = densities.getBounds();
 		int mid = bounds.getMinLong() + (splitX << densities.getShift());
 		Area leftArea = new Area(bounds.getMinLat(), bounds.getMinLong(), bounds.getMaxLat(), mid);
@@ -93,8 +127,12 @@ public class SplittableDensityArea implements SplittableArea {
 		return new SplittableDensityArea[] {new SplittableDensityArea(left), new SplittableDensityArea(right)};
 	}
 
-	protected SplittableDensityArea[] splitVert() {
+	/**
+	 * Split into top and bottom areas. Requires height >= 4 (so that we can have a even midpoint.
+	 */
+	protected Integer getSplitVert() {
 		long sum = 0, weightedSum = 0;
+		Integer splitY;
 
 		for (int y = 0; y < densities.getHeight(); y++) {
 			for (int x = 0; x < densities.getWidth(); x++) {
@@ -103,8 +141,15 @@ public class SplittableDensityArea implements SplittableArea {
 				weightedSum += (count * y);
 			}
 		}
-		int splitY = limit(0, densities.getHeight(), (int) (weightedSum / sum));
+		splitY = limit(0, densities.getHeight(), (int) (weightedSum / sum));
+		if (splitY == null)
+			return null;
+		return splitY;
+	}
 
+	/** Get the actual split areas */
+	protected SplittableDensityArea[] splitVert(int splitY) {
+		
 		Area bounds = densities.getBounds();
 		int mid = bounds.getMinLat() + (splitY << densities.getShift());
 		Area bottomArea = new Area(bounds.getMinLat(), bounds.getMinLong(), mid, bounds.getMaxLong());
@@ -115,18 +160,20 @@ public class SplittableDensityArea implements SplittableArea {
 		return new SplittableDensityArea[]{new SplittableDensityArea(bottom), new SplittableDensityArea(top)};
 	}
 
-	private static int limit(int first, int second, int calcOffset) {
-		int mid = first + calcOffset;
-		int limitoff = Math.max((second - first) / 5, 2);
-		if (mid < first + limitoff)
+	/** return calcOffset if it is in the middle three quantiles, use the first or last quantile otherwise. */
+	private Integer limit(int first, int second, long calcOffset) {
+		int mid = first + (int) calcOffset;
+		int limitoff = (second - first) / 5;
+		if (mid - first < limitoff)
 			mid = first + limitoff;
-		else if (mid > second - limitoff)
+		else if (second - mid < limitoff)
 			mid = second - limitoff;
-		if (mid % 2 != 0) {
+
+		if (mid % 2 != 0)
 			mid--;
-			if (mid < first + 2)
-				mid = first + 2;
-		}
+		if (mid == first || mid == second)
+			return null;
+		
 		return mid;
 	}
 }
