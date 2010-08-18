@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -52,8 +53,6 @@ public class SplittableDensityArea implements SplittableArea {
 			return Collections.singletonList(bounds);
 		}
 
-		List<Area> results = new ArrayList<Area>();
-
 		// Decide whether to split vertically or horizontally and go ahead with the split
 		SplittableDensityArea[] splitResult = null;
 
@@ -79,9 +78,8 @@ public class SplittableDensityArea implements SplittableArea {
 			return Collections.singletonList(bounds);
 		}
 		densities = null;
-		results.addAll(splitResult[0].split(maxNodes));
-		results.addAll(splitResult[1].split(maxNodes));
-		return results;
+
+		return mixResults(splitResult[0].split(maxNodes), splitResult[1].split(maxNodes));
 	}
 
 	/**
@@ -139,6 +137,29 @@ public class SplittableDensityArea implements SplittableArea {
 		DensityMap top = densities.subset(topArea);
 
 		return new SplittableDensityArea[]{new SplittableDensityArea(bottom), new SplittableDensityArea(top)};
+	}
+
+	/**
+	 * Merge two result lists of regions
+	 */
+	List<Area> mixResults(List<Area> area1, List<Area> area2) {
+		List<Area> results = new ArrayList<Area>();
+
+		Iterator<Area> it1 = area1.iterator();
+		Iterator<Area> it2 = area2.iterator();
+
+		while (it1.hasNext() && it2.hasNext()) {
+			results.add(it1.next());
+			results.add(it2.next());
+		}
+		while (it1.hasNext()) {
+			results.add(it1.next());
+		}
+		while (it2.hasNext()) {
+			results.add(it2.next());
+		}
+		Collections.reverse(results);
+		return results;
 	}
 
 	private double getAspectRatio() {
