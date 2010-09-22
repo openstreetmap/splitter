@@ -318,7 +318,7 @@ public class Main {
     for (String filename : filenames) {
       System.out.println("Processing " + filename);
       try {
-        if (filename.endsWith(".bin")) {
+        if (filename.endsWith(".osm.pbf")) {
           // Is it a binary file?
           File file = new File(filename);
           BlockInputStream blockinput = (new BlockInputStream(
