@@ -13,6 +13,16 @@
 
 package uk.me.parabola.splitter;
 
+import crosby.binary.file.BlockInputStream;
+import org.xmlpull.v1.XmlPullParserException;
+import uk.me.parabola.splitter.args.ParamParser;
+import uk.me.parabola.splitter.args.SplitterParams;
+import uk.me.parabola.splitter.geo.City;
+import uk.me.parabola.splitter.geo.CityFinder;
+import uk.me.parabola.splitter.geo.CityLoader;
+import uk.me.parabola.splitter.geo.DefaultCityFinder;
+import uk.me.parabola.splitter.geo.DummyCityFinder;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -25,18 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import uk.me.parabola.splitter.args.ParamParser;
-import uk.me.parabola.splitter.args.SplitterParams;
-import uk.me.parabola.splitter.geo.City;
-import uk.me.parabola.splitter.geo.CityFinder;
-import uk.me.parabola.splitter.geo.CityLoader;
-import uk.me.parabola.splitter.geo.DefaultCityFinder;
-import uk.me.parabola.splitter.geo.DummyCityFinder;
-
-import org.xmlpull.v1.XmlPullParserException;
-
-import crosby.binary.file.BlockInputStream;
-
 /**
  * Splitter for OSM files with the purpose of providing input files for mkgmap.
  * <p/>
@@ -45,25 +43,27 @@ import crosby.binary.file.BlockInputStream;
  * @author Steve Ratcliffe
  */
 public class Main {
+	private static final String DEFAULT_DIR = "." + File.separatorChar;
 
 	// We can only process a maximum of 255 areas at a time because we
 	// compress an area ID into 8 bits to save memory (and 0 is reserved)
-	private int maxAreasPerPass = 255;
+	private int maxAreasPerPass;
 
+	// A list of the OSM files to parse.
 	private List<String> filenames;
 
 	// The description to write into the template.args file.
 	private String description;
 
-	// Traditional default, but please use a different one!
-	private int mapId = 63240001;
+	// The starting map ID.
+	private int mapId;
 
 	// The amount in map units that tiles overlap (note that the final img's will not overlap
 	// but the input files do).
-	private int overlapAmount = 2000;
+	private int overlapAmount;
 
 	// The max number of nodes that will appear in a single file.
-	private int maxNodes = 1600000;
+	private int maxNodes;
 
 	// The maximum resolution of the map to be produced by mkgmap. This is a value in the range
 	// 0-24. Higher numbers mean higher detail. The resolution determines how the tiles must
@@ -72,24 +72,30 @@ public class Main {
 	// of 2 * 2 ^ (24 - 13) = 4096 units. The tile widths and height multiples are double the tile
 	// alignment because the center point of the tile is stored, and that must be aligned the
 	// same as the tile edges are.
-	private int resolution = 13;
+	private int resolution;
 
 	// Whether or not to trim tiles of any empty space around their edges.
 	private boolean trim;
-
+	// This gets set if no osm file is supplied as a parameter and the cache is empty.
+	private boolean useStdIn;
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
+	// Whether or not the source OSM file(s) contain strictly nodes first, then ways, then rels,
+	// or they're all mixed up. Running with mixed enabled takes longer.
 	private boolean mixed;
+	// The path where the results are written out to.
+	private String fileOutputDir;
 	// A GeoNames file to use for naming the tiles.
 	private String geoNamesFile;
-
+	// How often (in seconds) to provide JVM status information. Zero = no information.
+	private int statusFreq;
+	// Whether to use the density map. Disabling this (not recommended) causes the splitter to
+	// revert to using legacy mode which takes MUCH more memory during phase one.
 	private boolean densityMap;
 
 	private String kmlOutputFile;
-	
+	// The maximum number of threads the splitter should use.
 	private int maxThreads;
-
-	private SplitterParams params;
 
 	public static void main(String[] args) {
 
@@ -99,8 +105,8 @@ public class Main {
 
 	private void start(String[] args) {
 		readArgs(args);
-		if (params.getStatusFreq() > 0) {
-			JVMHealthMonitor.start(params.getStatusFreq());
+		if (statusFreq > 0) {
+			JVMHealthMonitor.start(statusFreq);
 		}
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
@@ -118,8 +124,34 @@ public class Main {
 	}
 
 	private void split() throws IOException, XmlPullParserException {
+		if (fileOutputDir.charAt(fileOutputDir.length() - 1) != File.separatorChar) {
+			fileOutputDir = fileOutputDir.concat(File.separator);
+		}
+
+		File outputDir = new File(fileOutputDir);
+		if (!outputDir.exists()) {
+			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
+			if (!outputDir.mkdirs()) {
+				System.err.println("Unable to create output directory! Using default directory instead");
+				fileOutputDir = DEFAULT_DIR;
+			}
+		} else if (!outputDir.isDirectory()) {
+			System.err.println("The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
+			fileOutputDir = DEFAULT_DIR;
+		}
+
 		if (filenames.isEmpty()) {
-			throw new IllegalArgumentException("No .osm files were supplied and no --cache parameter was specified to load data from");
+			if (areaList == null) {
+				throw new IllegalArgumentException("No .osm files were supplied so at least one of --cache or --split-file must be specified");
+			} else {
+				int areaCount = areaList.getAreas().size();
+				int passes = getAreasPerPass(areaCount);
+				if (passes > 1) {
+					throw new IllegalArgumentException("No .osm files or --cache parameter were supplied, but stdin cannot be used because " + passes
+							+ " passes are required to write out the areas. Either provide --cache or increase --max-areas to match the number of areas (" + areaCount + ')');
+				}
+				useStdIn = true;
+			}
 		}
 
 		if (areaList == null) {
@@ -131,26 +163,33 @@ public class Main {
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
 			}
-			areaList.write("areas.list");
+			nameAreas();
+			areaList.write(fileOutputDir.concat("areas.list"));
+		} else {
+			nameAreas();
 		}
 
-		nameAreas();
-		System.out.println(areaList.getAreas().size() + " areas:");
-		for (Area area : areaList.getAreas()) {
+		List<Area> areas = areaList.getAreas();
+		System.out.println(areas.size() + " areas:");
+		for (Area area : areas) {
 			System.out.print("Area " + area.getMapId() + " covers " + area.toHexString());
 			if (area.getName() != null)
 				System.out.print(' ' + area.getName());
 			System.out.println();
 		}
 
-
 		if (kmlOutputFile != null) {
+			kmlOutputFile = fileOutputDir.concat(kmlOutputFile);
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
 
-		writeAreas(areaList.getAreas());
-		writeArgsFile(areaList.getAreas());
+		writeAreas(areas);
+		writeArgsFile(areas);
+	}
+
+	private int getAreasPerPass(int areaCount) {
+		return (int) Math.ceil((double) areaCount / (double) maxAreasPerPass);
 	}
 
 	/**
@@ -158,7 +197,7 @@ public class Main {
 	 */
 	private void readArgs(String[] args) {
 		ParamParser parser = new ParamParser();
-		params = parser.parse(SplitterParams.class, args);
+		SplitterParams params = parser.parse(SplitterParams.class, args);
 
 		if (!parser.getErrors().isEmpty()) {
 			System.out.println();
@@ -189,8 +228,13 @@ public class Main {
 			resolution = 13;
 		}
 		mixed = params.isMixed();
+		statusFreq = params.getStatusFreq();
+		fileOutputDir = params.getOutputDir();
+		if (fileOutputDir == null) {
+			fileOutputDir = DEFAULT_DIR;
+		}
 		maxAreasPerPass = params.getMaxAreas();
-		if (maxAreasPerPass < 1 || maxAreasPerPass > 20000) {
+		if (maxAreasPerPass < 1 || maxAreasPerPass > 255) {
 			System.err.println("The --max-areas parameter must be a value between 1 and 255. Resetting to 255.");
 			maxAreasPerPass = 255;
 		}
@@ -225,13 +269,16 @@ public class Main {
 
 		MapCollector nodes = densityMap ? new DensityMapCollector(trim, resolution) : new NodeCollector();
 		MapProcessor processor = nodes;
-		//MapReader mapReader = 
+
 		processMap(processor);
+		//MapReader mapReader = processMap(processor);
+
 		//System.out.print("A total of " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
 		//				Utils.format(mapReader.getWayCount()) + " ways and " +
 		//				Utils.format(mapReader.getRelationCount()) + " relations were processed ");
 
-		//System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
+		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
+
 		//System.out.println("Min node ID = " + mapReader.getMinNodeId());
 		//System.out.println("Max node ID = " + mapReader.getMaxNodeId());
 
@@ -282,26 +329,26 @@ public class Main {
 	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
 		System.out.println("Writing out split osm files " + new Date());
 
-		int passesRequired = (int) Math.ceil((double) areas.size() / (double) maxAreasPerPass);
-		maxAreasPerPass = (int) Math.ceil((double) areas.size() / (double) passesRequired);
+		int numPasses = getAreasPerPass(areas.size());
+		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 
-		if (passesRequired > 1) {
-			System.out.println("Processing " + areas.size() + " areas in " + passesRequired + " passes, " + maxAreasPerPass + " areas at a time");
+		if (numPasses > 1) {
+			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
 		} else {
 			System.out.println("Processing " + areas.size() + " areas in a single pass");
 		}
 
-		for (int i = 0; i < passesRequired; i++) {
-			OSMWriter[] currentWriters = new OSMWriter[Math.min(maxAreasPerPass, areas.size() - i * maxAreasPerPass)];
+		for (int i = 0; i < numPasses; i++) {
+			OSMWriter[] currentWriters = new OSMWriter[Math.min(areasPerPass, areas.size() - i * areasPerPass)];
 			for (int j = 0; j < currentWriters.length; j++) {
-				Area area = areas.get(i * maxAreasPerPass + j);
-				currentWriters[j] = new OSMWriter(area);
+				Area area = areas.get(i * areasPerPass + j);
+				currentWriters[j] = new OSMWriter(area, fileOutputDir);
 				currentWriters[j].initForWrite(area.getMapId(), overlapAmount);
 			}
 
-			System.out.println("Starting pass " + (i + 1) + " of " + passesRequired + ", processing " + currentWriters.length +
-							" areas (" + areas.get(i * maxAreasPerPass).getMapId() + " to " +
-							areas.get(i * maxAreasPerPass + currentWriters.length - 1).getMapId() + ')');
+			System.out.println("Starting pass " + (i + 1) + " of " + numPasses + ", processing " + currentWriters.length +
+							" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
+							areas.get(i * areasPerPass + currentWriters.length - 1).getMapId() + ')');
 
 			MapProcessor processor = new SplitProcessor(currentWriters, maxThreads);
 			processMap(processor);
@@ -312,42 +359,42 @@ public class Main {
 	}
 	
 	private void processMap(MapProcessor processor) throws XmlPullParserException {
-	// Create both an XML reader and a binary reader, Dispatch each input to the
-    // Appropriate parser.
-    OSMParser parser = new OSMParser(processor, mixed);
-    for (String filename : filenames) {
-      System.out.println("Processing " + filename);
-      try {
-        if (filename.endsWith(".osm.pbf")) {
-          // Is it a binary file?
-          File file = new File(filename);
-          BlockInputStream blockinput = (new BlockInputStream(
-              new FileInputStream(file), new BinaryMapParser(processor)));
-          try {
-            blockinput.process();
-          } finally {
-            blockinput.close();
-          }
-        } else {
-          // No, try XML.
-	  Reader reader = Utils.openFile(filename, maxThreads > 1);
-          parser.setReader(reader);
-          try {
-            parser.parse();
-          } finally {
-            reader.close();
-          }
-        }
-      } catch (FileNotFoundException e) {
-        e.printStackTrace();
-      } catch (XmlPullParserException e) {
-        e.printStackTrace();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-    }
-    processor.endMap();
-  }
+		// Create both an XML reader and a binary reader, Dispatch each input to the
+		// Appropriate parser.
+		OSMParser parser = new OSMParser(processor, mixed);
+		for (String filename : filenames) {
+			System.out.println("Processing " + filename);
+			try {
+				if (filename.endsWith(".osm.pbf")) {
+					// Is it a binary file?
+					File file = new File(filename);
+					BlockInputStream blockinput = (new BlockInputStream(
+							new FileInputStream(file), new BinaryMapParser(processor)));
+					try {
+						blockinput.process();
+					} finally {
+						blockinput.close();
+					}
+				} else {
+					// No, try XML.
+					Reader reader = Utils.openFile(filename, maxThreads > 1);
+					parser.setReader(reader);
+					try {
+						parser.parse();
+					} finally {
+						reader.close();
+					}
+				}
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (XmlPullParserException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		processor.endMap();
+	}
 	
 	/**
 	 * Write a file that can be given to mkgmap that contains the correct arguments
@@ -357,7 +404,7 @@ public class Main {
 	protected void writeArgsFile(List<Area> areas) {
 		PrintWriter w;
 		try {
-			w = new PrintWriter(new FileWriter("template.args"));
+			w = new PrintWriter(new FileWriter(fileOutputDir.concat("template.args")));
 		} catch (IOException e) {
 			System.err.println("Could not write template.args file");
 			return;

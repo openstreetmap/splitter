@@ -26,7 +26,6 @@ import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 public class OSMWriter {
@@ -38,9 +37,12 @@ public class OSMWriter {
 	private final Area bounds;
 	private Writer writer;
 	private Area extendedBounds;
+	private String outputDir;
+	
 
-	public OSMWriter(Area bounds) {
+	public OSMWriter(Area bounds, String outputDir) {
 		this.bounds = bounds;
+		this.outputDir = outputDir;
 	}
 
 	public Area getExtendedBounds() {
@@ -55,7 +57,7 @@ public class OSMWriter {
 
 		String filename = new Formatter().format(Locale.ROOT, "%08d.osm.gz", mapId).toString();
 		try {
-			FileOutputStream fos = new FileOutputStream(filename);
+			FileOutputStream fos = new FileOutputStream(outputDir.concat(filename));
 			OutputStream zos = new GZIPOutputStream(fos);
 			writer = new OutputStreamWriter(zos, "utf-8");
 			writeHeader();

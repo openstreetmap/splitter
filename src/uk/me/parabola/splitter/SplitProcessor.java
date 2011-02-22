@@ -12,6 +12,8 @@
  */
 package uk.me.parabola.splitter;
 
+import uk.me.parabola.splitter.Relation.Member;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,8 +24,6 @@ import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-
-import uk.me.parabola.splitter.Relation.Member;
 
 /**
  * Splits a map into multiple areas.
@@ -335,6 +335,7 @@ class SplitProcessor implements MapProcessor {
 
 				}
 			}
+			System.out.println("Thread " + Thread.currentThread().getName() + " has finished");
 		}
 	}
 }

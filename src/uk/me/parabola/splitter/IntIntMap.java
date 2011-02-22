@@ -35,8 +35,6 @@ public class IntIntMap {
 
 	private int targetSize;
 	private final float loadFactor;
-	//private static long hit;
-	//private static long miss;
 
 	private static final int OFF = 1472057057;
 
@@ -105,7 +103,6 @@ public class IntIntMap {
 				throw new UnsupportedOperationException();
 			}
 		};
-
 	}
 
 	private void ensureSpace() {
@@ -134,14 +131,10 @@ public class IntIntMap {
 		int mask = capacity - 1;
 		int k = key & mask;
 		int h1 = keys[k];
-		// hit++;
 		while (h1 != 0 && h1 != key) {
-			// miss++;
 			k = (k + OFF) & mask;
 			h1 = keys[k];
 		}
-		// if (((hit) % 1000000) == 0)
-		//     System.out.printf("hit/probe %f at hit %d probe %d, %d\n",100.0*hit/(miss + hit), hit, hit+miss,size);
 		return k;
 	}
 

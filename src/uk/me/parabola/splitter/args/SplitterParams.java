@@ -46,6 +46,9 @@ public interface SplitterParams {
 	@Option(description = "The path to the cache directory. If the path doesn't exist it will be created.")
 	String getCache();
 
+	@Option(description = "The path to the output directory. Defaults to the current working directory.")
+	String getOutputDir();
+
 	@Option(description = "The name of the file containing the area definitions. Can be .list or .kml.")
 	String getSplitFile();
 

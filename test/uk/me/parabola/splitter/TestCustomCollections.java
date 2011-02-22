@@ -13,15 +13,13 @@
 
 package uk.me.parabola.splitter;
 
-import junit.framework.TestCase;
-
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 /**
  * 
  */
-public class TestCustomCollections extends TestCase {
+public class TestCustomCollections {
 	@Test
 	public void testIntList() {
 		SplitIntList list = new SplitIntList(10);
