@@ -13,28 +13,27 @@
 
 package uk.me.parabola.splitter;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.io.Reader;
-import java.nio.charset.Charset;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import crosby.binary.file.BlockInputStream;
+import org.xmlpull.v1.XmlPullParserException;
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
-import uk.me.parabola.splitter.disk.CacheVerifier;
 import uk.me.parabola.splitter.geo.City;
 import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
 import uk.me.parabola.splitter.geo.DummyCityFinder;
 
-import org.xmlpull.v1.XmlPullParserException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Reader;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Splitter for OSM files with the purpose of providing input files for mkgmap.
@@ -84,12 +83,6 @@ public class Main {
 	// Whether or not the source OSM file(s) contain strictly nodes first, then ways, then rels,
 	// or they're all mixed up. Running with mixed enabled takes longer.
 	private boolean mixed;
-	// The path to the disk cache. If this is null, no cache will be generated or used.
-	private String diskCachePath;
-	// Whether or not a new cache needs to be generated.
-	private boolean generateCache;
-	// Used to verify whether an existing cache is valid or not.
-	private CacheVerifier verifier;
 	// The path where the results are written out to.
 	private String fileOutputDir;
 	// A GeoNames file to use for naming the tiles.
@@ -132,7 +125,7 @@ public class Main {
 
 	private void split() throws IOException, XmlPullParserException {
 		if (fileOutputDir.charAt(fileOutputDir.length() - 1) != File.separatorChar) {
-			fileOutputDir.concat(File.separator);
+			fileOutputDir = fileOutputDir.concat(File.separator);
 		}
 
 		File outputDir = new File(fileOutputDir);
@@ -147,45 +140,7 @@ public class Main {
 			fileOutputDir = DEFAULT_DIR;
 		}
 
-		if (diskCachePath != null) {
-			File cacheDir = new File(diskCachePath);
-			if (!cacheDir.exists()) {
-				System.out.println("Cache directory not found. Creating directory '" + cacheDir + "' and generating cache");
-				if (cacheDir.mkdirs()) {
-					generateCache = true;
-				} else {
-					System.err.println("Unable to create cache directory! Disk cache disabled");
-					diskCachePath = null;
-				}
-			} else if (!cacheDir.isDirectory()) {
-				System.err.println("The --cache parameter must specify a directory. The --cache parameter is being ignored, disk cache is disabled.");
-				diskCachePath = null;
-			}
-			if (diskCachePath != null) {
-				verifier = new CacheVerifier(diskCachePath, filenames);
-				try {
-					if (!generateCache) {
-						System.out.println("Checking for an existing cache and verifying contents...");
-					}
-					if (verifier.validateCache()) {
-						System.out.println("A suitable cache was found. All data will be loaded from cache rather than any .osm file(s) or stdin");
-					} else if (filenames.isEmpty()) {
-						System.out.println("No .osm files were supplied and the --cache isn't populated so osm data will be read from stdin");
-						useStdIn = true;
-						generateCache = true;
-					} else {
-						System.out.println("No suitable cache was found. A new cache will be created to speed up the splitting stage");
-						generateCache = true;
-					}
-				} catch (IOException e) {
-					System.err.println("Unable to verify cache content - regenerating cache. Reason: " + e.getMessage());
-					e.printStackTrace();
-					generateCache = true;
-				}
-			}
-		}
-
-		if (diskCachePath == null && filenames.isEmpty()) {
+		if (filenames.isEmpty()) {
 			if (areaList == null) {
 				throw new IllegalArgumentException("No .osm files were supplied so at least one of --cache or --split-file must be specified");
 			} else {
@@ -233,6 +188,10 @@ public class Main {
 		writeArgsFile(areas);
 	}
 
+	private int getAreasPerPass(int areaCount) {
+		return (int) Math.ceil((double) areaCount / (double) maxAreasPerPass);
+	}
+
 	/**
 	 * Deal with the command line arguments.
 	 */
@@ -270,7 +229,6 @@ public class Main {
 		}
 		mixed = params.isMixed();
 		statusFreq = params.getStatusFreq();
-		diskCachePath = params.getCache();
 		fileOutputDir = params.getOutputDir();
 		if (fileOutputDir == null) {
 			fileOutputDir = DEFAULT_DIR;
@@ -311,29 +269,18 @@ public class Main {
 
 		MapCollector nodes = densityMap ? new DensityMapCollector(trim, resolution) : new NodeCollector();
 		MapProcessor processor = nodes;
-		boolean loadFromCache = false;
-		if (diskCachePath == null) {
-			System.out.println("The input osm file(s) will be re-parsed during the split (slower) because no --cache parameter was specified");
-		} else {
-			if (generateCache) {
-				processor = new CachingMapProcessor(diskCachePath, verifier, processor);
-				generateCache = false;
-			} else {
-				loadFromCache = true;
-			}
-		}
 
-		MapReader mapReader = processMap(processor, loadFromCache);
-		System.out.print("A total of " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
-						Utils.format(mapReader.getWayCount()) + " ways and " +
-						Utils.format(mapReader.getRelationCount()) + " relations were processed ");
-		if (loadFromCache) {
-			System.out.println("from the disk cache");
-		} else {
-			System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
-		}
-		System.out.println("Min node ID = " + mapReader.getMinNodeId());
-		System.out.println("Max node ID = " + mapReader.getMaxNodeId());
+		processMap(processor);
+		//MapReader mapReader = processMap(processor);
+
+		//System.out.print("A total of " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
+		//				Utils.format(mapReader.getWayCount()) + " ways and " +
+		//				Utils.format(mapReader.getRelationCount()) + " relations were processed ");
+
+		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
+
+		//System.out.println("Min node ID = " + mapReader.getMinNodeId());
+		//System.out.println("Max node ID = " + mapReader.getMaxNodeId());
 
 		System.out.println("Time: " + new Date());
 
@@ -404,64 +351,51 @@ public class Main {
 							areas.get(i * areasPerPass + currentWriters.length - 1).getMapId() + ')');
 
 			MapProcessor processor = new SplitProcessor(currentWriters, maxThreads);
-			if (generateCache) {
-				if (numPasses == 1) {
-					System.out.println("No cache will be generated since only one pass is required");
-					generateCache = false;
-					diskCachePath = null;
+			processMap(processor);
+			//System.out.println("Wrote " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
+			//				Utils.format(mapReader.getWayCount()) + " ways, " +
+			//				Utils.format(mapReader.getRelationCount()) + " relations");
+		}
+	}
+	
+	private void processMap(MapProcessor processor) throws XmlPullParserException {
+		// Create both an XML reader and a binary reader, Dispatch each input to the
+		// Appropriate parser.
+		OSMParser parser = new OSMParser(processor, mixed);
+		for (String filename : filenames) {
+			System.out.println("Processing " + filename);
+			try {
+				if (filename.endsWith(".osm.pbf")) {
+					// Is it a binary file?
+					File file = new File(filename);
+					BlockInputStream blockinput = (new BlockInputStream(
+							new FileInputStream(file), new BinaryMapParser(processor)));
+					try {
+						blockinput.process();
+					} finally {
+						blockinput.close();
+					}
 				} else {
-					System.out.println("No valid existing cache found. A cache will be generated on this pass");
-					processor = new CachingMapProcessor(diskCachePath, verifier, processor);
+					// No, try XML.
+					Reader reader = Utils.openFile(filename, maxThreads > 1);
+					parser.setReader(reader);
+					try {
+						parser.parse();
+					} finally {
+						reader.close();
+					}
 				}
-			}
-			MapReader mapReader = processMap(processor, !generateCache && diskCachePath != null);
-			generateCache = false;	// Make sure the cache isn't generated more than once!
-			System.out.println("Wrote " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
-							Utils.format(mapReader.getWayCount()) + " ways, " +
-							Utils.format(mapReader.getRelationCount()) + " relations");
-		}
-	}
-
-	private int getAreasPerPass(int areaCount) {
-		return (int) Math.ceil((double) areaCount / (double) maxAreasPerPass);
-	}
-
-	private MapReader processMap(MapProcessor processor, boolean useCache) throws XmlPullParserException, IOException {
-		if (useCache) {
-			BinaryMapLoader loader = new BinaryMapLoader(diskCachePath, processor);
-			loader.load();
-			return loader;
-		} else {
-			OSMParser parser = new OSMParser(processor, mixed);
-			processOsmFiles(parser);
-			return parser;
-		}
-	}
-
-	private void processOsmFiles(OSMParser parser) throws IOException, XmlPullParserException {
-		if (useStdIn) {
-			System.out.println("Reading osm data from stdin...");
-			Reader reader = new InputStreamReader(System.in, Charset.forName("UTF-8"));
-			parse(parser, reader);
-		} else {
-			for (String filename : filenames) {
-				System.out.println("Processing " + filename + "...");
-				Reader reader = Utils.openFile(filename, maxThreads > 1);
-				parse(parser, reader);
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (XmlPullParserException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 		}
-		parser.endMap();
+		processor.endMap();
 	}
-
-	private void parse(OSMParser parser, Reader reader) throws IOException, XmlPullParserException {
-		parser.setReader(reader);
-		try {
-			parser.parse();
-		} finally {
-			reader.close();
-		}
-	}
-
+	
 	/**
 	 * Write a file that can be given to mkgmap that contains the correct arguments
 	 * for the split file pieces.  You are encouraged to edit the file and so it

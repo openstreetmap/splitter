@@ -36,6 +36,18 @@ public class SplittableDensityArea implements SplittableArea {
 		return densities.getBounds();
 	}
 
+
+	public double getAspectRatio() {
+		Area bounds = densities.getBounds();
+		int width1 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMinLat()))));
+		int width2 = (int) (densities.getWidth() * Math.cos(Math.toRadians(Utils.toDegrees(bounds.getMaxLat()))));
+		int width = Math.max(width1, width2);		
+		int height = densities.getHeight();
+		double ratio = ((double)width)/height;
+		return ratio;
+	}
+	
+	
 	@Override
 	public List<Area> split(int maxNodes) {
 		if (densities == null || densities.getNodeCount() == 0)
@@ -43,6 +55,8 @@ public class SplittableDensityArea implements SplittableArea {
 
 		Area bounds = densities.getBounds();
 		if (densities.getNodeCount() <= maxNodes) {
+			System.out.println("Area " + bounds + " contains " + Utils.format(densities.getNodeCount())
+					+ " nodes. DONE!");
 			densities = null;
 			return Collections.singletonList(bounds);
 		}
@@ -54,6 +68,8 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 
 		// Decide whether to split vertically or horizontally and go ahead with the split
+
+
 		SplittableDensityArea[] splitResult = null;
 
 		Integer splitX = getSplitHoriz();
@@ -78,12 +94,35 @@ public class SplittableDensityArea implements SplittableArea {
 			return Collections.singletonList(bounds);
 		}
 		densities = null;
+		return mixResults(
+				splitResult[0].split(maxNodes),
+				splitResult[1].split(maxNodes));		
+	}
 
-		return mixResults(splitResult[0].split(maxNodes), splitResult[1].split(maxNodes));
+	/** Merge two result lists of regions */
+	List<Area> mixResults(List<Area> a1, List<Area> a2) {
+		List<Area> results = new ArrayList<Area>();
+	
+		Iterator<Area> i0 = a1.iterator();
+		Iterator<Area> i1 = a2.iterator();
+
+		while (i0.hasNext() && i1.hasNext()) {
+		    results.add(i0.next());
+		    results.add(i1.next());
+		}
+
+		while (i0.hasNext()) {
+		    results.add(i0.next());
+		}
+		while (i1.hasNext()) {
+		    results.add(i1.next());
+		}
+		Collections.reverse(results);
+		return results;
 	}
 
 	/**
-	 * Split into left and right areas. Requires width >= 4 (so that we can have a even midpoint).
+	 * Split into left and right areas. Requires width >= 4 (so that we can have a even midpoint.
 	 */
 	protected Integer getSplitHoriz() {
 		long sum = 0, weightedSum = 0;
@@ -112,7 +151,7 @@ public class SplittableDensityArea implements SplittableArea {
 	}
 
 	/**
-	 * Split into top and bottom areas. Requires height >= 4 (so that we can have a even midpoint).
+	 * Split into top and bottom areas. Requires height >= 4 (so that we can have a even midpoint.
 	 */
 	protected Integer getSplitVert() {
 		long sum = 0, weightedSum = 0;
@@ -137,41 +176,6 @@ public class SplittableDensityArea implements SplittableArea {
 		DensityMap top = densities.subset(topArea);
 
 		return new SplittableDensityArea[]{new SplittableDensityArea(bottom), new SplittableDensityArea(top)};
-	}
-
-	/**
-	 * Merge two result lists of regions
-	 */
-	List<Area> mixResults(List<Area> area1, List<Area> area2) {
-		List<Area> results = new ArrayList<Area>();
-
-		Iterator<Area> it1 = area1.iterator();
-		Iterator<Area> it2 = area2.iterator();
-
-		while (it1.hasNext() && it2.hasNext()) {
-			results.add(it1.next());
-			results.add(it2.next());
-		}
-		while (it1.hasNext()) {
-			results.add(it1.next());
-		}
-		while (it2.hasNext()) {
-			results.add(it2.next());
-		}
-		Collections.reverse(results);
-		return results;
-	}
-
-	private double getAspectRatio() {
-		Area bounds = densities.getBounds();
-		int width1 = (int) (densities.getWidth() * Math
-				.cos(Math.toRadians(Utils.toDegrees(bounds.getMinLat()))));
-		int width2 = (int) (densities.getWidth() * Math
-				.cos(Math.toRadians(Utils.toDegrees(bounds.getMaxLat()))));
-		int width = Math.max(width1, width2);
-		int height = densities.getHeight();
-		double ratio = ((double) width) / height;
-		return ratio;
 	}
 
 	/** return calcOffset if it is in the middle three quantiles, use the first or last quantile otherwise. */
