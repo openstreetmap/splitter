@@ -28,8 +28,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -362,6 +364,21 @@ public class Main {
 		// Create both an XML reader and a binary reader, Dispatch each input to the
 		// Appropriate parser.
 		OSMParser parser = new OSMParser(processor, mixed);
+		if (useStdIn) {
+			System.out.println("Reading osm data from stdin...");
+			Reader reader = new InputStreamReader(System.in, Charset.forName("UTF-8"));
+			parser.setReader(reader);
+			try {
+				try {
+					parser.parse();
+				} finally {
+					reader.close();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+
 		for (String filename : filenames) {
 			System.out.println("Processing " + filename);
 			try {
