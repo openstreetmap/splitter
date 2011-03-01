@@ -45,7 +45,7 @@ import java.util.Set;
  * @author Steve Ratcliffe
  */
 public class Main {
-	private static final String DEFAULT_DIR = "." + File.separatorChar;
+	private static final String DEFAULT_DIR = ".";
 
 	// We can only process a maximum of 255 areas at a time because we
 	// compress an area ID into 8 bits to save memory (and 0 is reserved)
@@ -86,7 +86,7 @@ public class Main {
 	// or they're all mixed up. Running with mixed enabled takes longer.
 	private boolean mixed;
 	// The path where the results are written out to.
-	private String fileOutputDir;
+	private File fileOutputDir;
 	// A GeoNames file to use for naming the tiles.
 	private String geoNamesFile;
 	// How often (in seconds) to provide JVM status information. Zero = no information.
@@ -126,20 +126,17 @@ public class Main {
 	}
 
 	private void split() throws IOException, XmlPullParserException {
-		if (fileOutputDir.charAt(fileOutputDir.length() - 1) != File.separatorChar) {
-			fileOutputDir = fileOutputDir.concat(File.separator);
-		}
 
-		File outputDir = new File(fileOutputDir);
+		File outputDir = fileOutputDir;
 		if (!outputDir.exists()) {
 			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
 			if (!outputDir.mkdirs()) {
 				System.err.println("Unable to create output directory! Using default directory instead");
-				fileOutputDir = DEFAULT_DIR;
+				fileOutputDir = new File(DEFAULT_DIR);
 			}
 		} else if (!outputDir.isDirectory()) {
 			System.err.println("The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
-			fileOutputDir = DEFAULT_DIR;
+			fileOutputDir = new File(DEFAULT_DIR);
 		}
 
 		if (filenames.isEmpty()) {
@@ -166,7 +163,7 @@ public class Main {
 				area.setMapId(mapId++);
 			}
 			nameAreas();
-			areaList.write(fileOutputDir.concat("areas.list"));
+			areaList.write(new File(fileOutputDir, "areas.list").getPath());
 		} else {
 			nameAreas();
 		}
@@ -181,7 +178,9 @@ public class Main {
 		}
 
 		if (kmlOutputFile != null) {
-			kmlOutputFile = fileOutputDir.concat(kmlOutputFile);
+			File out = new File(kmlOutputFile);
+			if (!out.isAbsolute())
+				kmlOutputFile = new File(fileOutputDir, kmlOutputFile).getPath();
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
@@ -231,10 +230,10 @@ public class Main {
 		}
 		mixed = params.isMixed();
 		statusFreq = params.getStatusFreq();
-		fileOutputDir = params.getOutputDir();
-		if (fileOutputDir == null) {
-			fileOutputDir = DEFAULT_DIR;
-		}
+		
+		String outputDir = params.getOutputDir();
+		fileOutputDir = new File(outputDir == null? DEFAULT_DIR: outputDir);
+
 		maxAreasPerPass = params.getMaxAreas();
 		if (maxAreasPerPass < 1 || maxAreasPerPass > 255) {
 			System.err.println("The --max-areas parameter must be a value between 1 and 255. Resetting to 255.");
@@ -421,7 +420,7 @@ public class Main {
 	protected void writeArgsFile(List<Area> areas) {
 		PrintWriter w;
 		try {
-			w = new PrintWriter(new FileWriter(fileOutputDir.concat("template.args")));
+			w = new PrintWriter(new FileWriter(new File(fileOutputDir, "template.args")));
 		} catch (IOException e) {
 			System.err.println("Could not write template.args file");
 			return;

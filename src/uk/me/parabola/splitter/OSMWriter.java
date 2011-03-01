@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -37,10 +38,10 @@ public class OSMWriter {
 	private final Area bounds;
 	private Writer writer;
 	private Area extendedBounds;
-	private String outputDir;
+	private File outputDir;
 	
 
-	public OSMWriter(Area bounds, String outputDir) {
+	public OSMWriter(Area bounds, File outputDir) {
 		this.bounds = bounds;
 		this.outputDir = outputDir;
 	}
@@ -57,7 +58,7 @@ public class OSMWriter {
 
 		String filename = new Formatter().format(Locale.ROOT, "%08d.osm.gz", mapId).toString();
 		try {
-			FileOutputStream fos = new FileOutputStream(outputDir.concat(filename));
+			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
 			OutputStream zos = new GZIPOutputStream(fos);
 			writer = new OutputStreamWriter(zos, "utf-8");
 			writeHeader();
