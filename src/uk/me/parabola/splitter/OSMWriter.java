@@ -30,7 +30,7 @@ import java.util.Locale;
 import java.util.zip.GZIPOutputStream;
 
 public class OSMWriter {
-	static final DecimalFormat numberFormat = new DecimalFormat(
+	private final DecimalFormat numberFormat = new DecimalFormat(
 			"0.#######;-0.#######",
 			new DecimalFormatSymbols(Locale.US)
 		);
