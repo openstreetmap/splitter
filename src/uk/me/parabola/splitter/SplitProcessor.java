@@ -172,7 +172,8 @@ class SplitProcessor implements MapProcessor {
 			}
 		}
 		try {
-			toProcess.put(STOP_MSG);// Magic flag used to indicate that all data is done.
+			if (maxThreads > 1)
+				toProcess.put(STOP_MSG);// Magic flag used to indicate that all data is done.
 
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
