@@ -92,6 +92,8 @@ public class SparseInt2ShortMapInline  implements Int2ShortFunction {
 		if (key <= capacity)
 			return;
 		capacity = key + key/8 + SIZE_INCR;
+		if (capacity < 0 || capacity > 2000000000)
+			capacity = 2000000000;
 		bitmasks.size(1+capacity/CHUNK_SIZE);
 		valschunks.size(1+capacity/CHUNK_SIZE);
 	}
