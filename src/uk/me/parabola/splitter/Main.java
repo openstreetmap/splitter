@@ -441,12 +441,12 @@ public class Main {
 		w.println("# for each one.");
 		for (Area a : areas) {
 			w.println();
-			w.format("mapname: %d\n", a.getMapId());
+			w.format("mapname: %08d\n", a.getMapId());
 			if (a.getName() == null)
 				w.println("# description: OSM Map");
 			else
 				w.println("description: " + a.getName());
-			w.format("input-file: %d.osm.gz\n", a.getMapId());
+			w.format("input-file: %08d.osm.gz\n", a.getMapId());
 		}
 
 		w.println();
