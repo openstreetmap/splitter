@@ -498,8 +498,9 @@ public class BinaryMapWriter extends OSMWriter {
   public void finishWrite()
   {
     try {
-      serializer.processBatch();
-      serializer.close();
+		serializer.switchTypes();
+		serializer.processBatch();
+		serializer.close();
     }
     catch(IOException e) {
       System.out.println("Could not write end of file: " + e);
