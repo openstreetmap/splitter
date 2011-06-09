@@ -226,7 +226,11 @@ public class Main {
 		geoNamesFile = params.getGeonamesFile();
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
-		pbfOutput = params.isPbf();
+		String output = params.getOutput();
+		if(!output.equals("xml") && !output.equals("pbf")) {
+			System.err.println("The --output parameter must be either xml or pbf. Resetting to xml.");
+		}
+		pbfOutput = "pbf".equals(output);
 		
 		if (resolution < 1 || resolution > 24) {
 			System.err.println("The --resolution parameter must be a value between 1 and 24. Resetting to 13.");
