@@ -227,6 +227,11 @@ public class Main {
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
 		String output = params.getOutput();
+		// Remove warning and make the default pbf after a while.
+		if (output.equals("unset")) {
+			System.err.println("\n\n**** WARNING: the default output type has changed to pbf, use --output=xml for .osm.gz files\n");
+			output = "pbf";
+		}
 		if(!output.equals("xml") && !output.equals("pbf")) {
 			System.err.println("The --output parameter must be either xml or pbf. Resetting to xml.");
 		}
