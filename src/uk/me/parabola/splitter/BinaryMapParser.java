@@ -160,7 +160,7 @@ private void processWays(Way tmp)  {
 private void processRelations(Relation tmp)  {
 	relationCount++;
 	if (relationCount % RELATION_STATUS_UPDATE_THRESHOLD == 0) {
-		System.out.println(Utils.format(relationCount) + " ways processed... id="+tmp.getId());
+		System.out.println(Utils.format(relationCount) + " relations processed... id="+tmp.getId());
 	}
 }
 
