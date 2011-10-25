@@ -108,7 +108,7 @@ public class BinaryMapParser extends BinaryParser {
 				else if (i.getTypes(j) == Osmformat.Relation.MemberType.WAY)
 					etype = "way";
 				else if (i.getTypes(j) == Osmformat.Relation.MemberType.RELATION)
-					continue;
+					etype = "relation";
 				else
 					assert false; // TODO; Illegal file?
 
