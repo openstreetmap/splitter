@@ -394,7 +394,7 @@ public class Main {
 		for (String filename : filenames) {
 			System.out.println("Processing " + filename);
 			try {
-				if (filename.endsWith(".osm.pbf")) {
+				if (filename.endsWith(".pbf")) {
 					// Is it a binary file?
 					File file = new File(filename);
 					BlockInputStream blockinput = (new BlockInputStream(
@@ -415,9 +415,9 @@ public class Main {
 					}
 				}
 			} catch (FileNotFoundException e) {
-				e.printStackTrace();
+				System.out.printf("ERROR: file %s was not found\n", filename);
 			} catch (XmlPullParserException e) {
-				e.printStackTrace();
+				System.out.printf("ERROR: file %s is not a valid OSM XML file\n", filename);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
