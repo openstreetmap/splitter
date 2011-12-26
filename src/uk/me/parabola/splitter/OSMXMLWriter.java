@@ -13,7 +13,7 @@
 
 package uk.me.parabola.splitter;
 
-import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -91,7 +91,7 @@ public class OSMXMLWriter extends OSMWriter {
 	
 	public void write(Node node) throws IOException {
 		writeString("<node id='");
-		writeInt(node.getId());
+		writeLong(node.getId());
 		writeString("' lat='");
 		writeDouble(node.getLat());
 		writeString("' lon='");
@@ -107,12 +107,12 @@ public class OSMXMLWriter extends OSMWriter {
 
 	public void write(Way way) throws IOException {
 		writeString("<way id='");
-		writeInt(way.getId());
+		writeLong(way.getId());
 		writeString("'>\n");
-		IntArrayList refs = way.getRefs();
+		LongArrayList refs = way.getRefs();
 		for (int i = 0; i < refs.size(); i++) {
 			writeString("<nd ref='");
-			writeInt(refs.get(i));
+			writeLong(refs.get(i));
 			writeString("'/>\n");
 		}
 		if (way.hasTags())
@@ -122,7 +122,7 @@ public class OSMXMLWriter extends OSMWriter {
 
 	public void write(Relation rel) throws IOException {
 		writeString("<relation id='");
-		writeInt(rel.getId());
+		writeLong(rel.getId());
 		writeString("'>\n");
 		List<Relation.Member> memlist = rel.getMembers();
 		for (Relation.Member m : memlist) {
@@ -133,7 +133,7 @@ public class OSMXMLWriter extends OSMWriter {
 			writeString("<member type='");
 			writeAttribute(m.getType());
 			writeString("' ref='");
-			writeInt(m.getRef());
+			writeLong(m.getRef());
 			writeString("' role='");
 			if (m.getRole() != null) {
 				writeAttribute(m.getRole());
@@ -236,6 +236,17 @@ public class OSMXMLWriter extends OSMWriter {
 		checkFlush(11);
 		index += Convert.intToString(value, charBuf, index);
 	}
+
+	
+	private void writeLong(long value) throws IOException {
+		if (value < Integer.MAX_VALUE) writeInt ((int) value);
+		else {
+			checkFlush(20);
+			StringBuilder s = new StringBuilder(Long.toString(value));
+			writeString(s.toString());
+		}
+	}
+	
 
 	private void writeChar(char value) throws IOException {
 		checkFlush(1);

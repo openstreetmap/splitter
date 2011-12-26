@@ -51,7 +51,7 @@ public class SparseInt2ShortMapInline  implements Int2ShortFunction {
 	}
 	short []chunkMake() {
 		short out[] = new short[4];
-		Arrays.fill(out,(short)4);
+		Arrays.fill(out,(short) unassigned);
 		return out;
 		}
 	void chunkSet(short[] array, int index, short val) {
@@ -105,6 +105,9 @@ public class SparseInt2ShortMapInline  implements Int2ShortFunction {
 	}
 	
 	public boolean containsKey(int key) {
+		if (key < 0) 
+			return false;
+
 		int chunkid = key/CHUNK_SIZE;
 		int chunkoffset = key%CHUNK_SIZE;
 		if (chunkid >= valschunks.size())

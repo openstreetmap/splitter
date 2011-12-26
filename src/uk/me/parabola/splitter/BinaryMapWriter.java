@@ -255,7 +255,7 @@ public class BinaryMapWriter extends OSMWriter {
           Osmformat.Way.Builder bi = Osmformat.Way.newBuilder();
           bi.setId(i.getId());
           long lastid = 0;
-          for(int j : i.getRefs()) {
+          for(long j : i.getRefs()) {
             long id = j;
             bi.addRefs(id - lastid);
             lastid = id;
