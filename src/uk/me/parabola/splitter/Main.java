@@ -461,7 +461,7 @@ public class Main {
 			if (a.getName() == null)
 				w.println("# description: OSM Map");
 			else
-				w.println("description: " + a.getName());
+				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
 			if(pbfOutput)
 			  w.format("input-file: %08d.osm.pbf\n", a.getMapId());
 			else
