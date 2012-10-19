@@ -170,6 +170,15 @@ public class OSMXMLWriter extends OSMWriter {
 				case '<':
 					writeString("&lt;");
 					break;
+				case '\n':
+					writeString("&#xa;");
+					break;
+				case '\r':
+					writeString("&#xd;");
+					break;
+				case '\t':
+					writeString("&#9;");
+					break;
 				default:
 					writeChar(c);
 			}
