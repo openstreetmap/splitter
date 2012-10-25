@@ -58,9 +58,6 @@ public interface SplitterParams {
 	@Option(description = "The name of a kml file to write out the areas to. This is in addition to areas.list (which is always written out).")
 	String getWriteKml();
 
-	@Option(description = "Enables the old area subdivision algorithm in case of compatibility problems. This requires lots of memory! Deprecated, will be removed in a future version.")
-	boolean isLegacyMode();
-
 	@Option(defaultValue = "120", description = "Displays the amount of memory used by the JVM every --status-freq seconds. Set =0 to disable.")
 	int getStatusFreq();
 
@@ -70,7 +67,7 @@ public interface SplitterParams {
 	@Option(defaultValue = "auto", description = "The maximum number of threads used by splitter.")
 	ThreadCount getMaxThreads();
 	
-	@Option(defaultValue = "pbf", description = "The output type, either pbf, o5m  or xml.")
+	@Option(defaultValue = "pbf", description = "The output type, either pbf, o5m, or xml.")
 	String getOutput();
 
 	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")

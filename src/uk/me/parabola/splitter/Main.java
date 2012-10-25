@@ -99,9 +99,6 @@ public class Main {
 	private String geoNamesFile;
 	// How often (in seconds) to provide JVM status information. Zero = no information.
 	private int statusFreq;
-	// Whether to use the density map. Disabling this (not recommended) causes the splitter to
-	// revert to using legacy mode which takes MUCH more memory during phase one.
-	private boolean densityMap;
 
 	private String kmlOutputFile;
 	// The maximum number of threads the splitter should use.
@@ -282,10 +279,6 @@ public class Main {
 			maxAreasPerPass = 2048;
 		}
 		kmlOutputFile = params.getWriteKml();
-		densityMap = !params.isLegacyMode();
-		if (!densityMap) {
-			System.out.println("WARNING: Specifying --legacy-split will cause the first stage of the split to take much more memory! This option is considered deprecated and will be removed in a future build.");
-		}
 
 		maxThreads = params.getMaxThreads().getCount();
 		filenames = parser.getAdditionalParams();
@@ -314,7 +307,7 @@ public class Main {
 	 */
 	private AreaList calculateAreas() throws IOException, XmlPullParserException {
 
-		MapCollector pass1Collector = densityMap ? new DensityMapCollector(trim, resolution) : new NodeCollector();
+		MapCollector pass1Collector = new DensityMapCollector(trim, resolution); 
 		MapProcessor processor = pass1Collector;
 
 		processMap(processor);
