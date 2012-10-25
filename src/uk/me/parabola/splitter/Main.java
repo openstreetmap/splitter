@@ -23,19 +23,26 @@ import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
 import uk.me.parabola.splitter.geo.DummyCityFinder;
 
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Splitter for OSM files with the purpose of providing input files for mkgmap.
@@ -66,7 +73,7 @@ public class Main {
 	private int overlapAmount;
 
 	// The max number of nodes that will appear in a single file.
-	private int maxNodes;
+	private long maxNodes;
 
 	// The maximum resolution of the map to be produced by mkgmap. This is a value in the range
 	// 0-24. Higher numbers mean higher detail. The resolution determines how the tiles must
@@ -100,7 +107,16 @@ public class Main {
 	// The maximum number of threads the splitter should use.
 	private int maxThreads;
 	// The output type
-	private boolean pbfOutput;
+	private String outputType;
+	// a list of way or relation ids that should be handled specially
+	private String problemFile; 
+	private LongArrayList problemWays = new LongArrayList();
+	private LongArrayList problemRels = new LongArrayList();
+	
+	// for faster access on blocks in pbf files
+	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
+	// for faster access on blocks in o5m files
+	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>(); 
 	
 	public static void main(String[] args) {
 
@@ -187,8 +203,20 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-
-		writeAreas(areas);
+		OSMWriter[] allWriters = new OSMWriter[areas.size()];
+		for (int j = 0; j < allWriters.length; j++) {
+			Area area = areas.get(j);
+			OSMWriter w;
+			if ("pbf".equals(outputType)) 
+				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			else if ("o5m".equals(outputType))
+				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			else 
+				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			allWriters[j] = w;
+		}
+		
+		writeAreas(areas, allWriters);
 		writeArgsFile(areas);
 	}
 
@@ -227,16 +255,16 @@ public class Main {
 		geoNamesFile = params.getGeonamesFile();
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
-		String output = params.getOutput();
+		outputType = params.getOutput();
 		// Remove warning and make the default pbf after a while.
-		if (output.equals("unset")) {
+		if (outputType.equals("unset")) {
 			System.err.println("\n\n**** WARNING: the default output type has changed to pbf, use --output=xml for .osm.gz files\n");
-			output = "pbf";
+			outputType = "pbf";
 		}
-		if(!output.equals("xml") && !output.equals("pbf")) {
-			System.err.println("The --output parameter must be either xml or pbf. Resetting to xml.");
+		if(!outputType.equals("xml") && !outputType.equals("pbf") && !outputType.equals("o5m")) {
+			System.err.println("The --output parameter must be either xml or pbf or o5m. Resetting to xml.");
+			outputType = "xml";
 		}
-		pbfOutput = "pbf".equals(output);
 		
 		if (resolution < 1 || resolution > 24) {
 			System.err.println("The --resolution parameter must be a value between 1 and 24. Resetting to 13.");
@@ -274,6 +302,10 @@ public class Main {
 				e.printStackTrace();
 			}
 		}
+		problemFile = params.getProblemFile();
+		if (problemFile != null){
+			readProblemIds(problemFile);
+		}
 	}
 
 	/**
@@ -282,8 +314,8 @@ public class Main {
 	 */
 	private AreaList calculateAreas() throws IOException, XmlPullParserException {
 
-		MapCollector nodes = densityMap ? new DensityMapCollector(trim, resolution) : new NodeCollector();
-		MapProcessor processor = nodes;
+		MapCollector pass1Collector = densityMap ? new DensityMapCollector(trim, resolution) : new NodeCollector();
+		MapProcessor processor = pass1Collector;
 
 		processMap(processor);
 		//MapReader mapReader = processMap(processor);
@@ -299,8 +331,8 @@ public class Main {
 
 		System.out.println("Time: " + new Date());
 
-		Area exactArea = nodes.getExactArea();
-		SplittableArea splittableArea = nodes.getRoundedArea(resolution);
+		Area exactArea = pass1Collector.getExactArea();
+		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
 		System.out.println("Exact map coverage is " + exactArea);
 		System.out.println("Trimmed and rounded map coverage is " + splittableArea.getBounds());
 		System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
@@ -336,14 +368,34 @@ public class Main {
 	}
 
 	/**
-	 * Second pass, we have the areas so parse the file(s) again and write out each element
-	 * to the file(s) that should contain it.
+	 * Second pass, we have the areas so parse the file(s) again and calculate 
+	 * which ways and relations are written to multiple areas.
 	 *
-	 * @param areaList Area list determined on the first pass.
+	 * @param areas Area list determined on the first pass.
 	 */
-	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
-		System.out.println("Writing out split osm files " + new Date());
+	private void writeAreas(List<Area> areas, OSMWriter[] allWriters) throws IOException, XmlPullParserException {
+		DataStorer dataStorer = new DataStorer(allWriters);
+		if (problemWays.size() > 0 || problemRels.size() > 0){
+			MultiTileProcessor multiProcessor = new MultiTileProcessor(dataStorer, problemWays, problemRels);
+			// return memory to GC
+			problemRels = null;
+			problemWays = null;
+			
+			int pass = 0;
+			boolean done = false;
+			while(!done){
+				long startThisPass = System.currentTimeMillis();
+				++pass;
+				System.out.println("-----------------------------------");
+				System.out.println("Starting multi-tile analyses pass " + pass);
+				done = processMap(multiProcessor);
+				System.out.println("Multi-tile analyses pass " + pass + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
+			}
 
+			System.out.println("-----------------------------------");
+		}
+		System.out.println("Distributing data " + new Date());
+		
 		int numPasses = getAreasPerPass(areas.size());
 		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 
@@ -352,28 +404,21 @@ public class Main {
 		} else {
 			System.out.println("Processing " + areas.size() + " areas in a single pass");
 		}
-
 		for (int i = 0; i < numPasses; i++) {
-			OSMWriter[] currentWriters = new OSMWriter[Math.min(areasPerPass, areas.size() - i * areasPerPass)];
-			for (int j = 0; j < currentWriters.length; j++) {
-				Area area = areas.get(i * areasPerPass + j);
-				currentWriters[j] = pbfOutput ? new BinaryMapWriter(area, fileOutputDir) : new OSMXMLWriter(area, fileOutputDir);
-				currentWriters[j].initForWrite(area.getMapId(), overlapAmount);
-			}
+			int writerOffset = i * areasPerPass;
+			int numWritersThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
+			
+			SplitProcessor processor = new SplitProcessor(dataStorer, writerOffset, numWritersThisPass, maxThreads);
 
-			System.out.println("Starting pass " + (i + 1) + " of " + numPasses + ", processing " + currentWriters.length +
-							" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
-							areas.get(i * areasPerPass + currentWriters.length - 1).getMapId() + ')');
+			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numWritersThisPass +
+					" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
+					areas.get(i * areasPerPass + numWritersThisPass - 1).getMapId() + ')');
 
-			MapProcessor processor = new SplitProcessor(currentWriters, maxThreads);
-			processMap(processor);
-			//System.out.println("Wrote " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
-			//				Utils.format(mapReader.getWayCount()) + " ways, " +
-			//				Utils.format(mapReader.getRelationCount()) + " relations");
+			processMap(processor); 
 		}
 	}
 	
-	private void processMap(MapProcessor processor) throws XmlPullParserException {
+	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
 		// Create both an XML reader and a binary reader, Dispatch each input to the
 		// Appropriate parser.
 		OSMParser parser = new OSMParser(processor, mixed);
@@ -395,15 +440,33 @@ public class Main {
 		for (String filename : filenames) {
 			System.out.println("Processing " + filename);
 			try {
-				if (filename.endsWith(".pbf")) {
+				if (filename.endsWith(".o5m")) {
+					File file = new File(filename);
+					InputStream stream = new FileInputStream(file);
+					long[] skipArray = skipArrayMap.get(filename);
+					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
+					o5mParser.parse();
+					if (skipArray == null){
+						skipArray = o5mParser.getSkipArray();
+						skipArrayMap.put(filename, skipArray);
+					}
+				}
+				else if (filename.endsWith(".pbf")) {
 					// Is it a binary file?
 					File file = new File(filename);
+					ShortArrayList blockTypes = blockTypeMap.get(filename);
+					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
 					BlockInputStream blockinput = (new BlockInputStream(
-							new FileInputStream(file), new BinaryMapParser(processor)));
+							new FileInputStream(file), binParser));
 					try {
 						blockinput.process();
 					} finally {
 						blockinput.close();
+						if (blockTypes == null){
+							// remember this file 
+							blockTypes = binParser.getBlockList();
+							blockTypeMap.put(filename, blockTypes);
+						}
 					}
 				} else {
 					// No, try XML.
@@ -425,7 +488,8 @@ public class Main {
 				e.printStackTrace();
 			}
 		}
-		processor.endMap();
+		boolean done = processor.endMap();
+		return done;
 	}
 	
 	/**
@@ -462,13 +526,62 @@ public class Main {
 				w.println("# description: OSM Map");
 			else
 				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
-			if(pbfOutput)
-			  w.format("input-file: %08d.osm.pbf\n", a.getMapId());
+			if("pbf".equals(outputType))
+				  w.format("input-file: %08d.osm.pbf\n", a.getMapId());
+			else if("o5m".equals(outputType))
+				  w.format("input-file: %08d.o5m\n", a.getMapId());
 			else
 			  w.format("input-file: %08d.osm.gz\n", a.getMapId());
 		}
 
 		w.println();
 		w.close();
+	}
+	/** Read user defined problematic relations and ways */
+	private void readProblemIds(String problemFileName) {
+		File problemFile = new File(problemFileName);
+		if (problemFile.exists()) {
+			try {
+				InputStream fileStream = new FileInputStream(problemFile);
+				LineNumberReader problemReader = new LineNumberReader(
+						new InputStreamReader(fileStream));
+				Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
+				Pattern commentSplitter = Pattern.compile(Pattern.quote("#"));
+				String problemLine;
+				String[] items;
+				while ((problemLine = problemReader.readLine()) != null) {
+					items = commentSplitter.split(problemLine);
+					if (items.length == 0 || items[0].trim().isEmpty()){
+						// comment or empty line
+						continue;
+					}
+					items = csvSplitter.split(items[0].trim());
+					if (items.length != 2) {
+						System.out.println("Invalid format in problem file, line number " + problemReader.getLineNumber() + ": "   
+								+ problemLine);
+						continue;
+					}
+					long id = 0;
+					try{
+						id = Long.parseLong(items[1]);
+					}
+					catch(NumberFormatException exp){
+						System.out.println("Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
+								+ problemLine + exp);
+					}
+					if ("way".equals(items[0]))
+						problemWays.add(id);
+					else if ("rel".equals(items[0]))
+						problemRels.add(id);
+					else 
+						System.out.println("Error in problem file: Type not way or relation, line number " + + problemReader.getLineNumber() + ": "   
+								+ problemLine);
+				}
+				problemReader.close();
+			} catch (IOException exp) {
+				System.out.println("Cannot read problem file " + problemFile +  
+						exp);
+			}
+		} 		
 	}
 }

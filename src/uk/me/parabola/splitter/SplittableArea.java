@@ -26,5 +26,5 @@ public interface SplittableArea {
 	 * @return a list of areas, each containing no more than {@code maxNodes} nodes.
 	 * Each area returned must be aligned to the appropriate overview map resolution.
 	 */
-	List<Area> split(int maxNodes);
+	List<Area> split(long maxNodes);
 }

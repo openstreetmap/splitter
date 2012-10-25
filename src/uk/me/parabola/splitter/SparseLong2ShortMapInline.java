@@ -1,8 +1,14 @@
 package uk.me.parabola.splitter;
 
 import it.unimi.dsi.bits.Fast;
+
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map.Entry;
+
 
 /**
  * SparseLong2ShortMapInline implements SparseLong2ShortMapFunction 
@@ -44,7 +50,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	static final long CHUNK_ID_MASK     = ~TOP_ID_MASK; 		// last 28 bits of a long
 
 	static final long INVALID_CHUNK_ID = 1L; // must NOT be divisible by CHUNK_SIZE 
-	static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); // number of entries addressed by one topMap entry 
+	public static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); // number of entries addressed by one topMap entry 
 
 	static final int CHUNK_MASK_SIZE = 4;	// number of chunk elements needed to store the chunk mask
 	static final int ONE_VALUE_CHUNK_SIZE = CHUNK_MASK_SIZE+2; 
@@ -54,7 +60,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 	/** What to return on unassigned indices */
 	private short unassigned = -1;
-	private int size;
+	private long size;
 
 	private long oldChunkId = INVALID_CHUNK_ID; 
 	private short [] oldChunk = null; 
@@ -78,15 +84,11 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 * 						
 	 */
 	SparseLong2ShortMapInline() {
-		// good chunk length is a value that gives (12+ 2 * chunk.length) % 8 == 0
-		// that means chunk.length values 6,10,14,..,66 are nice
-		for (int i=0; i<paddedLen.length; i++){
-			int plen = i;
-			while ((plen+2) % 4 != 0)  plen++;
-			paddedLen[i] = Math.min(plen, CHUNK_SIZE+CHUNK_MASK_SIZE);
-		}
 		clear();
-
+	}
+	SparseLong2ShortMapInline(DataInputStream dis) throws IOException  {
+		clear();
+		read(dis);
 	}
 
 	/**
@@ -295,7 +297,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		short out;
 		if (oldChunkId == chunkId){
 			out = currentChunk[chunkoffset];
-				currentChunk[chunkoffset] = val;
+			currentChunk[chunkoffset] = val;
 			if (out == unassigned)
 				size++;
 			return out;
@@ -315,7 +317,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		}
 		out = currentChunk[chunkoffset];
 		oldChunkId = chunkId;
-			currentChunk[chunkoffset] = val;
+		currentChunk[chunkoffset] = val;
 		if (out == unassigned)
 			size++;
 		return out;
@@ -349,14 +351,21 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 	@Override
 	public void clear() {
-			System.out.println("Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
+		System.out.println("Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
+		// good chunk length is a value that gives (12+ 2 * chunk.length) % 8 == 0
+		// that means chunk.length values 6,10,14,..,66 are nice
+		for (int i=0; i<paddedLen.length; i++){
+			int plen = i;
+			while ((plen+2) % 4 != 0)  plen++;
+			paddedLen[i] = Math.min(plen, CHUNK_SIZE+CHUNK_MASK_SIZE);
+		}
 		topMap = new HashMap<Long, short[][]>();
 		countChunkLen = new long[CHUNK_SIZE + CHUNK_MASK_SIZE + 1 ]; // used for statistics
 		size = 0;
 	}
 
 	@Override
-	public int size() {
+	public long size() {
 		return size;
 	}
 
@@ -375,17 +384,17 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 		short[][]  t = topMap.get(topID);
 		if (t == null)
-				return null;
+			return null;
 		return t[chunkid];
-		}
+	}
 
 	private void putChunk (long key, short[] chunk) {
 		long topID = key & TOP_ID_MASK;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 		short[][]  largeVector = topMap.get(topID);
-			if (largeVector == null){
+		if (largeVector == null){
 			largeVector = new short[LARGE_VECTOR_SIZE][];
-				topMap.put(topID, largeVector);
+			topMap.put(topID, largeVector);
 		}
 		largeVector[chunkid] = chunk;
 	}
@@ -427,6 +436,8 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		long bytesAllChunks = 0;
 		long pctusage = 0;
 		int i;
+		if (msgLevel > 0)
+			System.out.println("Number of stored ids: " + Utils.format(size()));
 		for (i=6; i <=CHUNK_SIZE + CHUNK_MASK_SIZE; i+=4) {
 			usedChunks += countChunkLen[i];
 			long bytes = countChunkLen[i] * (12+i*2); // no padding in our chunks 
@@ -449,8 +460,81 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 				System.out.print(", times fully expanded: " + Utils.format(expanded));
 			System.out.println();
 		}
-			pctusage = Math.min(100, 1 + Math.round((float)usedChunks*100/(topMap.size()*LARGE_VECTOR_SIZE))) ;
+		pctusage = Math.min(100, 1 + Math.round((float)usedChunks*100/(topMap.size()*LARGE_VECTOR_SIZE))) ;
 		System.out.println("Map details: HashMap -> " + topMap.size() + " vectors for "+ Utils.format(usedChunks) + " chunks(vector usage < " + pctusage + "%)");
+	}
+	
+	
+	/**
+	 * Save the map 
+	 * @param dos the already opened DataOutputStream
+	 * @throws IOException 
+	 */
+	public void save(DataOutputStream dos) throws IOException {
+		dos.writeUTF("SL2S");
+		dos.writeInt(0); // version
+		dos.writeShort(unassigned);
+		dos.writeLong(size);
+		dos.writeLong(uncompressedLen);
+		dos.writeLong(compressedLen);
+		dos.writeInt(countChunkLen.length);
+		for (long len: countChunkLen){
+			dos.writeLong(len);
 		}
+		
+		dos.writeInt(topMap.size());
+		for (Entry <Long, short[][]> entry: topMap.entrySet()){
+			long topId = entry.getKey();
+			dos.writeLong(topId);
+			short[][]  largeVector = entry.getValue();	
+			int cnt = 0;
+			for (int i = 0;  i < LARGE_VECTOR_SIZE; i++){
+				if (largeVector[i] != null) cnt++;
+			}
+			dos.writeInt(cnt);
+			for (int i = 0;  i < LARGE_VECTOR_SIZE; i++){
+				short[] chunk = largeVector[i]; 
+				if (chunk != null){
+					dos.writeInt(i);
+					int len = chunk.length;
+					dos.writeShort((short) len);
+					for (int j = 0; j < len; j++){
+						dos.writeShort(chunk[j]);
+					}
+				}
+			}
+		}
+	}
+
+	private void read(DataInputStream dis) throws IOException {
+		String id = dis.readUTF();
+		int version = dis.readInt();
+		if (version != 0 || "SL2S".equals(id) == false) 
+			throw new IOException("invalid header");
+		unassigned = dis.readShort(); 
+		size = dis.readInt();
+		uncompressedLen = dis.readLong();
+		compressedLen = dis.readLong();
+		int len = dis.readInt();
+		for (int i = 0; i < len; i++)
+			countChunkLen[i] = dis.readLong();
+		int topNum = dis.readInt();
+		for (int v = 0; v < topNum; v++){
+			long topId = dis.readLong();
+			int cnt = dis.readInt();
+			short[][]  largeVector = new short[LARGE_VECTOR_SIZE][];
+			while (cnt > 0){
+				--cnt;
+				int i = dis.readInt();
+				int chunkLen = dis.readShort();
+				short [] chunk = new short[chunkLen];
+				for (int j = 0; j < chunkLen; j++){
+					chunk[j] = dis.readShort();
+				}
+				largeVector[i] = chunk;
+			}
+			topMap.put(topId, largeVector);
+		}
+	}
 }
 

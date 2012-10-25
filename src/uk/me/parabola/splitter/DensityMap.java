@@ -23,9 +23,9 @@ package uk.me.parabola.splitter;
  */
 public class DensityMap {
 	private final int width, height, shift;
-	private final int[][] nodeMap;
+	private final long[][] nodeMap;
 	private Area bounds;
-	private int totalNodeCount;
+	private long totalNodeCount;
 	private boolean trim;
 
 	/**
@@ -38,10 +38,10 @@ public class DensityMap {
 		assert resolution >=1 && resolution <= 24;
 		shift = 24 - resolution;
 
-		bounds = RoundingUtils.round(area, resolution);
+		bounds = RoundingUtils.round(area, resolution, "move");
 		height = bounds.getHeight() >> shift;
 		width = bounds.getWidth() >> shift;
-		nodeMap = new int[width][];
+		nodeMap = new long[width][];
 	}
 
 	public int getShift() {
@@ -60,7 +60,7 @@ public class DensityMap {
 		return height;
 	}
 
-	public int addNode(int lat, int lon) {
+	public long addNode(int lat, int lon) {
 		if (!bounds.contains(lat, lon))
 			return 0;
 
@@ -73,15 +73,15 @@ public class DensityMap {
 			y--;
 
 		if (nodeMap[x] == null)
-			nodeMap[x] = new int[height];
+			nodeMap[x] = new long[height];
 		return ++nodeMap[x][y];
 	}
 
-	public int getNodeCount() {
+	public long getNodeCount() {
 		return totalNodeCount;
 	}
 
-	public int getNodeCount(int x, int y) {
+	public long getNodeCount(int x, int y) {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
 	}
 
@@ -116,7 +116,7 @@ public class DensityMap {
 			if (startY == 0 && maxY == height) {
 				result.nodeMap[x] = nodeMap[startX + x];
 			} else if (nodeMap[startX + x] != null) {
-				result.nodeMap[x] = new int[maxY];
+				result.nodeMap[x] = new long[maxY];
 				try {
 					System.arraycopy(nodeMap[startX + x], startY, result.nodeMap[x], 0, maxY);
 				} catch (ArrayIndexOutOfBoundsException e) {
@@ -164,7 +164,7 @@ public class DensityMap {
 		}
 
 		Area trimmedArea = new Area(yToLat(minY), xToLon(minX), yToLat(maxY), xToLon(maxX));
-		Area rounded = RoundingUtils.round(trimmedArea, 24 - shift);
+		Area rounded = RoundingUtils.round(trimmedArea, 24 - shift, "move");
 
 		// Make sure the rounding hasn't pushed the area outside its original boundaries
 		int latAdjust = Math.max(0, rounded.getMaxLat() - area.getMaxLat());
@@ -179,7 +179,7 @@ public class DensityMap {
 	}
 
 	private boolean isEmptyX(int x, int start, int end) {
-		int[] array = nodeMap[x];
+		long[] array = nodeMap[x];
 		if (array != null) {
 			for (int y = start; y < end; y++) {
 				if (array[y] != 0)

@@ -27,7 +27,7 @@ public class SplittableNodeArea implements SplittableArea {
 	private final int resolution;
 	private final Area bounds;
 	private SplitIntList coords;
-	private int size;
+	private long size;
 
 	public SplittableNodeArea(Area bounds, int resolution) {
 		this(bounds, new SplitIntList(), resolution);
@@ -55,7 +55,7 @@ public class SplittableNodeArea implements SplittableArea {
 		coords.add(co);
 	}
 
-	public int getSize() {
+	public long getSize() {
 		if (coords != null)
 			return coords.size();
 		else
@@ -71,7 +71,7 @@ public class SplittableNodeArea implements SplittableArea {
 	 * @return An array of areas.  Each will have less than the specified number of nodes.
 	 */
 	@Override
-	public List<Area> split(int maxNodes) {
+	public List<Area> split(long maxNodes) {
 		if (coords == null || coords.size() == 0)
 			return Collections.emptyList();
 
@@ -115,7 +115,7 @@ public class SplittableNodeArea implements SplittableArea {
 		int right = bounds.getMaxLong();
 
 	  SplitIntList.Iterator it = coords.getIterator();
-		int count = 0;
+		long count = 0;
 		long total = 0;
 		while (it.hasNext()) {
 			int val = it.next();

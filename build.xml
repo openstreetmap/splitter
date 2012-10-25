@@ -73,14 +73,14 @@
   </target>
 
   <target name="compile" depends="prepare" description="main compilation">
-    <javac srcdir="${src}" destdir="${build.classes}" debug="yes">
+    <javac srcdir="${src}" destdir="${build.classes}" debug="yes" includeantruntime="false">
       <include name="**/*.java"/>
       <classpath refid="classpath"/>
     </javac>
   </target>
 
   <target name="compile.tests" depends="prepare" description="test compilation">
-    <javac srcdir="${test}" destdir="${build.test-classes}" debug="yes">
+    <javac srcdir="${test}" destdir="${build.test-classes}" debug="yes" includeantruntime="false">
       <include name="**/*.java"/>
       <classpath refid="test.classpath"/>
     </javac>
@@ -159,7 +159,7 @@
   </target>
 
   <!-- Main -->
-  <target name="build" depends="compile">
+  <target name="build" depends="compile,compile.tests,run.tests">
     <copy todir="${build.classes}">
       <fileset dir="${resources}">
         <include name="*.csv"/>

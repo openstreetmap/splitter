@@ -49,7 +49,7 @@ public class SplittableDensityArea implements SplittableArea {
 	
 	
 	@Override
-	public List<Area> split(int maxNodes) {
+	public List<Area> split(long maxNodes) {
 		if (densities == null || densities.getNodeCount() == 0)
 			return Collections.emptyList();
 
@@ -129,7 +129,7 @@ public class SplittableDensityArea implements SplittableArea {
 
 		for (int x = 0; x < densities.getWidth(); x++) {
 			for (int y = 0; y < densities.getHeight(); y++) {
-				int count = densities.getNodeCount(x, y);
+				long count = densities.getNodeCount(x, y);
 				sum += count;
 				weightedSum += (count * x);
 			}
@@ -157,7 +157,7 @@ public class SplittableDensityArea implements SplittableArea {
 		long sum = 0, weightedSum = 0;
 		for (int y = 0; y < densities.getHeight(); y++) {
 			for (int x = 0; x < densities.getWidth(); x++) {
-				int count = densities.getNodeCount(x, y);
+				long count = densities.getNodeCount(x, y);
 				sum += count;
 				weightedSum += (count * y);
 			}

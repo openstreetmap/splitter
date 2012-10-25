@@ -70,6 +70,9 @@ public interface SplitterParams {
 	@Option(defaultValue = "auto", description = "The maximum number of threads used by splitter.")
 	ThreadCount getMaxThreads();
 	
-	@Option(defaultValue = "pbf", description = "The output type, either pbf or xml.")
+	@Option(defaultValue = "pbf", description = "The output type, either pbf, o5m  or xml.")
 	String getOutput();
+
+	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")
+	String getProblemFile();
 }

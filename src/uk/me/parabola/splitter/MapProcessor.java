@@ -26,6 +26,30 @@ public interface MapProcessor {
 	boolean isStartNodeOnly();
 
 	/**
+	 * (performance) Returns true if the reader is allowed to ignore tags
+	 * while reading OSM data
+	 */
+	
+	boolean skipTags();
+	/**
+	 * (performance) Returns true if the reader is allowed to skip nodes
+	 * while reading OSM data
+	 */
+	boolean skipNodes();
+
+	/**
+	 * (performance) Returns true if the reader is allowed to skip ways 
+	 * while reading OSM data
+	 */
+	boolean skipWays();
+	/**
+	 * (performance) Returns true if the reader is allowed to skip relations
+	 * while reading OSM data
+	 */
+	boolean skipRels();
+
+
+	/**
 	 * Called when the bound tag is encountered. Note that it is possible
 	 * for this to be called multiple times, eg if there are multiple OSM
 	 * files provided as input.
@@ -39,13 +63,21 @@ public interface MapProcessor {
 	*/
 	void processNode(Node n);
 
+	/**
+	 * Called when a whole way has been processed. 
+	*/
 	void processWay(Way w);
 	
-	void processRelation(Relation w);
+	/**
+	 * Called when a whole relation has been processed. 
+	*/
+	void processRelation(Relation r);
 
 
 	/**
-	 * Called once the entire map has finished processing.
+	 * Called when all input files were processed,
+	 * it returns false to signal that the same instance of the processor
+	 * should be called again with a new reader for all these input files.
 	 */
-	void endMap();
+	boolean endMap();
 }

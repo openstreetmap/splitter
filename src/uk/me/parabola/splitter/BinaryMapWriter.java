@@ -431,16 +431,12 @@ public class BinaryMapWriter extends OSMWriter {
     }
   }
 
-  public BinaryMapWriter(Area bounds, File outputDir)
-  {
-    super(bounds, outputDir);
+  public BinaryMapWriter(Area bounds, File outputDir, int mapId, int extra) {
+    super(bounds, outputDir, mapId, extra);
   }
 
-  public void initForWrite(int mapId, int extra)
+  public void initForWrite()
   {
-    extendedBounds = new Area(bounds.getMinLat() - extra, bounds.getMinLong()
-        - extra, bounds.getMaxLat() + extra, bounds.getMaxLong() + extra);
-
     String filename = new Formatter()
         .format(Locale.ROOT, "%08d.osm.pbf", mapId).toString();
     try {

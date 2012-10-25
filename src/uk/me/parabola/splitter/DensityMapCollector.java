@@ -16,8 +16,7 @@ package uk.me.parabola.splitter;
 /**
  * Builds up a density map.
  */
-class DensityMapCollector implements MapCollector {
-
+class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 	private final DensityMap densityMap;
 	private final MapDetails details = new MapDetails();
 	private Area bounds;
@@ -38,6 +37,18 @@ class DensityMapCollector implements MapCollector {
 	public boolean isStartNodeOnly() {
 		return true;
 	}
+	@Override
+	public boolean skipTags() {
+		return true;
+	}
+	@Override
+	public boolean skipWays() {
+		return true;
+	}
+	@Override
+	public boolean skipRels() {
+		return true;
+	}
 
 	@Override
 	public void boundTag(Area bounds) {
@@ -56,15 +67,6 @@ class DensityMapCollector implements MapCollector {
 	}
 
 	@Override
-	public void processWay(Way w) {}
-
-	@Override
-	public void processRelation(Relation r) {}
-
-	@Override
-	public void endMap() {}
-
-	@Override
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
@@ -75,7 +77,7 @@ class DensityMapCollector implements MapCollector {
 
 	@Override
 	public SplittableArea getRoundedArea(int resolution) {
-		Area bounds = RoundingUtils.round(getExactArea(), resolution);
+		Area bounds = RoundingUtils.round(getExactArea(), resolution, "blow");
 		return new SplittableDensityArea(densityMap.subset(bounds));
 	}
 }

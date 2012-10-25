@@ -38,15 +38,11 @@ public class OSMXMLWriter extends OSMWriter {
 	private Writer writer;
 	
 
-	public OSMXMLWriter(Area bounds, File outputDir) {
-	  super(bounds, outputDir);
+	public OSMXMLWriter(Area bounds, File outputDir, int mapId, int extra) {
+		super(bounds, outputDir, mapId, extra);
 	}
 
-	public void initForWrite(int mapId, int extra) {
-		extendedBounds = new Area(bounds.getMinLat() - extra,
-						bounds.getMinLong() - extra,
-						bounds.getMaxLat() + extra,
-						bounds.getMaxLong() + extra);
+	public void initForWrite() {
 
 		String filename = new Formatter().format(Locale.ROOT, "%08d.osm.gz", mapId).toString();
 		try {

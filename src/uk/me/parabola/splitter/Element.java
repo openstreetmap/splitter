@@ -50,6 +50,9 @@ public class Element {
 		public String getValue() {
 			return value;
 		}
+		public String toString (){
+			return key + "=" + value;
+		}
 		final public String key,value;
 	}
 	

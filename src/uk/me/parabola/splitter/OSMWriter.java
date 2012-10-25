@@ -21,18 +21,31 @@ public abstract class OSMWriter {
 	protected final Area bounds;
 	protected Area extendedBounds;
 	protected File outputDir;
+	protected final int mapId;
 	
 
-	public OSMWriter(Area bounds, File outputDir) {
+	public OSMWriter(Area bounds, File outputDir, int mapId, int extra) {
+		this.mapId = mapId;
 		this.bounds = bounds;
 		this.outputDir = outputDir;
+		extendedBounds = new Area(bounds.getMinLat() - extra,
+				bounds.getMinLong() - extra,
+				bounds.getMaxLat() + extra,
+				bounds.getMaxLong() + extra);
 	}
 
+	public Area getBounds() {
+		return bounds;
+	}
+	
 	public Area getExtendedBounds() {
 		return extendedBounds;
 	}
+	public int getMapId(){
+		return mapId;
+	}
 	
-	public abstract void initForWrite(int mapId, int extra);
+	public abstract void initForWrite();
 
 	public abstract void finishWrite();
 

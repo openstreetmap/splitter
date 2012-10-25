@@ -16,7 +16,7 @@ package uk.me.parabola.splitter;
 /**
  * Collects node coordinates in a map.
  */
-class NodeCollector implements MapCollector {
+class NodeCollector extends AbstractMapProcessor implements MapCollector{
 
 	private SplitIntList coords = new SplitIntList();
 	private final MapDetails details = new MapDetails();
@@ -24,6 +24,18 @@ class NodeCollector implements MapCollector {
 
 	@Override
 	public boolean isStartNodeOnly() {
+		return true;
+	}
+	@Override
+	public boolean skipTags() {
+		return true;
+	}
+	@Override
+	public boolean skipWays() {
+		return true;
+	}
+	@Override
+	public boolean skipRels() {
 		return true;
 	}
 
@@ -49,16 +61,7 @@ class NodeCollector implements MapCollector {
 		details.addToBounds(glat, glon);
 	}
 
-	@Override
-	public void processWay(Way w) {}
 
-	@Override
-	public void processRelation(Relation r) {}
-
-	@Override
-	public void endMap() {}
-
-	@Override
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
@@ -67,9 +70,8 @@ class NodeCollector implements MapCollector {
 		}
 	}
 
-	@Override
 	public SplittableArea getRoundedArea(int resolution) {
-		Area bounds = RoundingUtils.round(getExactArea(), resolution);
+		Area bounds = RoundingUtils.round(getExactArea(), resolution, "blow");
 		SplittableArea result = new SplittableNodeArea(bounds, coords, resolution);
 		coords = null;
 		return result;

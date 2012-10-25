@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009.
+ * Copyright (c) 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -13,9 +13,10 @@
 
 package uk.me.parabola.splitter;
 
-public interface MapCollector extends MapProcessor {
-	Area getExactArea();
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
-	SplittableArea getRoundedArea(int resolution);
-
+public class WriterGridResult{
+	ShortArrayList l;
+	boolean testNeeded;
 }
+

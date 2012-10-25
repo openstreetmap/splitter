@@ -26,7 +26,7 @@ public class SplitIntList {
 
 	private final int segmentSize;
 	private int[][] segments = new int[0][];
-	private int size;
+	private long size;
 
 	public SplitIntList() {
 		this(DEFAULT_SEGMENT_SIZE);
@@ -38,14 +38,14 @@ public class SplitIntList {
 
 	public void add(int value) {
 		ensureCapacity();
-		segments[segments.length - 1][size++ % segmentSize] = value;
+		segments[segments.length - 1][(int)(size++ % segmentSize)] = value;
 	}
 
 	public int get(int i) {
 		return segments[i / segmentSize][i % segmentSize];
 	}
 
-	public int size() {
+	public long size() {
 		return size;
 	}
 

@@ -59,9 +59,10 @@ public class RoundingUtils {
 	 *
 	 * @param b the area to round
 	 * @param resolution the map resolution to align the borders at
+	 * @param method either "blow" or "move" 
 	 * @return the rounded area
 	 */
-	static Area round(Area b, int resolution) {
+	static Area round(Area b, int resolution, String  method) {
 		int shift = 24 - resolution;
 		int alignment = 1 << shift;
 		int doubleAlignment = alignment << 1;
@@ -71,7 +72,7 @@ public class RoundingUtils {
 		int minLat = Math.max(b.getMinLat(), Utils.toMapUnit(-85.0d));
 		int maxLat = Math.min(b.getMaxLat(), Utils.toMapUnit(85.0d));
 
-		int roundedMinLat = roundUp(minLat, shift);
+		int roundedMinLat = ("blow".equals(method)) ? roundDown(minLat, shift) : roundUp(minLat, shift);
 		int roundedMaxLat = roundUp(maxLat, shift);
 		if ((roundedMinLat & alignment) != (roundedMaxLat & alignment)) {
 			// The new height isn't a multiple of twice the alignment. Fix it by pushing
@@ -87,7 +88,7 @@ public class RoundingUtils {
 		assert (roundedMaxLat - roundedMinLat) % doubleAlignment == 0 : "The area's height is not a multiple of " + doubleAlignment;
 
 		int roundedMinLon = roundDown(b.getMinLong(), shift);
-		int roundedMaxLon = roundDown(b.getMaxLong(), shift);
+		int roundedMaxLon = ("blow".equals(method)) ? roundUp(b.getMaxLong(), shift) : roundDown(b.getMaxLong(), shift);
 		if ((roundedMinLon & alignment) != (roundedMaxLon & alignment)) {
 			// The new width isn't a multiple of twice the alignment. Fix it by pushing
 			// the tile edge that moved the least out by another 'alignment' units.
