@@ -297,7 +297,8 @@ public class Main {
 		}
 		problemFile = params.getProblemFile();
 		if (problemFile != null){
-			readProblemIds(problemFile);
+			if (!readProblemIds(problemFile))
+				System.exit(-1);
 		}
 	}
 
@@ -531,50 +532,60 @@ public class Main {
 		w.close();
 	}
 	/** Read user defined problematic relations and ways */
-	private void readProblemIds(String problemFileName) {
+	private boolean readProblemIds(String problemFileName) {
 		File problemFile = new File(problemFileName);
-		if (problemFile.exists()) {
-			try {
-				InputStream fileStream = new FileInputStream(problemFile);
-				LineNumberReader problemReader = new LineNumberReader(
-						new InputStreamReader(fileStream));
-				Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
-				Pattern commentSplitter = Pattern.compile(Pattern.quote("#"));
-				String problemLine;
-				String[] items;
-				while ((problemLine = problemReader.readLine()) != null) {
-					items = commentSplitter.split(problemLine);
-					if (items.length == 0 || items[0].trim().isEmpty()){
-						// comment or empty line
-						continue;
-					}
-					items = csvSplitter.split(items[0].trim());
-					if (items.length != 2) {
-						System.out.println("Invalid format in problem file, line number " + problemReader.getLineNumber() + ": "   
-								+ problemLine);
-						continue;
-					}
-					long id = 0;
-					try{
-						id = Long.parseLong(items[1]);
-					}
-					catch(NumberFormatException exp){
-						System.out.println("Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
-								+ problemLine + exp);
-					}
-					if ("way".equals(items[0]))
-						problemWays.add(id);
-					else if ("rel".equals(items[0]))
-						problemRels.add(id);
-					else 
-						System.out.println("Error in problem file: Type not way or relation, line number " + + problemReader.getLineNumber() + ": "   
-								+ problemLine);
+		boolean ok = true;
+
+		if (!problemFile.exists()) {
+			System.out.println("Error: problem file doesn't exist: " + problemFile);  
+			return false;
+		}
+		try {
+			InputStream fileStream = new FileInputStream(problemFile);
+			LineNumberReader problemReader = new LineNumberReader(
+					new InputStreamReader(fileStream));
+			Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
+			Pattern commentSplitter = Pattern.compile(Pattern.quote("#"));
+			String problemLine;
+			String[] items;
+			while ((problemLine = problemReader.readLine()) != null) {
+				items = commentSplitter.split(problemLine);
+				if (items.length == 0 || items[0].trim().isEmpty()){
+					// comment or empty line
+					continue;
 				}
-				problemReader.close();
-			} catch (IOException exp) {
-				System.out.println("Cannot read problem file " + problemFile +  
-						exp);
+				items = csvSplitter.split(items[0].trim());
+				if (items.length != 2) {
+					System.out.println("Error: Invalid format in problem file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					ok = false;
+					continue;
+				}
+				long id = 0;
+				try{
+					id = Long.parseLong(items[1]);
+				}
+				catch(NumberFormatException exp){
+					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
+							+ problemLine + exp);
+					ok = false;
+				}
+				if ("way".equals(items[0]))
+					problemWays.add(id);
+				else if ("rel".equals(items[0]))
+					problemRels.add(id);
+				else {
+					System.out.println("Error in problem file: Type not way or relation, line number " + + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					ok = false;
+				}
 			}
-		} 		
+			problemReader.close();
+		} catch (IOException exp) {
+			System.out.println("Error: Cannot read problem file " + problemFile +  
+					exp);
+			return false;
+		}
+		return ok;
 	}
 }

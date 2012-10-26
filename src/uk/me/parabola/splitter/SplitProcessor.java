@@ -239,33 +239,35 @@ class SplitProcessor extends AbstractMapProcessor {
 		WriterGridResult writerCandidates = grid.get(currentNode);
 		Integer multiTileWriterIdx = dataStorer.getSpecialNodeWriters().get(currentNode.getId());
 		
-		if (writerCandidates == null) {
+		if (writerCandidates == null && multiTileWriterIdx == null)  {
 			return;
 		}
-		if (writerCandidates.l.size() > 1 || multiTileWriterIdx != null)
+		if (multiTileWriterIdx != null || writerCandidates.l.size() > 1)
 			usedWriters.clear();
-		for (int i = 0; i < writerCandidates.l.size(); i++) {
-			int n = writerCandidates.l.get(i);
-			if (n < writerOffset || n > lastWriter)
-				continue;
-			OSMWriter w = writers[n];
-			boolean found;
-			if (writerCandidates.testNeeded){
-				found = w.nodeBelongsToThisArea(currentNode);
-				//++countFullTest;
-			}
-			else{ 
-				found = true;
-				//++countQuickTest;
-			}
-			if (found) {
-				usedWriters.set(n);
-				++countWriters;
-				lastUsedWriter = (short) n;
-				if (maxThreads > 1) {
-					addToWorkingQueue(n, currentNode);
-				} else {
-					w.write(currentNode);
+		if (writerCandidates != null){
+			for (int i = 0; i < writerCandidates.l.size(); i++) {
+				int n = writerCandidates.l.get(i);
+				if (n < writerOffset || n > lastWriter)
+					continue;
+				OSMWriter w = writers[n];
+				boolean found;
+				if (writerCandidates.testNeeded){
+					found = w.nodeBelongsToThisArea(currentNode);
+					//++countFullTest;
+				}
+				else{ 
+					found = true;
+					//++countQuickTest;
+				}
+				if (found) {
+					usedWriters.set(n);
+					++countWriters;
+					lastUsedWriter = (short) n;
+					if (maxThreads > 1) {
+						addToWorkingQueue(n, currentNode);
+					} else {
+						w.write(currentNode);
+					}
 				}
 			}
 		}
