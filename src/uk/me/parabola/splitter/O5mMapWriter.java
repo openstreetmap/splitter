@@ -35,7 +35,7 @@ import uk.me.parabola.splitter.Relation.Member;
  * @author GerdP
  *
  */
-public class O5mMapWriter extends OSMWriter {
+public class O5mMapWriter extends AbstractOSMWriter{
 	// O5M data set constants
 	private static final int NODE_DATASET = 0x10;
 	private static final int WAY_DATASET = 0x11;
@@ -90,11 +90,6 @@ public class O5mMapWriter extends OSMWriter {
 	
 	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra) {
 		super(bounds, outputDir, mapId, extra);
-		extendedBounds = new Area(bounds.getMinLat() - extra,
-				bounds.getMinLong() - extra,
-				bounds.getMaxLat() + extra,
-				bounds.getMaxLong() + extra);
-		
 	}
 
 	private void reset() throws IOException{
@@ -173,10 +168,7 @@ public class O5mMapWriter extends OSMWriter {
 		}
 	}
 
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
-	
+	@Override
 	public void write(Node node) throws IOException {
 		if (isFirstNode){
 			isFirstNode = false;

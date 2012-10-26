@@ -17,7 +17,6 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
-import java.util.HashSet;
 
 /**
  * Maps a BitSet containing the used writers to a short value.  
@@ -33,7 +32,6 @@ public class WriterDictionaryShort{
 	private final ArrayList<ShortArrayList> arrays; 
 	private final int numOfWriters;
 	private final HashMap<BitSet, Short> index;
-	private final HashSet<Short> simpleNeighbours = new HashSet<Short>();
 	
 	/** 
 	 * Create a dictionary for a given array of writers
@@ -58,10 +56,9 @@ public class WriterDictionaryShort{
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
-			rectangles.add(writers[i].bounds);
+			rectangles.add(writers[i].getBounds());
 			writerSets.add(b);
 		}
-		findSimpleNeigbours(rectangles, writerSets);
 	}
 	
 	/**
@@ -91,57 +88,6 @@ public class WriterDictionaryShort{
 		return combiIndex;
 	}
 
-	/**
-	 * find those areas that build rectangles when they are 
-	 * added together. A way or relation that exactly within 
-	 * such a combination cannot cross other areas. 
-	 */
-	private void findSimpleNeigbours(ArrayList<Area> rectangles, ArrayList<BitSet> writerSets){
-		ArrayList<Area> newRectangles = new ArrayList<Area>();
-		ArrayList<BitSet> newWriterSets = new ArrayList<BitSet>();
-		
-		for (int i = 0; i < rectangles.size(); i++){
-			int minLat  = rectangles.get(i).getMinLat();
-			int maxLat  = rectangles.get(i).getMaxLat();
-			int minLong  = rectangles.get(i).getMinLong();
-			int maxLong  = rectangles.get(i).getMaxLong();
-			for (int j = i+1; j < rectangles.size(); j++){
-				boolean isSimple = false;
-				if (rectangles.get(j).getMaxLat() == maxLat 
-						&& rectangles.get(j).getMinLat() == minLat 
-						&& (rectangles.get(j).getMinLong() == maxLong
-						||rectangles.get(j).getMaxLong() == minLong))
-					isSimple = true;
-				else if (rectangles.get(j).getMinLong() == minLong 
-						&& rectangles.get(j).getMaxLong() == maxLong
-						&& (rectangles.get(j).getMinLat() == maxLat
-						||rectangles.get(j).getMaxLat() == minLat))
-					isSimple = true;
-				if (isSimple){
-					BitSet simpleNeighbour = new BitSet();
-					simpleNeighbour.or(writerSets.get(i));
-					simpleNeighbour.or(writerSets.get(j));
-					if (simpleNeighbour.cardinality() <= 4){
-						short idx = translate(simpleNeighbour);
-						if (simpleNeighbours.contains(idx) == false){
-							simpleNeighbours.add(idx);
-							//System.out.println("simple neighbour: " + getMapIds(simpleNeighbour));
-							Area area = rectangles.get(i).add(rectangles.get(j));
-							newRectangles.add(area);
-							newWriterSets.add(simpleNeighbour);
-						}
-					}
-				}
-			}
-		}
-		if (newRectangles.isEmpty() == false){
-			rectangles.addAll(newRectangles);
-			writerSets.addAll(newWriterSets);
-			newRectangles = null;
-			newWriterSets = null;
-			findSimpleNeigbours(rectangles,writerSets);
-		}
-	}
 	/**
 	 * Return the BitSet that is related to the short value.
 	 * The caller must make sure that the short is valid.
@@ -177,14 +123,6 @@ public class WriterDictionaryShort{
 
 	public OSMWriter[] getWriters(){
 		return writers;
-	}
-	
-	public boolean mayCross(short writerIdx){
-		if (writerIdx + DICT_START < numOfWriters)
-			return false;
-		if (simpleNeighbours.contains(writerIdx))
-			return false;
-		return true;
 	}
 	
 	public boolean isMultiTile(short writerIdx){

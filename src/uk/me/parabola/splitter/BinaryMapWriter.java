@@ -31,7 +31,7 @@ import crosby.binary.Osmformat.Relation.MemberType;
 import crosby.binary.file.BlockOutputStream;
 import crosby.binary.file.FileBlock;
 
-public class BinaryMapWriter extends OSMWriter {
+public class BinaryMapWriter extends AbstractOSMWriter {
 
   private PBFSerializer serializer;
 
@@ -501,11 +501,6 @@ public class BinaryMapWriter extends OSMWriter {
     catch(IOException e) {
       System.out.println("Could not write end of file: " + e);
     }
-  }
-
-  public boolean nodeBelongsToThisArea(Node node)
-  {
-    return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
   }
 
   public void write(Node node)

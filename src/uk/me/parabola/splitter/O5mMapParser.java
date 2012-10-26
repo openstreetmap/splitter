@@ -79,7 +79,7 @@ public class O5mMapParser implements MapReader{
 	// total number of bytes read from stream
 	long countBytes;
 
-	// performance: save byte position of first occurence of a data set type (node, way, rel)
+	// performance: save byte position of first occurrence of a data set type (node, way, relation)
 	// to allow skipping large parts of the stream
 	long[] firstPosInFile;
 	long[] skipArray;
@@ -364,8 +364,8 @@ public class O5mMapParser implements MapReader{
 	}
 
 	/**
-	 * read version, time stamp and change set 
-	 * (We are not interested in the values)
+	 * Read version, time stamp and change set and author.  
+	 * We are not interested in the values, but we have to maintain the string table.
 	 * @throws IOException
 	 */
 	
@@ -381,7 +381,7 @@ public class O5mMapParser implements MapReader{
 		}
 	}
 	/**
-	 * read author + change set info. 
+	 * Read author . 
 	 * @throws IOException
 	 */
 	private void readAuthor() throws IOException{

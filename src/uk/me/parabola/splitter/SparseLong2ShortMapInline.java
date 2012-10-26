@@ -2,12 +2,8 @@ package uk.me.parabola.splitter;
 
 import it.unimi.dsi.bits.Fast;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map.Entry;
 
 
 /**
@@ -85,10 +81,6 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 */
 	SparseLong2ShortMapInline() {
 		clear();
-	}
-	SparseLong2ShortMapInline(DataInputStream dis) throws IOException  {
-		clear();
-		read(dis);
 	}
 
 	/**
@@ -433,7 +425,6 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	@Override
 	public void stats(int msgLevel) {
 		long usedChunks = 0;
-		long bytesAllChunks = 0;
 		long pctusage = 0;
 		int i;
 		if (msgLevel > 0)
@@ -441,7 +432,6 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		for (i=6; i <=CHUNK_SIZE + CHUNK_MASK_SIZE; i+=4) {
 			usedChunks += countChunkLen[i];
 			long bytes = countChunkLen[i] * (12+i*2); // no padding in our chunks 
-			bytesAllChunks += bytes;
 			if (msgLevel > 0) { 
 				System.out.println("Length-" + i + " chunks: " + Utils.format(countChunkLen[i]) + " (Bytes: " + Utils.format(bytes) + ")");
 			}
@@ -462,79 +452,6 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		}
 		pctusage = Math.min(100, 1 + Math.round((float)usedChunks*100/(topMap.size()*LARGE_VECTOR_SIZE))) ;
 		System.out.println("Map details: HashMap -> " + topMap.size() + " vectors for "+ Utils.format(usedChunks) + " chunks(vector usage < " + pctusage + "%)");
-	}
-	
-	
-	/**
-	 * Save the map 
-	 * @param dos the already opened DataOutputStream
-	 * @throws IOException 
-	 */
-	public void save(DataOutputStream dos) throws IOException {
-		dos.writeUTF("SL2S");
-		dos.writeInt(0); // version
-		dos.writeShort(unassigned);
-		dos.writeLong(size);
-		dos.writeLong(uncompressedLen);
-		dos.writeLong(compressedLen);
-		dos.writeInt(countChunkLen.length);
-		for (long len: countChunkLen){
-			dos.writeLong(len);
-		}
-		
-		dos.writeInt(topMap.size());
-		for (Entry <Long, short[][]> entry: topMap.entrySet()){
-			long topId = entry.getKey();
-			dos.writeLong(topId);
-			short[][]  largeVector = entry.getValue();	
-			int cnt = 0;
-			for (int i = 0;  i < LARGE_VECTOR_SIZE; i++){
-				if (largeVector[i] != null) cnt++;
-			}
-			dos.writeInt(cnt);
-			for (int i = 0;  i < LARGE_VECTOR_SIZE; i++){
-				short[] chunk = largeVector[i]; 
-				if (chunk != null){
-					dos.writeInt(i);
-					int len = chunk.length;
-					dos.writeShort((short) len);
-					for (int j = 0; j < len; j++){
-						dos.writeShort(chunk[j]);
-					}
-				}
-			}
-		}
-	}
-
-	private void read(DataInputStream dis) throws IOException {
-		String id = dis.readUTF();
-		int version = dis.readInt();
-		if (version != 0 || "SL2S".equals(id) == false) 
-			throw new IOException("invalid header");
-		unassigned = dis.readShort(); 
-		size = dis.readInt();
-		uncompressedLen = dis.readLong();
-		compressedLen = dis.readLong();
-		int len = dis.readInt();
-		for (int i = 0; i < len; i++)
-			countChunkLen[i] = dis.readLong();
-		int topNum = dis.readInt();
-		for (int v = 0; v < topNum; v++){
-			long topId = dis.readLong();
-			int cnt = dis.readInt();
-			short[][]  largeVector = new short[LARGE_VECTOR_SIZE][];
-			while (cnt > 0){
-				--cnt;
-				int i = dis.readInt();
-				int chunkLen = dis.readShort();
-				short [] chunk = new short[chunkLen];
-				for (int j = 0; j < chunkLen; j++){
-					chunk[j] = dis.readShort();
-				}
-				largeVector[i] = chunk;
-			}
-			topMap.put(topId, largeVector);
-		}
 	}
 }
 

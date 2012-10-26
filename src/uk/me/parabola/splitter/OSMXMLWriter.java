@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.zip.GZIPOutputStream;
 
-public class OSMXMLWriter extends OSMWriter {
+public class OSMXMLWriter extends AbstractOSMWriter{
 	private final DecimalFormat numberFormat = new DecimalFormat(
 			"0.#######;-0.#######",
 			new DecimalFormatSymbols(Locale.US)
@@ -81,10 +81,6 @@ public class OSMXMLWriter extends OSMWriter {
 		}
 	}
 
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
-	
 	public void write(Node node) throws IOException {
 		writeString("<node id='");
 		writeLong(node.getId());

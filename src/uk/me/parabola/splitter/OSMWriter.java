@@ -13,45 +13,26 @@
 
 package uk.me.parabola.splitter;
 
-import java.io.File;
 import java.io.IOException;
 
-public abstract class OSMWriter {
+public interface OSMWriter {
+	/** 
+	 * @return the bounds of the area (excluding the overlap)
+	 */
+	public Area getBounds();
 	
-	protected final Area bounds;
-	protected Area extendedBounds;
-	protected File outputDir;
-	protected final int mapId;
+	/**
+	 * @return the bounds of the area (including the overlap)
+	 */
+	public Area getExtendedBounds();
 	
-
-	public OSMWriter(Area bounds, File outputDir, int mapId, int extra) {
-		this.mapId = mapId;
-		this.bounds = bounds;
-		this.outputDir = outputDir;
-		extendedBounds = new Area(bounds.getMinLat() - extra,
-				bounds.getMinLong() - extra,
-				bounds.getMaxLat() + extra,
-				bounds.getMaxLong() + extra);
-	}
-
-	public Area getBounds() {
-		return bounds;
-	}
-	
-	public Area getExtendedBounds() {
-		return extendedBounds;
-	}
-	public int getMapId(){
-		return mapId;
-	}
+	public int getMapId();
 	
 	public abstract void initForWrite();
 
 	public abstract void finishWrite();
 
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
+	public boolean nodeBelongsToThisArea(Node node);
 	
 	public abstract void write(Node node) throws IOException;
 

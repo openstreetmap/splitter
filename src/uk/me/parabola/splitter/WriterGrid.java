@@ -15,6 +15,14 @@ package uk.me.parabola.splitter;
 
 import java.util.BitSet;
 
+/**
+ * A grid that covers the area covered by all writers. Each grid element contains 
+ * information about the tiles that are intersecting the grid element and whether 
+ * the grid element lies completely within such a tile area.
+ * This is used to minimize the needed tests when analyzing coordinates of node coordinates. 
+ * @author GerdP
+ *
+ */
 public class WriterGrid{
 	private final static int gridDimLon = 512; 
 	private final static int gridDimLat = 512; 
@@ -35,11 +43,15 @@ public class WriterGrid{
 		System.out.println("Grid was created in " + (System.currentTimeMillis() - start) + " ms");
 	}
 
-	void makeWriterGrid() {
+	/**
+	 * Create the grid and fill each element
+	 */
+	private void makeWriterGrid() {
 		int gridStepLon, gridStepLat;
 		int minLat = Integer.MAX_VALUE, maxLat = Integer.MIN_VALUE;
 		int minLon = Integer.MAX_VALUE, maxLon = Integer.MIN_VALUE;
 		OSMWriter[] writers = writerDictionary.getWriters();
+		// calculate grid area
 		for (OSMWriter w : writers){
 			if (w.getExtendedBounds().getMinLat() < minLat)
 				minLat = w.getExtendedBounds().getMinLat();
@@ -56,6 +68,7 @@ public class WriterGrid{
 		gridMinLat = minLat;
 		bounds = new Area(minLat, minLon, maxLat, maxLon);
 
+		// calculate the grid element size
 		int diffLon = maxLon - minLon;
 		int diffLat = maxLat - minLat;
 		gridDivLon = Math.round((diffLon / gridDimLon + 0.5f) );
@@ -82,15 +95,15 @@ public class WriterGrid{
 				for (int j = 0; j < writerDictionary.getNumOfWriters(); j++) {
 					OSMWriter w = writers[j];
 					// find grid areas that intersect with the writers' area
-					int tminLat = Math.max(testMinLat, w.extendedBounds.getMinLat());
-					int tminLon = Math.max(testMinLon, w.extendedBounds.getMinLong());
-					int tmaxLat = Math.min(testMinLat + gridStepLat,w.extendedBounds.getMaxLat());
-					int tmaxLon = Math.min(testMinLon + gridStepLon,w.extendedBounds.getMaxLong());
+					int tminLat = Math.max(testMinLat, w.getExtendedBounds().getMinLat());
+					int tminLon = Math.max(testMinLon, w.getExtendedBounds().getMinLong());
+					int tmaxLat = Math.min(testMinLat + gridStepLat,w.getExtendedBounds().getMaxLat());
+					int tmaxLon = Math.min(testMinLon + gridStepLon,w.getExtendedBounds().getMaxLong());
 					if (tminLat <= tmaxLat && tminLon <= tmaxLon) {
 						// yes, they intersect
 						len++;
 						writerSet.set(j);
-						if (!w.extendedBounds.contains(testMinLat, testMinLon)|| !w.extendedBounds.contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
+						if (!w.getExtendedBounds().contains(testMinLat, testMinLon)|| !w.getExtendedBounds().contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
 							// grid area is completely within writer area 
 							gridTest[lon][lat] = true;
 						}
@@ -108,9 +121,16 @@ public class WriterGrid{
 				" requires max. " + maxWriterSearch + " checks for each node.");
 	}
 
-	public WriterGridResult get(final Node n){
-		int nMapLon = n.getMapLon();
-		int nMapLat = n.getMapLat();
+	/**
+	 * For a given node, return the list of writers that may contain it 
+	 * @param node the node
+	 * @return a reference to an {@link WriterGridResult} instance that contains 
+	 * the list of candidates and a boolean that shows whether this list
+	 * has to be verified or not. 
+	 */
+	public WriterGridResult get(final Node node){
+		int nMapLon = node.getMapLon();
+		int nMapLat = node.getMapLat();
 		if (!bounds.contains(nMapLat, nMapLon)) 
 			return null;
 		int gridLonIdx = (nMapLon - gridMinLon ) / gridDivLon; 

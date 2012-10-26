@@ -15,8 +15,13 @@ package uk.me.parabola.splitter;
 
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
+/**
+ * A helper class to combine the results of the {@link WriterGrid} 
+ * @author GerdP
+ *
+ */
 public class WriterGridResult{
-	ShortArrayList l;
-	boolean testNeeded;
+	ShortArrayList l;	// list of indexes to the writer dictionary
+	boolean testNeeded; // true: the list must be checked with the nodeBelongsToThisArea() method 
 }
 
