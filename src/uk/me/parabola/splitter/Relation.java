@@ -20,7 +20,6 @@ import java.util.List;
  */
 public class Relation extends Element {
 	private final List<Member> members = new ArrayList<Member>();
-	private boolean subRelsChecked; 
 
 	public void set(long id) {
 		setId(id);
@@ -39,14 +38,6 @@ public class Relation extends Element {
 
 	public List<Member> getMembers() {
 		return members;
-	}
-
-	public boolean subRelsChecked() {
-		return subRelsChecked;
-	}
-
-	public void setSubRelsChecked(boolean subRelsChecked) {
-		this.subRelsChecked = subRelsChecked;
 	}
 
 	static class Member {
