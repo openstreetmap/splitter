@@ -32,7 +32,7 @@ public class WriterDictionaryShort{
 	private final ArrayList<ShortArrayList> arrays; 
 	private final int numOfWriters;
 	private final HashMap<BitSet, Short> index;
-	
+
 	/** 
 	 * Create a dictionary for a given array of writers
 	 * @param writers the array of writers
@@ -50,13 +50,11 @@ public class WriterDictionaryShort{
 	 * initialize the dictionary with sets containing a single writer.
 	 */
 	private void init(){
-		ArrayList<Area> rectangles = new ArrayList<Area>(numOfWriters);
 		ArrayList<BitSet> writerSets = new ArrayList<BitSet>(numOfWriters);
 		for (int i=0; i < numOfWriters; i++){
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
-			rectangles.add(writers[i].getBounds());
 			writerSets.add(b);
 		}
 	}
@@ -124,13 +122,6 @@ public class WriterDictionaryShort{
 	public OSMWriter[] getWriters(){
 		return writers;
 	}
-	
-	public boolean isMultiTile(short writerIdx){
-		if (writerIdx + DICT_START < numOfWriters)
-			return false;
-		return true;
-	}
-	
 	
 	public String getMapIds(BitSet writerSet){
 		StringBuilder sb = new StringBuilder("{");

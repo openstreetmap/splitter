@@ -95,19 +95,4 @@ public class WriterDictionaryInt{
 	public int getNumOfWriters(){
 		return numOfWriters;
 	}
-
-	
-	public boolean isMultiTile(int writerIdx){
-		if (writerIdx < numOfWriters)
-			return false;
-		return true;
-	}
-	
-	
-	public int getWriterNum(int writerIdx) {
-		int writerId = writerIdx;
-		if (writerId < numOfWriters)
-			return writerId;
-		return -1; // multiple writers
-	}
 }
