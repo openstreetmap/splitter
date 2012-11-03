@@ -81,4 +81,59 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset - 123456), 888);
    
 	}
+	@Test
+	public void testLongIntMap() {
+		testMap(new SparseLong2IntMapInline(), 0L);
+		testMap(new SparseLong2IntMapInline(), -10000L);
+		testMap(new SparseLong2IntMapInline(), 1L << 35);
+		testMap(new SparseLong2IntMapInline(), -1L << 35);
+	}
+
+	private void testMap(SparseLong2IntMapInline map, long idOffset) {
+		map.defaultReturnValue((int) Integer.MIN_VALUE);
+   
+		for (int i = 1; i < 1000; i++) {
+			int j = map.put(idOffset + i, i);
+			Assert.assertEquals(j, Integer.MIN_VALUE);
+			Assert.assertEquals(map.size(), i);
+		}
+
+		for (int i = 1; i < 1000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, true);
+		}
+
+		for (int i = 1; i < 1000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), i);
+		}
+
+		for (int i = 1000; i < 2000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+		}
+		for (int i = 1000; i < 2000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, false);
+		}
+
+		for (int i = -2000; i < -1000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+		}
+		for (int i = -2000; i < -1000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, false);
+		}
+
+		Assert.assertEquals(map.get(idOffset + 123456), Integer.MIN_VALUE);
+		map.put(idOffset + 123456, (int) 999);
+		Assert.assertEquals(map.get(idOffset + 123456), 999);
+		map.put(idOffset + 123456, (int) 888);
+		Assert.assertEquals(map.get(idOffset + 123456), 888);
+   
+		Assert.assertEquals(map.get(idOffset - 123456), Integer.MIN_VALUE);
+		map.put(idOffset - 123456, (int) 999);
+		Assert.assertEquals(map.get(idOffset - 123456), 999);
+		map.put(idOffset - 123456, (int) 888);
+		Assert.assertEquals(map.get(idOffset - 123456), 888);
+   
+	}
 }
