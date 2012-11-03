@@ -72,4 +72,7 @@ public interface SplitterParams {
 
 	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")
 	String getProblemFile();
+
+	@Option(description = "Write complete ways and relations if possible (requires more time and heap memory!)")
+	boolean isKeepComplete();
 }

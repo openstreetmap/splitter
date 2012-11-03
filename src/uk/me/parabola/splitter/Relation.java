@@ -20,9 +20,22 @@ import java.util.List;
  */
 public class Relation extends Element {
 	private final List<Member> members = new ArrayList<Member>();
+	boolean isMultiPolygon;
+
+	public boolean isMultiPolygon() {
+		return isMultiPolygon;
+	}
+
+	public void setMultiPolygon(boolean isMultiPolygon) {
+		this.isMultiPolygon = isMultiPolygon;
+	}
 
 	public void set(long id) {
 		setId(id);
+	}
+	
+	public void clearTags(){
+		tags = null;
 	}
 	
 	@Override

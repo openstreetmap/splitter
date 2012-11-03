@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
 import java.io.File;
 
 public abstract class AbstractOSMWriter implements OSMWriter{
@@ -21,6 +22,7 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 	protected final Area extendedBounds;
 	protected final File outputDir;
 	protected final int mapId;
+	protected final Rectangle bbox; 
 	
 
 	public AbstractOSMWriter(Area bounds, File outputDir, int mapId, int extra) {
@@ -31,6 +33,7 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 				bounds.getMinLong() - extra,
 				bounds.getMaxLat() + extra,
 				bounds.getMaxLong() + extra);
+		this.bbox = Utils.area2Rectangle(bounds, 1);
 	}
 
 	public Area getBounds() {
@@ -42,6 +45,10 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 	}
 	public int getMapId(){
 		return mapId;
+	}
+	
+	public Rectangle getBBox(){
+		return bbox;
 	}
 	
 	public boolean nodeBelongsToThisArea(Node node) {

@@ -26,6 +26,7 @@ import uk.me.parabola.splitter.geo.DummyCityFinder;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
+import java.awt.Rectangle;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -37,6 +38,7 @@ import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -107,8 +109,12 @@ public class Main {
 	private String outputType;
 	// a list of way or relation ids that should be handled specially
 	private String problemFile; 
+	private boolean generateProblemList;
+	
 	private LongArrayList problemWays = new LongArrayList();
 	private LongArrayList problemRels = new LongArrayList();
+	private LongArrayList calculatedProblemWays = new LongArrayList();
+	private LongArrayList calculatedProblemRels = new LongArrayList();
 	
 	// for faster access on blocks in pbf files
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
@@ -200,20 +206,9 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		OSMWriter[] allWriters = new OSMWriter[areas.size()];
-		for (int j = 0; j < allWriters.length; j++) {
-			Area area = areas.get(j);
-			OSMWriter w;
-			if ("pbf".equals(outputType)) 
-				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
-			else if ("o5m".equals(outputType))
-				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
-			else 
-				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
-			allWriters[j] = w;
-		}
-		
-		writeAreas(areas, allWriters);
+		if (generateProblemList)
+			genProblemLists(areas);
+		writeAreas(areas);
 		writeArgsFile(areas);
 	}
 
@@ -300,6 +295,7 @@ public class Main {
 			if (!readProblemIds(problemFile))
 				System.exit(-1);
 		}
+		generateProblemList = params.isKeepComplete();
 	}
 
 	/**
@@ -361,14 +357,89 @@ public class Main {
 		}
 	}
 
+	private void genProblemLists(List<Area> areas) throws IOException, XmlPullParserException {
+		// generate list of incomplete ways and relations
+		long startProblemListGenerator = System.currentTimeMillis();
+		List<Rectangle> rects = addPseudoWriters(areas);
+		System.out.println("Calculation of pseudo-areas took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
+		
+		int numPasses = getAreasPerPass(rects.size());
+		int areasPerPass = (int) Math.ceil((double) rects.size() / (double) numPasses);
+
+		OSMWriter [] writers = new OSMWriter[rects.size()];
+		ArrayList<Area> allAreas = new ArrayList<Area>();
+
+		int j;
+		for (j = 0; j < areas.size(); j++) {
+			Area area = areas.get(j);
+			allAreas.add(area);
+			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId(), 0);
+			//System.out.println("Area " + area.getMapId() + " covers " + area);
+		}
+		System.out.println("Pseudo-Writers:");
+		for (;j < writers.length; j++){
+			Rectangle r = rects.get(j);
+			Area area = new Area(r.y, r.x, (int) r.getMaxY(), (int) r.getMaxX());
+			area.setMapId(-1-j);
+			allAreas.add(area);
+			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId(), 0);
+			System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
+		}
+		AreaList planet = new AreaList(allAreas);
+		File out = new File("planet.kml");
+		if (!out.isAbsolute())
+			kmlOutputFile = new File(fileOutputDir, "planet.kml").getPath();
+		System.out.println("Writing planet KML file");
+		planet.writeKml(kmlOutputFile);
+		
+		DataStorer dataStorer = new DataStorer(writers);
+		System.out.println("Starting problem-list-generator pass(es)"); 
+		for (int i = 0; i < numPasses; i++) {
+			/*TODO: if two or passes are needed, all pseudo-writers will be used in the last.
+			 * This might be bad if the pseudo-writers cover most of the input area. 
+			 */
+			 
+			int writerOffset = i * areasPerPass;
+			int numWritersThisPass = Math.min(areasPerPass, rects.size() - i * areasPerPass);
+			ProblemsListGenerator problemsListGenerator = new ProblemsListGenerator(
+					dataStorer, writerOffset, numWritersThisPass,
+					calculatedProblemWays, calculatedProblemRels);
+			processMap(problemsListGenerator); 
+		}
+		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms"); 
+		
+	}
+	
+
 	/**
-	 * Second pass, we have the areas so parse the file(s) again and calculate 
+	 * Final pass(es), we have the areas so parse the file(s) again and calculate 
 	 * which ways and relations are written to multiple areas.
 	 *
 	 * @param areas Area list determined on the first pass.
 	 */
-	private void writeAreas(List<Area> areas, OSMWriter[] allWriters) throws IOException, XmlPullParserException {
+	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
+		//OSMWriter[] allWriters = new OSMWriter[areas.size()];
+		OSMWriter[] allWriters = new OSMWriter[areas.size()];
+		for (int j = 0; j < allWriters.length; j++) {
+			Area area = areas.get(j);
+			OSMWriter w;
+			if ("pbf".equals(outputType)) 
+				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			else if ("o5m".equals(outputType))
+				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			else 
+				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			allWriters[j] = w;
+		}
+
+		int numPasses = getAreasPerPass(areas.size());
+		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 		DataStorer dataStorer = new DataStorer(allWriters);
+		// add the user given problem polygons
+		problemWays.addAll(calculatedProblemWays);
+		calculatedProblemWays = null;
+		problemRels.addAll(calculatedProblemRels);
+		calculatedProblemRels = null;
 		if (problemWays.size() > 0 || problemRels.size() > 0){
 			MultiTileProcessor multiProcessor = new MultiTileProcessor(dataStorer, problemWays, problemRels);
 			// return memory to GC
@@ -388,10 +459,12 @@ public class Main {
 
 			System.out.println("-----------------------------------");
 		}
+		System.out.println("Writing temp files " + new Date());
+		dataStorer.setReadOnly(fileOutputDir);
+		System.out.println("-----------------------------------");
+
 		System.out.println("Distributing data " + new Date());
 		
-		int numPasses = getAreasPerPass(areas.size());
-		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 
 		if (numPasses > 1) {
 			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
@@ -401,7 +474,7 @@ public class Main {
 		for (int i = 0; i < numPasses; i++) {
 			int writerOffset = i * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
-			
+			dataStorer.restart();
 			SplitProcessor processor = new SplitProcessor(dataStorer, writerOffset, numWritersThisPass, maxThreads);
 
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numWritersThisPass +
@@ -410,6 +483,7 @@ public class Main {
 
 			processMap(processor); 
 		}
+		dataStorer.finish();
 	}
 	
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
@@ -588,4 +662,115 @@ public class Main {
 		}
 		return ok;
 	}
+	
+	/**
+	 * Calculate the bounding box of the tile areas.
+	 * @param realAreas
+	 * @return
+	 */
+	private Rectangle calcRealWriterBBox (List<Area> realAreas){
+		Rectangle bounds = null;
+		for (Area area: realAreas){
+			Rectangle rect = Utils.area2Rectangle(area, 0);
+			if (bounds == null)
+				bounds = rect;
+			else
+				bounds.add(rect);
+		}
+		return bounds;
+	}
+	/**
+	 * Make sure that our writer areas cover the planet. This is done by adding 
+	 * pseudo-writers. 
+	 * TODO: It seems to be best to have as few pseudo-areas as 
+	 * possible, so this might be optimized   
+	 * @param realAreas
+	 * @return
+	 */
+	private List<Rectangle> addPseudoWriters(List<Area> realAreas){
+		ArrayList<Rectangle> areas = new ArrayList<Rectangle>();
+		Rectangle bounds = calcRealWriterBBox(realAreas);
+		// maybe this could be passed as a parm, but in fact it would be better to 
+		// filter the input file first
+		Rectangle filterBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
+		for (Area area: realAreas){
+			Rectangle rect = Utils.area2Rectangle(area, 0);
+			areas.add(rect);
+		}
+		while (!checkIfCovered(bounds, areas)){
+			addPseudoArea(bounds, areas);
+		}
+		// top 
+		areas.add(new Rectangle(filterBounds.x, (int)bounds.getMaxY(), filterBounds.width,  (int)(filterBounds.getMaxY() - bounds.getMaxY())));
+		//left
+		areas.add(new Rectangle(filterBounds.x,bounds.y, bounds.x-filterBounds.x, bounds.height));
+		//right
+		areas.add(new Rectangle((int)bounds.getMaxX(),bounds.y, (int)(filterBounds.getMaxX() - bounds.getMaxX()), bounds.height));
+		// bottom
+		areas.add(new Rectangle(filterBounds.x, filterBounds.y, filterBounds.width, bounds.y-filterBounds.y));
+		
+		return areas;
+	}
+	
+	/**
+	 * Brute force algorithm to fill empty areas with rectangles
+	 * @param bounds
+	 * @param areas
+	 */
+	private void addPseudoArea(Rectangle bounds, ArrayList<Rectangle> areas) {
+		//ArrayList<Rectangle> workList = new ArrayList<Rectangle>(areas);
+		for (int i = 0; i < areas.size(); i++){
+			
+			Rectangle area = areas.get(i);
+			java.awt.geom.Area  left = new java.awt.geom.Area (new Rectangle(bounds.x,(int)area.y,area.x-bounds.x,area.height));
+			java.awt.geom.Area  right = new java.awt.geom.Area (new Rectangle((int)area.getMaxX(),area.y,(int)(bounds.getMaxX()-area.getMaxX()),area.height));
+			java.awt.geom.Area  top = new java.awt.geom.Area (new Rectangle(area.x,(int)area.getMaxY(),area.width,(int)(bounds.getMaxY()-area.getMaxY())));
+			java.awt.geom.Area  bottom = new java.awt.geom.Area (new Rectangle(area.x, bounds.y,area.width,(int)(area.y-bounds.y)));
+			for (Rectangle area2: areas){
+				if (area == area2)
+					continue;
+				left.subtract(new java.awt.geom.Area(area2));
+				if (left.getBounds().getMaxX() != area.x || left.getBounds().height != area.height)
+					left.reset();
+				right.subtract(new java.awt.geom.Area(area2));
+				if ((int)right.getBounds().x != area.getMaxX() || right.getBounds().height != area.height)
+					right.reset();
+				top.subtract(new java.awt.geom.Area(area2));
+				if ((int)top.getBounds().y != area.getMaxY() || top.getBounds().width != area.width)
+					top.reset();
+				bottom.subtract(new java.awt.geom.Area(area2));
+				if ((int)bottom.getBounds().getMaxY() != area.y || bottom.getBounds().width != area.width)
+					bottom.reset();
+				if (left.isEmpty() && right.isEmpty() && top.isEmpty() && bottom.isEmpty())
+					break;
+			}
+			int num = i+1;
+			if (left.isEmpty() == false && left.isRectangular()){
+				System.out.println("adding area " + areas.size() + " on the left of area "  + num);
+				areas.add(left.getBounds());
+			}
+			if (right.isEmpty() == false && right.isRectangular()){
+				System.out.println("adding area " + areas.size() + " on the right of area "  + num);
+				areas.add(right.getBounds());
+			}
+			if (top.isEmpty() == false && top.isRectangular()){
+				System.out.println("adding area " + areas.size() + " on top of area "  + num);
+				areas.add(top.getBounds());
+			}
+			if (bottom.isEmpty() == false && bottom.isRectangular()){
+				System.out.println("adding area " + areas.size() + " at the botton of area "  + num);
+				areas.add(bottom.getBounds());
+			}
+		}
+	}
+
+	private boolean checkIfCovered(Rectangle bounds, List<Rectangle> areas){
+		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
+		
+		for (Rectangle area: areas){
+			bbox.subtract(new java.awt.geom.Area(area));
+		}		
+		return bbox.isEmpty();
+	}
+	
 }

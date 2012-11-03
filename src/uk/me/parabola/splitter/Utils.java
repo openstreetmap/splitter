@@ -12,6 +12,7 @@
  */
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -117,4 +118,9 @@ public class Utils {
 		}
 		return new InputStreamReader(is, Charset.forName("UTF-8"));
 	}
+	
+	public static Rectangle area2Rectangle (Area area, int overlap){
+		return new Rectangle(area.getMinLong()-overlap, area.getMinLat()-overlap,area.getWidth()+2*overlap,area.getHeight()+2*overlap);
+	}
+
 }

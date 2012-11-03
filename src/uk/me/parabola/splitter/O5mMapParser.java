@@ -215,7 +215,7 @@ public class O5mMapParser implements MapReader{
 	 * read (and ignore) the file timestamp data set
 	 */
 	private void readFileTimestamp(){
-		long fileTimeStamp = readSignedNum();
+		/*long fileTimeStamp = */readSignedNum();
 	}
 	
 	/**

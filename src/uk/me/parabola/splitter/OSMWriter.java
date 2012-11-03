@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
 import java.io.IOException;
 
 public interface OSMWriter {
@@ -25,6 +26,8 @@ public interface OSMWriter {
 	 * @return the bounds of the area (including the overlap)
 	 */
 	public Area getExtendedBounds();
+	
+	public Rectangle getBBox();
 	
 	public int getMapId();
 	

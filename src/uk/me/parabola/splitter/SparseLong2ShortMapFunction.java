@@ -7,7 +7,7 @@ package uk.me.parabola.splitter;
  * 
  */
 interface SparseLong2ShortMapFunction {
-	
+	final short UNASSIGNED = Short.MIN_VALUE;
 	public short put(long key, short val);
 	public void clear();
 	public boolean containsKey(long key);

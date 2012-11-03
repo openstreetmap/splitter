@@ -81,7 +81,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		currentRelAreaSet = new BitSet(writers.length);
 		usedWriters = new BitSet(); 
 
-		int noOfWorkerThreads = this.maxThreads - 1;
+		int noOfWorkerThreads = Math.min(this.maxThreads - 1, numWritersThisPass);
 		workerThreads = new ArrayList<Thread>(noOfWorkerThreads);
 		for (int i = 0; i < noOfWorkerThreads; i++) {
 			Thread worker = new Thread(new OSMWriterWorker());
@@ -104,17 +104,21 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processWay(Way w) {
-		Integer multiTileWriterIdx = dataStorer.getProblemWayWriters().get(w.getId());
+		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.WAY_TYPE, w.getId());
 		if (multiTileWriterIdx != null){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			// set only active writer bits
 			for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
 				currentWayAreaSet.set(i);
 			}
+			//System.out.println("added or completed way: " +  w.getId());
 		}
 		else{
 			short oldclIndex = unassigned;
-			for (long id : w.getRefs()) {
+			//for (long id : w.getRefs()) {
+			int refs = w.getRefs().size();
+			for (int i = 0; i < refs; i++){
+				long id = w.getRefs().getLong(i);
 				// Get the list of areas that the way is in. 
 				short clIdx = coords.get(id);
 				if (clIdx != unassigned){
@@ -123,6 +127,16 @@ class SplitProcessor extends AbstractMapProcessor {
 						currentWayAreaSet.or(cl);
 						oldclIndex = clIdx;
 					}
+				}
+			}
+			if (!currentWayAreaSet.isEmpty()){
+				// store these areas in ways map
+				short idx = writerDictionary.translate(currentWayAreaSet);
+				ways.put(w.getId(), idx);
+				++countWays;
+				if (countWays % 1000000 == 0){
+					System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+					ways.stats(0);
 				}
 			}
 		}
@@ -137,7 +151,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processRelation(Relation r) {
-		Integer multiTileWriterIdx = dataStorer.getRelWriters().get(r.getId());
+		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.REL_TYPE, r.getId());
 		if (multiTileWriterIdx != null){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			try {
@@ -146,6 +160,7 @@ class SplitProcessor extends AbstractMapProcessor {
 					currentRelAreaSet.set(i);
 				}
 				writeRelation(r);
+				//System.out.println("added rel: " +  r.getId());
 				currentRelAreaSet.clear();
 			} catch (IOException e) {
 				throw new RuntimeException("failed to write relation " + r.getId(),
@@ -237,12 +252,12 @@ class SplitProcessor extends AbstractMapProcessor {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
 		WriterGridResult writerCandidates = grid.get(currentNode);
-		Integer multiTileWriterIdx = dataStorer.getSpecialNodeWriters().get(currentNode.getId());
-		
-		if (writerCandidates == null && multiTileWriterIdx == null)  {
+		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.NODE_TYPE, currentNode.getId());
+		boolean isSpecialNode = (multiTileWriterIdx != null);
+		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}
-		if (multiTileWriterIdx != null || writerCandidates.l.size() > 1)
+		if (isSpecialNode || writerCandidates.l.size() > 1)
 			usedWriters.clear();
 		if (writerCandidates != null){
 			for (int i = 0; i < writerCandidates.l.size(); i++) {
@@ -271,8 +286,8 @@ class SplitProcessor extends AbstractMapProcessor {
 				}
 			}
 		}
-		// check if this node is part of a problem way or rel  
-		if (multiTileWriterIdx != null){
+		if (isSpecialNode){
+			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
 			BitSet nodeWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			for(int i=nodeWriters.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=nodeWriters.nextSetBit(i+1)){
 				if (usedWriters.get(i) )
@@ -316,16 +331,7 @@ class SplitProcessor extends AbstractMapProcessor {
 						writers[n].write(currentWay);
 					}
 				}
-			short idx;
-			// store these areas in ways map
-			idx = writerDictionary.translate(currentWayAreaSet);
-			ways.put(currentWay.getId(), idx);
-			++countWays;
-			if (countWays % 1000000 == 0){
-				System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
-				ways.stats(0);
-		}
-	}
+			}
 	}
 
 	private boolean seenRel;
