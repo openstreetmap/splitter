@@ -13,7 +13,6 @@
 package uk.me.parabola.splitter;
 
 import it.unimi.dsi.Util;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -22,6 +21,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class DataStorer{
 	private final WriterDictionaryShort writerDictionary;
 	private final WriterDictionaryInt multiTileWriterDictionary;
 	private final WriterGrid grid;
-	private final SparseLong2IntMapInline usedWays = new SparseLong2IntMapInline();
+	private SparseLong2ShortMapFunction usedWays = null;
 	private final HashMap<Long,Integer> usedRels = new HashMap<Long, Integer>();
 
 	/** 
@@ -95,11 +95,11 @@ public class DataStorer{
 		return multiTileWriterDictionary;
 	}
 
-	public SparseLong2IntMapInline getUsedWays() {
+	public SparseLong2ShortMapFunction getUsedWays() {
 		return usedWays;
 	}
 	
-	public HashMap<Long,Integer> getUsedRels() {
+	public HashMap<Long, Integer> getUsedRels() {
 		return usedRels;
 	}
 
@@ -243,6 +243,9 @@ public class DataStorer{
 			currentKey = Long.MIN_VALUE;
 			dis.close();
 		}
+	}
+	public void setUsedWays(SparseLong2ShortMapFunction ways) {
+		usedWays = ways;
 	}
 
 }

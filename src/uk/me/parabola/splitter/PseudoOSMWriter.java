@@ -18,10 +18,15 @@ import java.io.IOException;
 
 public class PseudoOSMWriter extends AbstractOSMWriter{
 
-	public PseudoOSMWriter(Area bounds, File outputDir, int mapId, int extra) {
-		super(bounds, outputDir, mapId, extra);
+	public PseudoOSMWriter(Area bounds, File outputDir, int mapId) {
+		// no overlap for pseudo writers !
+		super(bounds, outputDir, mapId, 0);
 	}
 	
+	@Override
+	public boolean isPseudo(){
+		return true;
+	}
 	@Override
 	public void write(Relation rel) throws IOException {}
 	

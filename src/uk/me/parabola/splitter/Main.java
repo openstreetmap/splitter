@@ -373,7 +373,7 @@ public class Main {
 		for (j = 0; j < areas.size(); j++) {
 			Area area = areas.get(j);
 			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId(), 0);
+			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId());
 			//System.out.println("Area " + area.getMapId() + " covers " + area);
 		}
 		System.out.println("Pseudo-Writers:");
@@ -382,7 +382,7 @@ public class Main {
 			Area area = new Area(r.y, r.x, (int) r.getMaxY(), (int) r.getMaxX());
 			area.setMapId(-1-j);
 			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId(), 0);
+			writers[j] = new PseudoOSMWriter(area, fileOutputDir, area.getMapId());
 			System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
 		AreaList planet = new AreaList(allAreas);

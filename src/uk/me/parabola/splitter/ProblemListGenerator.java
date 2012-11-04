@@ -36,6 +36,7 @@ class ProblemsListGenerator extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
 
 	private SparseLong2ShortMapFunction coords;
+	private SparseLong2ShortMapFunction ways;
 	
 	private final WriterDictionaryShort writerDictionary;
 	private final DataStorer dataStorer;
@@ -57,6 +58,13 @@ class ProblemsListGenerator extends AbstractMapProcessor {
 			int writerOffset, int numWritersThisPass, LongArrayList problemWays, LongArrayList problemRels) {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
+		if (dataStorer.getUsedWays() == null){
+			ways = new SparseLong2ShortMapInline();
+			ways.defaultReturnValue(UNASSIGNED);
+			dataStorer.setUsedWays(ways);
+		}
+		else 
+			ways = dataStorer.getUsedWays(); 
 		this.writers = writerDictionary.getWriters();
 		//this.ways = dataStorer.getWays();
 		
@@ -123,80 +131,89 @@ class ProblemsListGenerator extends AbstractMapProcessor {
 	@Override
 	public void processWay(Way way) {
 		int oldclIndex = UNASSIGNED;
-		int wayNodeWriterIdx; 
-		BitSet wayNodeWriterCombis = new BitSet();
-		
+		short wayWriterIdx; 
+		//BitSet wayNodeWriterCombis = new BitSet();
+		writerSet.clear();
 		if (!isFirstPass){
-			wayNodeWriterIdx = dataStorer.getUsedWays().get(way.getId());
-			if (wayNodeWriterIdx != dataStorer.getUsedWays().defaultReturnValue())
-				wayNodeWriterCombis.or(dataStorer.getMultiTileWriterDictionary().getBitSet(wayNodeWriterIdx));
+			wayWriterIdx = ways.get(way.getId());
+			if (wayWriterIdx != UNASSIGNED)
+				writerSet.or(writerDictionary.getBitSet(wayWriterIdx));
 		}
 		//for (long id: way.getRefs()){
 		int refs = way.getRefs().size();
 		for (int i = 0; i < refs; i++){
 			long id = way.getRefs().getLong(i);
 			// Get the list of areas that the way is in. 
-			int clIdx = coords.get(id);
+			short clIdx = coords.get(id);
 			if (clIdx == UNASSIGNED){
 				continue;
 			}
 			if (oldclIndex != clIdx){
-				wayNodeWriterCombis.set(clIdx + WriterDictionaryShort.DICT_START);
+				//wayNodeWriterCombis.set(clIdx + WriterDictionaryShort.DICT_START);
+				BitSet cl = writerDictionary.getBitSet(clIdx);
+				writerSet.or(cl);
 				oldclIndex = clIdx;
 			}
 		}
 		if (isLastPass){
-			if (checkWriterCombis(wayNodeWriterCombis))
+			if (checkWriters(writerSet))
 				problemWays.add(way.getId());
 		}
-		if (wayNodeWriterCombis.isEmpty() == false){
-			wayNodeWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(wayNodeWriterCombis);
-			dataStorer.getUsedWays().put(way.getId(), wayNodeWriterIdx);
+		if (writerSet.isEmpty() == false){
+			wayWriterIdx = writerDictionary.translate(writerSet);
+			ways.put(way.getId(), wayWriterIdx);
 		}
 	}
 	
 	@Override
 	public void processRelation(Relation rel) {
-		BitSet relMemWriterCombis = new BitSet();
+		//BitSet writerSet = new BitSet();
+		writerSet.clear();
 		Integer relWriterIdx;
 		if (!isFirstPass){
 			relWriterIdx = dataStorer.getUsedRels().get(rel.getId());
 			if (relWriterIdx != null)
-				relMemWriterCombis .or(dataStorer.getMultiTileWriterDictionary().getBitSet(relWriterIdx));
+				writerSet.or(dataStorer.getMultiTileWriterDictionary().getBitSet(relWriterIdx));
 		}
 		short oldclIndex = UNASSIGNED;
+		short oldwlIndex = UNASSIGNED;
 		//System.out.println("r" + rel.getId() + " " + rel.getMembers().size());
 		for (Member mem : rel.getMembers()) {
 			long id = mem.getRef();
-			//System.out.println("mem " + id + " "  + mem.getType() + " " + mem.getRole());
 			if (mem.getType().equals("node")) {
 				short clIdx = coords.get(id);
-				
+
 				if (clIdx != UNASSIGNED){
-					if (oldclIndex != clIdx){
-						relMemWriterCombis.set(clIdx + WriterDictionaryShort.DICT_START);
-						oldclIndex = clIdx;
+					if (oldclIndex != clIdx){ 
+						BitSet wl = writerDictionary.getBitSet(clIdx);
+						writerSet.or(wl);
 					}
 					oldclIndex = clIdx;
+
 				}
 
 			} else if (mem.getType().equals("way")) {
-				int wayNodeIdx = dataStorer.getUsedWays().get(mem.getRef());
-				if (wayNodeIdx == dataStorer.getUsedWays().defaultReturnValue())
-					continue;
-				BitSet wayNodeWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(wayNodeIdx);
-				relMemWriterCombis.or(wayNodeWriters);
+				short wlIdx = ways.get(id);
+
+				if (wlIdx != UNASSIGNED){
+					if (oldwlIndex != wlIdx){ 
+						BitSet wl = writerDictionary.getBitSet(wlIdx);
+						writerSet.or(wl);
+					}
+					oldwlIndex = wlIdx;
+				}
 			}
 			// ignore relation here
 		}
-		if (relMemWriterCombis.isEmpty())
+		if (writerSet.isEmpty())
 			return;
 		if (isLastPass){
-			if (checkWriterCombis(relMemWriterCombis))
+			if (checkWriters(writerSet))
 				problemRels.add(rel.getId());
 			return;
 		}
-		relWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(relMemWriterCombis);
+		
+		relWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(writerSet);
 		dataStorer.getUsedRels().put(rel.getId(), relWriterIdx);
 	}
 	
@@ -206,7 +223,7 @@ class ProblemsListGenerator extends AbstractMapProcessor {
 		System.out.println("Statistics for coords map:");
 		coords.stats(1);
 		System.out.println("Statistics for extended ways map:");
-		dataStorer.getUsedWays().stats(1);
+		ways.stats(1);
 		if (isLastPass){
 			System.out.println("");
 			System.out.println("Number of stored integers for ways: " + Util.format(dataStorer.getUsedWays().size()));
@@ -225,24 +242,20 @@ class ProblemsListGenerator extends AbstractMapProcessor {
 	 * @param writerCombis
 	 * @return true if the combination of writers can contain a problem polygon
 	 */
-	boolean checkWriterCombis(BitSet writerCombis){
+	boolean checkWriters(BitSet writerCombis){
 
 		if (writerCombis.cardinality() <= 1)
-			return false; // only one element: either one writer or one pseudo-writer
+			return false; // only one writer: not a problem case
 		Rectangle bbox = null;
-		for (int i = writerCombis.nextSetBit(0); i >= 0; i = writerCombis.nextSetBit(i+1)){
-			if (i <= dataStorer.getMaxRealWriter())
-				return true;
-			BitSet writerSet = dataStorer.getWriterDictionary().getBitSet((short)(i-WriterDictionaryShort.DICT_START));
-			for (int j = writerSet.nextSetBit(0); j >= 0; j = writerSet.nextSetBit(j+1)){
-				if (j <= dataStorer.getMaxRealWriter())
-					return true;
-				Rectangle writerBbox = Utils.area2Rectangle(writers[j].getBounds(), 0);
-				if (bbox == null)
-					bbox = writerBbox;
-				else 
-					bbox.add(writerBbox);
-			}
+		for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
+			if (writers[i].getMapId() >= 0)  
+				return true; // multiple writers with a real writer area: problem case 
+			
+			Rectangle writerBbox = Utils.area2Rectangle(writers[i].getBounds(), 0);
+			if (bbox == null)
+				bbox = writerBbox;
+			else 
+				bbox.add(writerBbox);
 		}
 		// TODO: make sure that we detect two boxes that share exactly the same line
 		if (bbox.intersects(realWriterBbox))

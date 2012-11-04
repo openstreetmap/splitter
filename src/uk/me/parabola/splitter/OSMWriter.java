@@ -31,6 +31,8 @@ public interface OSMWriter {
 	
 	public int getMapId();
 	
+	public abstract boolean isPseudo();
+	
 	public abstract void initForWrite();
 
 	public abstract void finishWrite();

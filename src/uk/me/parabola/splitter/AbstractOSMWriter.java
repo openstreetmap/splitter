@@ -36,6 +36,10 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 		this.bbox = Utils.area2Rectangle(bounds, 1);
 	}
 
+	public boolean isPseudo() {
+		return false;
+	}
+	
 	public Area getBounds() {
 		return bounds;
 	}
