@@ -48,8 +48,15 @@ public class TestCustomCollections {
 			Assert.assertEquals(b, true);
 		}
 
+    
 		for (short i = 1; i < 1000; i++) {
 			Assert.assertEquals(map.get(idOffset + i), i);
+		}
+
+    // random read access 
+		for (short i = 1; i < 1000; i++) {
+        short key = (short) Math.max(1, (Math.random() * 1000));
+			Assert.assertEquals(map.get(idOffset + key), key);
 		}
 
 		for (short i = 1000; i < 2000; i++) {
@@ -59,6 +66,17 @@ public class TestCustomCollections {
 			boolean b = map.containsKey(idOffset + i);
 			Assert.assertEquals(b, false);
 		}
+		for (short i = 1000; i < 1200; i++) {
+			short j = map.put(idOffset + i, (short) 333);
+			Assert.assertEquals(j, Short.MIN_VALUE);
+			Assert.assertEquals(map.size(), i);
+		}
+    // random read access 2 
+		for (int i = 1; i < 1000; i++) {
+        int key = 1000 + (short) (Math.random() * 200);
+			Assert.assertEquals(map.get(idOffset + key), 333);
+		}
+
 
 		for (short i = -2000; i < -1000; i++) {
 			Assert.assertEquals(map.get(idOffset + i), Short.MIN_VALUE);
@@ -107,12 +125,28 @@ public class TestCustomCollections {
 			Assert.assertEquals(map.get(idOffset + i), i);
 		}
 
+    // random read access 1 
+		for (int i = 1; i < 1000; i++) {
+        int key = (int) Math.max(1,Math.random() * 1000);
+			Assert.assertEquals(map.get(idOffset + key), key);
+		}
+
 		for (int i = 1000; i < 2000; i++) {
 			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
 		}
 		for (int i = 1000; i < 2000; i++) {
 			boolean b = map.containsKey(idOffset + i);
 			Assert.assertEquals(b, false);
+		}
+		for (int i = 1000; i < 1200; i++) {
+			int j = map.put(idOffset + i, 333);
+			Assert.assertEquals(j, Integer.MIN_VALUE);
+			Assert.assertEquals(map.size(), i);
+		}
+    // random read access 2 
+		for (int i = 1; i < 1000; i++) {
+        int key = 1000 + (short) (Math.random() * 200);
+			Assert.assertEquals(map.get(idOffset + key), 333);
 		}
 
 		for (int i = -2000; i < -1000; i++) {
