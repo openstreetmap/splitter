@@ -697,8 +697,13 @@ public class Main {
 			Rectangle rect = Utils.area2Rectangle(area, 0);
 			areas.add(rect);
 		}
+		
 		while (!checkIfCovered(bounds, areas)){
-			addPseudoArea(bounds, areas);
+			boolean changed = addPseudoArea(bounds, areas);
+			if (!changed){
+				System.out.println("Sorry, failed to find pseudo areas");
+				System.exit(-1);
+			}
 		}
 		// top 
 		areas.add(new Rectangle(filterBounds.x, (int)bounds.getMaxY(), filterBounds.width,  (int)(filterBounds.getMaxY() - bounds.getMaxY())));
@@ -716,9 +721,11 @@ public class Main {
 	 * Brute force algorithm to fill empty areas with rectangles
 	 * @param bounds
 	 * @param areas
+	 * @return 
 	 */
-	private void addPseudoArea(Rectangle bounds, ArrayList<Rectangle> areas) {
+	private boolean addPseudoArea(Rectangle bounds, ArrayList<Rectangle> areas) {
 		//ArrayList<Rectangle> workList = new ArrayList<Rectangle>(areas);
+		int oldSize = areas.size();
 		for (int i = 0; i < areas.size(); i++){
 			
 			Rectangle area = areas.get(i);
@@ -762,6 +769,7 @@ public class Main {
 				areas.add(bottom.getBounds());
 			}
 		}
+		return oldSize != areas.size();
 	}
 
 	private boolean checkIfCovered(Rectangle bounds, List<Rectangle> areas){
