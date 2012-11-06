@@ -401,7 +401,7 @@ public class Main {
 			 
 			int writerOffset = i * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, rects.size() - i * areasPerPass);
-			ProblemsListGenerator problemsListGenerator = new ProblemsListGenerator(
+			ProblemsListProcessor problemsListGenerator = new ProblemsListProcessor(
 					dataStorer, writerOffset, numWritersThisPass,
 					calculatedProblemWays, calculatedProblemRels);
 			processMap(problemsListGenerator); 
