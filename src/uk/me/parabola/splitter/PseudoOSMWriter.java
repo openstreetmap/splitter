@@ -18,9 +18,9 @@ import java.io.IOException;
 
 public class PseudoOSMWriter extends AbstractOSMWriter{
 
-	public PseudoOSMWriter(Area bounds, File outputDir, int mapId) {
+	public PseudoOSMWriter(Area bounds, int mapId) {
 		// no overlap for pseudo writers !
-		super(bounds, outputDir, mapId, 0);
+		super(bounds, null, mapId, 0);
 	}
 	
 	@Override
