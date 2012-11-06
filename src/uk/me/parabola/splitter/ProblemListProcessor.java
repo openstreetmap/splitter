@@ -32,7 +32,7 @@ import java.util.BitSet;
  * TODO: find an appropriate data structure to store the needed info even if planet is used as input and split-file is used to
  * specify a few areas.
  */
-class ProblemsListProcessor extends AbstractMapProcessor {
+class ProblemListProcessor extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
 
 	private SparseLong2ShortMapFunction coords;
@@ -54,7 +54,7 @@ class ProblemsListProcessor extends AbstractMapProcessor {
 
 	private Rectangle realWriterBbox;
 	
-	ProblemsListProcessor(DataStorer dataStorer,
+	ProblemListProcessor(DataStorer dataStorer,
 			int writerOffset, int numWritersThisPass, LongArrayList problemWays, LongArrayList problemRels) {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();

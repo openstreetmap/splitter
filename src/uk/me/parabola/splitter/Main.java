@@ -401,10 +401,10 @@ public class Main {
 			 
 			int writerOffset = i * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, rects.size() - i * areasPerPass);
-			ProblemsListProcessor problemsListProcessor= new ProblemsListProcessor(
+			ProblemListProcessor processor= new ProblemListProcessor(
 					dataStorer, writerOffset, numWritersThisPass,
 					calculatedProblemWays, calculatedProblemRels);
-			processMap(problemsListProcessor); 
+			processMap(processor); 
 		}
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms"); 
 		
