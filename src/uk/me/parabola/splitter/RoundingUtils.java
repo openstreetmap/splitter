@@ -89,10 +89,21 @@ public class RoundingUtils {
 
 		int roundedMinLon = roundDown(b.getMinLong(), shift);
 		int roundedMaxLon = ("blow".equals(method)) ? roundUp(b.getMaxLong(), shift) : roundDown(b.getMaxLong(), shift);
+		// don't produce illegal values
+		if (roundedMinLon < -0x800000)
+			roundedMinLon = -0x800000;
+		if (roundedMaxLon > 0x800000)
+			roundedMaxLon = 0x800000;
+		
 		if ((roundedMinLon & alignment) != (roundedMaxLon & alignment)) {
-			// The new width isn't a multiple of twice the alignment. Fix it by pushing
-			// the tile edge that moved the least out by another 'alignment' units.
-			if (b.getMinLong() - roundedMinLon < roundedMaxLon - b.getMaxLong()) {
+			// The new width isn't a multiple of twice the alignment. 
+			if (roundedMaxLon == 0x800000)
+				roundedMinLon -= alignment; // must move to the right
+			else if (roundedMinLon == -0x800000)
+				roundedMaxLon += alignment; // must move to the left
+			// not a special case, fix it by pushing the tile edge that 
+			// moved the least out by another 'alignment' units.
+			else if (b.getMinLong() - roundedMinLon < roundedMaxLon - b.getMaxLong()) {
 				roundedMinLon -= alignment;
 			} else {
 				roundedMaxLon += alignment;
