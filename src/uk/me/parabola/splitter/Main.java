@@ -14,7 +14,9 @@
 package uk.me.parabola.splitter;
 
 import crosby.binary.file.BlockInputStream;
+
 import org.xmlpull.v1.XmlPullParserException;
+
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.geo.City;
@@ -26,7 +28,10 @@ import uk.me.parabola.splitter.geo.DummyCityFinder;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
+import java.awt.Point;
+import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.geom.PathIterator;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -41,6 +46,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -206,8 +212,9 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		if (generateProblemList)
-			genProblemLists(areas);
+		if (generateProblemList){
+			partitionAreasForProblemListGenerator(areas);
+		}
 		writeAreas(areas);
 		writeArgsFile(areas);
 	}
@@ -357,16 +364,20 @@ public class Main {
 		}
 	}
 
+	/**
+	 * 
+	 * @param areas
+	 * @throws IOException
+	 * @throws XmlPullParserException
+	 */
 	private void genProblemLists(List<Area> areas) throws IOException, XmlPullParserException {
-		// generate list of incomplete ways and relations
-		long startProblemListGenerator = System.currentTimeMillis();
-		List<Rectangle> rects = addPseudoWriters(areas);
-		System.out.println("Calculation of pseudo-areas took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
+		List<Area> workAreas = addPseudoWriters(areas);
 		
-		int numPasses = getAreasPerPass(rects.size());
-		int areasPerPass = (int) Math.ceil((double) rects.size() / (double) numPasses);
+		int numPasses = getAreasPerPass(workAreas.size());
+		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
 
-		OSMWriter [] writers = new OSMWriter[rects.size()];
+		OSMWriter [] writers = new OSMWriter[workAreas.size()];
+		
 		ArrayList<Area> allAreas = new ArrayList<Area>();
 
 		int j;
@@ -378,20 +389,11 @@ public class Main {
 		}
 		System.out.println("Pseudo-Writers:");
 		for (;j < writers.length; j++){
-			Rectangle r = rects.get(j);
-			Area area = new Area(r.y, r.x, (int) r.getMaxY(), (int) r.getMaxX());
-			area.setMapId(-1-j);
+			Area area = workAreas.get(j);
 			allAreas.add(area);
 			writers[j] = new PseudoOSMWriter(area, area.getMapId());
 			System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
-		AreaList planet = new AreaList(allAreas);
-		File out = new File("planet.kml");
-		if (!out.isAbsolute())
-			kmlOutputFile = new File(fileOutputDir, "planet.kml").getPath();
-		System.out.println("Writing planet KML file");
-		planet.writeKml(kmlOutputFile);
-		
 		DataStorer dataStorer = new DataStorer(writers);
 		System.out.println("Starting problem-list-generator pass(es)"); 
 		for (int i = 0; i < numPasses; i++) {
@@ -400,16 +402,40 @@ public class Main {
 			 */
 			 
 			int writerOffset = i * areasPerPass;
-			int numWritersThisPass = Math.min(areasPerPass, rects.size() - i * areasPerPass);
-			ProblemListProcessor processor= new ProblemListProcessor(
+			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - i * areasPerPass);
+			ProblemListProcessor processor = new ProblemListProcessor(
 					dataStorer, writerOffset, numWritersThisPass,
 					calculatedProblemWays, calculatedProblemRels);
 			processMap(processor); 
 		}
-		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms"); 
 		
 	}
-	
+	/**
+	 * If the areas were read from a split-file, they might overlap. 
+	 * For the problem-list processing we need disjoint areas.
+	 * TODO : try to execute parallel threads
+	 * @param realAreas
+	 * @throws IOException
+	 * @throws XmlPullParserException
+	 */
+	private void partitionAreasForProblemListGenerator(List<Area> realAreas) throws IOException, XmlPullParserException{
+		long startProblemListGenerator = System.currentTimeMillis();
+
+		ArrayList<Area> remainingAreas = new ArrayList<Area>(realAreas);
+		ArrayList<Area> distinctAreas;
+		while (remainingAreas.size() > 0){
+			distinctAreas = getNonOverlappingAreas(remainingAreas, true);
+			if (distinctAreas.size() * 1.25 > maxAreasPerPass)
+				distinctAreas = getNonOverlappingAreas(remainingAreas, false);
+			else 
+				remainingAreas.clear();
+			
+			genProblemLists(distinctAreas);
+			remainingAreas.removeAll(distinctAreas);
+		} 
+		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms"); 
+	}
+
 
 	/**
 	 * Final pass(es), we have the areas so parse the file(s) again and calculate 
@@ -664,22 +690,6 @@ public class Main {
 	}
 	
 	/**
-	 * Calculate the bounding box of the tile areas.
-	 * @param realAreas
-	 * @return
-	 */
-	private Rectangle calcRealWriterBBox (List<Area> realAreas){
-		Rectangle bounds = null;
-		for (Area area: realAreas){
-			Rectangle rect = Utils.area2Rectangle(area, 0);
-			if (bounds == null)
-				bounds = rect;
-			else
-				bounds.add(rect);
-		}
-		return bounds;
-	}
-	/**
 	 * Make sure that our writer areas cover the planet. This is done by adding 
 	 * pseudo-writers. 
 	 * TODO: It seems to be best to have as few pseudo-areas as 
@@ -687,98 +697,325 @@ public class Main {
 	 * @param realAreas
 	 * @return
 	 */
-	private List<Rectangle> addPseudoWriters(List<Area> realAreas){
-		ArrayList<Rectangle> areas = new ArrayList<Rectangle>();
-		Rectangle bounds = calcRealWriterBBox(realAreas);
-		// maybe this could be passed as a parm, but in fact it would be better to 
-		// filter the input file first
-		Rectangle filterBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
-		for (Area area: realAreas){
-			Rectangle rect = Utils.area2Rectangle(area, 0);
-			areas.add(rect);
-		}
-		
-		while (!checkIfCovered(bounds, areas)){
-			boolean changed = addPseudoArea(bounds, areas);
+	private List<Area> addPseudoWriters(List<Area> realAreas){
+		ArrayList<Area> areas = new ArrayList<Area>(realAreas);
+		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
+
+		while (!checkIfCovered(planetBounds, areas)){
+			boolean changed = addPseudoArea(areas);
+			
+			AreaList planet = new AreaList(areas);
+			String planetName = "planet.kml";
+			File out = new File(planetName);
+			if (!out.isAbsolute())
+				kmlOutputFile = new File(fileOutputDir, planetName).getPath();
+			System.out.println("Writing planet KML file");
+			try {
+				planet.writeKml(kmlOutputFile);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} 			
+			
 			if (!changed){
-				System.out.println("Sorry, failed to find pseudo areas");
+				System.out.println("Failed to fill planet with pseudo-areas");
 				System.exit(-1);
 			}
 		}
-		// top 
-		areas.add(new Rectangle(filterBounds.x, (int)bounds.getMaxY(), filterBounds.width,  (int)(filterBounds.getMaxY() - bounds.getMaxY())));
-		//left
-		areas.add(new Rectangle(filterBounds.x,bounds.y, bounds.x-filterBounds.x, bounds.height));
-		//right
-		areas.add(new Rectangle((int)bounds.getMaxX(),bounds.y, (int)(filterBounds.getMaxX() - bounds.getMaxX()), bounds.height));
-		// bottom
-		areas.add(new Rectangle(filterBounds.x, filterBounds.y, filterBounds.width, bounds.y-filterBounds.y));
-		
 		return areas;
 	}
-	
 	/**
-	 * Brute force algorithm to fill empty areas with rectangles
-	 * @param bounds
-	 * @param areas
+	 * Work around for possible rounding errors in area.subtract processing
+	 * @param area an area that is considered to be empty or a rectangle
 	 * @return 
 	 */
-	private boolean addPseudoArea(Rectangle bounds, ArrayList<Rectangle> areas) {
-		//ArrayList<Rectangle> workList = new ArrayList<Rectangle>(areas);
-		int oldSize = areas.size();
-		for (int i = 0; i < areas.size(); i++){
-			
-			Rectangle area = areas.get(i);
-			java.awt.geom.Area  left = new java.awt.geom.Area (new Rectangle(bounds.x,(int)area.y,area.x-bounds.x,area.height));
-			java.awt.geom.Area  right = new java.awt.geom.Area (new Rectangle((int)area.getMaxX(),area.y,(int)(bounds.getMaxX()-area.getMaxX()),area.height));
-			java.awt.geom.Area  top = new java.awt.geom.Area (new Rectangle(area.x,(int)area.getMaxY(),area.width,(int)(bounds.getMaxY()-area.getMaxY())));
-			java.awt.geom.Area  bottom = new java.awt.geom.Area (new Rectangle(area.x, bounds.y,area.width,(int)(area.y-bounds.y)));
-			for (Rectangle area2: areas){
-				if (area == area2)
+	private java.awt.geom.Area simplifyArea(java.awt.geom.Area area) {
+		if (area.isEmpty() || area.isRectangular())
+			return area;
+		// area.isRectugular() may returns false although the shape is a
+		// perfect rectangle :-( If we subtract the area from its bounding
+		// box we get better results.
+		java.awt.geom.Area bbox = new java.awt.geom.Area (area.getBounds2D());
+		bbox.subtract(area);
+		if (bbox.isEmpty()) // bbox equals area: is a rectangle 
+			return new java.awt.geom.Area (area.getBounds2D());
+		return area;
+	}
+
+	private boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
+		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
+		
+		for (Area area: areas){
+			bbox.subtract(area.getJavaArea());
+		}
+		return bbox.isEmpty();
+	}
+
+	/**
+	 * Create a list of areas that do not overlap. If areas in the original
+	 * list are overlapping, they can be replaced by up to 5 disjoint areas.
+	 * This is done if parameter makeDisjoint is true
+	 * @param realAreas the list of areas 
+	 * @param makeDisjoint if true, replace overlapping areas by disjoint ones
+	 * @return the new list
+	 */
+	ArrayList<Area> getNonOverlappingAreas(List<Area> realAreas, boolean makeDisjoint){
+		java.awt.geom.Area covered = new java.awt.geom.Area();
+		ArrayList<Area> splitList = new ArrayList<Area>();
+		if (makeDisjoint)
+			System.out.println("Removing overlaps from tiles...");
+		for (int i = 0; i < realAreas.size(); i++){
+			Area area1= realAreas.get(i);
+			Rectangle r1 = area1.getRect();
+			if (covered.intersects(r1) == false){
+				splitList.add(area1);
+			}
+			else {
+				if (makeDisjoint == false)
 					continue;
-				left.subtract(new java.awt.geom.Area(area2));
-				if (left.getBounds().getMaxX() != area.x || left.getBounds().height != area.height)
-					left.reset();
-				right.subtract(new java.awt.geom.Area(area2));
-				if ((int)right.getBounds().x != area.getMaxX() || right.getBounds().height != area.height)
-					right.reset();
-				top.subtract(new java.awt.geom.Area(area2));
-				if ((int)top.getBounds().y != area.getMaxY() || top.getBounds().width != area.width)
-					top.reset();
-				bottom.subtract(new java.awt.geom.Area(area2));
-				if ((int)bottom.getBounds().getMaxY() != area.y || bottom.getBounds().width != area.width)
-					bottom.reset();
-				if (left.isEmpty() && right.isEmpty() && top.isEmpty() && bottom.isEmpty())
-					break;
+				//System.out.println("splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size());	
+				// find intersecting areas
+				ArrayList<Area> toAdd = new ArrayList<Area>();
+				for (int j = 0; j < splitList.size(); j++){
+					Area area2 = splitList.get(j);
+					if (area2 == null)
+						continue;
+					Rectangle r2 = area2.getRect();
+					if (r1.intersects(r2)){
+						java.awt.geom.Area overlap = new java.awt.geom.Area(area1.getJavaArea());
+						overlap.intersect(area2.getJavaArea());
+						Rectangle ro = overlap.getBounds();
+						if (ro.height == 0 || ro.width == 0)
+							continue;
+						Area aNew = new Area(ro.y, ro.x, (int)ro.getMaxY(),(int)ro.getMaxX());
+						aNew.setMapId(area1.getMapId());
+						splitList.set(j, null);
+						toAdd.add(aNew);
+						
+						java.awt.geom.Area coveredByPair = new java.awt.geom.Area(r1);
+						coveredByPair.add(new java.awt.geom.Area(r2));
+						// create up to five new rectangles
+						int minX = coveredByPair.getBounds().x;
+						int minY = coveredByPair.getBounds().y;
+						int maxX = (int) coveredByPair.getBounds().getMaxX();
+						int maxY = (int) coveredByPair.getBounds().getMaxY();
+						coveredByPair.subtract(overlap);
+						if (coveredByPair.isEmpty())
+							continue; // two equal areas a
+						
+						Rectangle[] rectPair = {r1,r2};
+						Area[] areaPair = {area1,area2};
+						Rectangle[] clippers = {
+								new Rectangle(minX,minY,ro.x-minX,maxY-minY), //left
+								new Rectangle((int) ro.getMaxX(),minY,(int)(maxX-ro.getMaxX()),maxY-minY), //right
+								new Rectangle(minX,(int)ro.getMaxY(),maxX-minX, (int)(maxY-ro.getMaxY())), // top
+								new Rectangle(minX,minY,maxX-minX,ro.y-minY)}; // bottom
+						for (Rectangle clipper: clippers){
+							for (int l = 0; l <= 1; l++){
+								Rectangle test = clipper.intersection(rectPair[l]);
+								if (!test.isEmpty()){
+									coveredByPair.subtract(new java.awt.geom.Area(clipper));
+									Area newA = new Area(test.y,test.x,(int)test.getMaxY(),(int)test.getMaxX());
+									newA.setMapId(areaPair[l].getMapId());
+									toAdd.add(newA);
+								}
+							}
+						}
+					}
+				}
+				splitList.addAll(toAdd);
 			}
-			int num = i+1;
-			if (left.isEmpty() == false && left.isRectangular()){
-				System.out.println("adding area " + areas.size() + " on the left of area "  + num);
-				areas.add(left.getBounds());
+			covered.add(new java.awt.geom.Area(r1));
+		}
+		Iterator <Area> iter = splitList.iterator();
+		while (iter.hasNext()){
+			Area a = iter.next();
+			if (a == null)
+				iter.remove();
+		}
+		return splitList;
+	}
+
+	/**
+	 * Fill uncovered parts of the planet with pseudo-areas.
+	 * TODO: find better algorithm
+	 * We want a small number of pseudo areas because many of them will
+	 * require more memory or more passes, esp. when processing whole planet.
+	 * Also, the total length of all edges should be small.
+	 * @param areas list of areas (either real or pseudo)
+	 * @return true if pseudo-areas were added
+	 */
+	private boolean addPseudoArea(ArrayList<Area> areas) {
+		int oldSize = areas.size();
+		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
+		java.awt.geom.Area uncovered = new java.awt.geom.Area(planetBounds); 
+		java.awt.geom.Area covered = new java.awt.geom.Area(); 
+		
+		for (Area area: areas){
+			uncovered.subtract(area.getJavaArea());
+			covered.add(area.getJavaArea());
+		}
+		
+		while (uncovered.isEmpty() == false){
+			boolean changed = false;
+			List<List<Point>> shapes = areaToShapes(uncovered);
+			// we divide planet into stripes for all vertices of the uncovered area
+			// TODO: An optimized version could try to find fewer rectangles.
+			int minX = uncovered.getBounds().x;
+			int nextX = Integer.MAX_VALUE;
+			for (int i = 0; i < shapes.size(); i++){
+				List<Point> shape = shapes.get(i);
+				for (Point point: shape){
+					int lon = point.x;
+					if (lon < nextX && lon > minX) 
+						nextX = lon;
+				}
 			}
-			if (right.isEmpty() == false && right.isRectangular()){
-				System.out.println("adding area " + areas.size() + " on the right of area "  + num);
-				areas.add(right.getBounds());
+			java.awt.geom.Area stripeLon = new java.awt.geom.Area(new Rectangle(minX, planetBounds.y, nextX - minX, planetBounds.height));
+			// cut out already covered area
+			stripeLon.subtract(covered);
+			// the remaining area must be a set of zero or more disjoint rectangles
+			List<List<Point>> stripeShapes = areaToShapes(stripeLon);
+			for (int j = 0; j < stripeShapes .size(); j++){
+				List<Point> rectShape = stripeShapes .get(j);
+				java.awt.geom.Area test = shapeToArea(rectShape);
+				test = simplifyArea(test);
+				assert test.isRectangular();
+				Rectangle pseudoRect = test.getBounds();
+				if (uncovered.contains(pseudoRect)){
+					boolean wasMerged = false;
+					
+					// check if new area can be merged with last rectangles
+					for (int k=areas.size()-1; k >= oldSize; k--){
+						Area prev = areas.get(k);
+						if (prev.getMaxLong() < pseudoRect.x || prev.getMapId() >= 0)
+							break;
+						if (prev.getHeight() == pseudoRect.height && prev.getMaxLong() == pseudoRect.x){
+							// merge
+							Area pseudo = prev.add(new Area(pseudoRect.y,pseudoRect.x,(int)pseudoRect.getMaxY(),(int)pseudoRect.getMaxX()));
+							pseudo.setMapId(prev.getMapId());
+							areas.set(k, pseudo);
+							//System.out.println("Enlarged pseudo area " + pseudo.getMapId() + " " + pseudo);
+							wasMerged = true;
+							break;
+						}
+					}
+					
+					if (!wasMerged){
+						Area pseudo = new Area(pseudoRect.y, pseudoRect.x, (int)pseudoRect.getMaxY(), (int)pseudoRect.getMaxX());
+						pseudo.setMapId(-1 * (areas.size()+1));
+						//System.out.println("Adding pseudo area " + pseudo.getMapId() + " " + pseudo); 
+						areas.add(pseudo);
+					}
+					uncovered.subtract(test);
+					covered.add(test);
+					changed = true;
+				}
 			}
-			if (top.isEmpty() == false && top.isRectangular()){
-				System.out.println("adding area " + areas.size() + " on top of area "  + num);
-				areas.add(top.getBounds());
-			}
-			if (bottom.isEmpty() == false && bottom.isRectangular()){
-				System.out.println("adding area " + areas.size() + " at the botton of area "  + num);
-				areas.add(bottom.getBounds());
-			}
+			if (!changed)
+				break;
 		}
 		return oldSize != areas.size();
 	}
 
-	private boolean checkIfCovered(Rectangle bounds, List<Rectangle> areas){
-		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
+	/**
+	 * Convert area into a list of polygons each represented by a list
+	 * of points. It is possible that the area contains multiple discontiguous
+	 * polygons, so you may append more than one shape to the output list.<br/>
+	 * <b>Attention:</b> The outline of the polygon is has clockwise order whereas
+	 * holes in the polygon have counterclockwise order. 
+	 * 
+	 * @param area The area to be converted.
+	 * @return a list of closed polygons
+	 */
+	public static List<List<Point>> areaToShapes(java.awt.geom.Area area) {
+		List<List<Point>> outputs = new ArrayList<List<Point>>(4);
+
+		float[] res = new float[6];
+		PathIterator pit = area.getPathIterator(null);
 		
-		for (Rectangle area: areas){
-			bbox.subtract(new java.awt.geom.Area(area));
-		}		
-		return bbox.isEmpty();
+		// store float precision coords to check if the direction (cw/ccw)
+		// of a polygon changes due to conversion to int precision 
+		List<Float> floatLat = null;
+		List<Float>	floatLon = null;
+
+		List<Point> points = null;
+
+		int iPrevLat = Integer.MIN_VALUE;
+		int iPrevLong = Integer.MIN_VALUE;
+
+		while (!pit.isDone()) {
+			int type = pit.currentSegment(res);
+
+			float fLat = res[1];
+			float fLon = res[0];
+			int iLat = Math.round(fLat);
+			int iLon = Math.round(fLon);
+			
+			switch (type) {
+			case PathIterator.SEG_LINETO:
+				floatLat.add(fLat);
+				floatLon.add(fLon);
+
+				if (iPrevLat != iLat || iPrevLong != iLon) 
+					points.add(new Point(iLon,iLat));
+
+				iPrevLat = iLat;
+				iPrevLong = iLon;
+				break;
+			case PathIterator.SEG_MOVETO: 
+			case PathIterator.SEG_CLOSE:
+				if ((type == PathIterator.SEG_MOVETO && points != null) || type == PathIterator.SEG_CLOSE) {
+					if (points.size() > 2 && points.get(0).equals(points.get(points.size() - 1)) == false) {
+						points.add(points.get(0));
+					}
+					if (points.size() > 3){
+						// use float values to verify area size calculations with higher precision
+						if (floatLat.size() > 2) {
+							if (floatLat.get(0).equals(floatLat.get(floatLat.size() - 1)) == false
+									|| floatLon.get(0).equals(floatLon.get(floatLon.size() - 1)) == false){ 
+								floatLat.add(floatLat.get(0));
+								floatLon.add(floatLon.get(0));
+							}
+						}
+
+						outputs.add(points);
+					}
+				}
+				if (type == PathIterator.SEG_MOVETO){
+					floatLat= new ArrayList<Float>();
+					floatLon= new ArrayList<Float>();
+					floatLat.add(fLat);
+					floatLon.add(fLon);
+					points = new ArrayList<Point>();
+					points.add(new Point(iLon,iLat));
+					iPrevLat = iLat;
+					iPrevLong = iLon;
+				} else {
+					floatLat= null;
+					floatLon= null;
+					points = null;
+					iPrevLat = Integer.MIN_VALUE;
+					iPrevLong = Integer.MIN_VALUE;
+				}
+				break;
+			default:
+				System.out.println("Unsupported path iterator type " + type
+						+ ". This is an mkgmap error.");
+			}
+
+			pit.next();
+		}
+
+		return outputs;
 	}
-	
+
+	java.awt.geom.Area shapeToArea(List<Point> shape){
+		Polygon polygon = new Polygon();
+		for (Point point : shape) {
+			polygon.addPoint(point.x, point.y);
+		}
+		return new java.awt.geom.Area(polygon);
+
+	}
 }

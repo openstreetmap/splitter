@@ -13,9 +13,6 @@
 
 package uk.me.parabola.splitter;
 
-import java.io.File;
-import java.io.IOException;
-
 public class PseudoOSMWriter extends AbstractOSMWriter{
 
 	public PseudoOSMWriter(Area bounds, int mapId) {
@@ -24,17 +21,13 @@ public class PseudoOSMWriter extends AbstractOSMWriter{
 	}
 	
 	@Override
-	public boolean isPseudo(){
-		return true;
-	}
-	@Override
-	public void write(Relation rel) throws IOException {}
+	public void write(Relation rel) {}
 	
 	@Override
-	public void write(Way way) throws IOException {}
+	public void write(Way way) {}
 	
 	@Override
-	public void write(Node node) throws IOException {}
+	public void write(Node node) {}
 	
 	@Override
 	public void initForWrite() {}

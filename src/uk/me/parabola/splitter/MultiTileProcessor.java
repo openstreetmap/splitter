@@ -43,6 +43,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private final SparseBitSet alreadySearchedRels = new SparseBitSet();
 	private final SparseBitSet doneRels = new SparseBitSet();
 	private SparseBitSet problemRels = new SparseBitSet();
+	private SparseBitSet parentOnlyRels = new SparseBitSet();
 	private SparseBitSet problemWays = new SparseBitSet();
 	private SparseBitSet neededWays = new SparseBitSet();
 	private SparseBitSet neededNodes = new SparseBitSet();
@@ -117,6 +118,11 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (pass == PASS3_NODES_AND_WAYS){
 			if (!neededWays.get(way.getId()))
 				return;
+			/*
+			if (problemWays.get(way.getId())){
+				System.out.println("way: " + way.getId() + " # ");
+			}
+			*/
 			// save the node refs
 			// problemWayNodes.put(way.getId(), way.getRefs());
 			// calculate the bbox
@@ -212,30 +218,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			mergeRelMemWriters();
 			orWritersOfRelMembers();
 			
-			// free memory for elements that are not written to multiple tiles
-			/*
-			Iterator<Entry<Long, Integer>> it = dataStorer.getSpecialNodeWriters().entrySet().iterator();
-		    while (it.hasNext()) {
-		        Map.Entry<Long,Integer> pairs = (Map.Entry<Long,Integer>)it.next();
-		        if (dataStorer.getMultiTileWriterDictionary().getBitSet(pairs.getValue()).cardinality() <= 1){
-		        	it.remove(); 
-		        }
-		    }
-			it = dataStorer.getProblemWayWriters().entrySet().iterator();
-		    while (it.hasNext()) {
-		        Map.Entry<Long,Integer> pairs = (Map.Entry<Long,Integer>)it.next();
-		        if (dataStorer.getMultiTileWriterDictionary().getBitSet(pairs.getValue()).cardinality() <= 1){
-		        	it.remove(); 
-		        }
-		    }
-		    it = dataStorer.getProblemRelWriters().entrySet().iterator();
-		    while (it.hasNext()) {
-		        Map.Entry<Long,Integer> pairs = (Map.Entry<Long,Integer>)it.next();
-		        if (dataStorer.getMultiTileWriterDictionary().getBitSet(pairs.getValue()).cardinality() <= 1){
-		        	it.remove(); 
-		        }
-		    }
-			*/
 			problemRels = null;
 			problemWays = null;
 			stats("endMap Pass3 end");
@@ -255,8 +237,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private void orWritersOfRelMembers() {
 		// make sure that the ways and nodes of the problem relations are written to all needed tiles
 		for (Relation rel: relMap.values()){
-			if (!problemRels.get(rel.getId()))
-				continue;
 			Integer relWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, rel.getId());
 			if (relWriterIdx == null)
 				continue;
@@ -307,7 +287,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	}
 
 	private void calcWritersOfRelWaysAndNodes() {
-		Node dummyNode = new Node();
 		for (Relation rel: relMap.values()){
 			Area relArea = null;
 			boolean isNotComplete = false;
@@ -315,39 +294,34 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			for (Member mem: rel.getMembers()){
 				long memId = mem.getRef();
 				Area memArea = null;
+				boolean memFound = false;
 				if (mem.getType().equals("node")){
-					// TODO: probably we should not add nodes to the area,
-					// instead we should or-combine the writes 
 					Long coord = nodeCoords.get(memId);
 					if (coord != null){
 						int lat = (int) (0xffffffff & (coord >>> 32));
 						int lon = (int) (0xffffffff & coord);
-						dummyNode.set(0, lat, lon);
-						addWriters(writerSet, dummyNode);
-						memArea = new Area(lat,lon,lat,lon);
+						addWriters(writerSet, lat, lon);
+						memFound = true;
 					}
 				}
 				else if (mem.getType().equals("way")){
-					/*
-					LongArrayList wayRefs = problemWayNodes.get(mem.getRef());
-					if (wayRefs != null){
-						addWriters(writerSet, mem.getRef(),wayRefs);
-						memArea = getWayBbox(mem.getRef(), wayRefs);
-					}
-					*/
 					Integer idx = dataStorer.getWriterIdx(DataStorer.WAY_TYPE, memId);
 					if (idx != null){
 						writerSet.or(dataStorer.getMultiTileWriterDictionary().getBitSet(idx));
 					}
 					memArea = wayAreaMap.get(memId);
+					if (memArea != null)
+						memFound = true;
 				}
 				else if (mem.getType().equals("relation"))
 					continue; // handled later
-				if (memArea == null){
+				if (!memFound) {
 					isNotComplete = true;
 					continue;
 				}
-
+				if (memArea == null)
+					continue;
+				
 				if (relArea == null)
 					relArea = new Area(memArea.getMinLat(), memArea.getMinLong(),
 							memArea.getMaxLat(), memArea.getMaxLong());
@@ -360,59 +334,13 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (!writerSet.isEmpty()){
 				int idx = dataStorer.getMultiTileWriterDictionary().translate(writerSet);
 				dataStorer.putWriterIdx(DataStorer.REL_TYPE, rel.getId(), idx);
-				if (isNotComplete)
+				if (isNotComplete && parentOnlyRels.get(rel.getId()) == false)
 					System.out.println("Sorry, data for relation " + rel.getId() + " is incomplete");
 			}
 		}
 
 	}
 		
-	
-
-	/**
-	 * @param rel the relation 
-	 * @param depth used to detect loops 
-	 * @return
-	 */
-	private boolean CheckIfAnyMemberIsProblemRel(Relation rel, int depth){
-		boolean isProblemRel = false;
-		alreadySearchedRels.set(rel.getId());
-		if (doneRels.get(rel.getId()))
-			return isProblemRel;
-		if (depth > 15){
-			System.out.println("markSubProblemRels reached max. depth: " + rel.getId() + " " +  depth);
-			return isProblemRel;
-		}
-		for (Member mem : rel.getMembers()) {
-			// String role = mem.getRole();
-			long memId = mem.getRef();
-			if (mem.getType().equals("relation")) {
-				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " " +  depth + " " + memId );
-				}
-				else {
-					if (problemRels.get(memId)){
-						isProblemRel = true;
-						break;
-					}
-					// recursive search
-					Relation subRel = relMap.get(memId);
-					if (subRel != null){
-						isProblemRel |= CheckIfAnyMemberIsProblemRel(subRel, depth+1);
-					}
-				}
-			} 
-			if (isProblemRel)
-				break;
-		}
-		doneRels.set(rel.getId());
-		if (isProblemRel && !problemRels.get(rel.getId())){
-			problemRels.set(rel.getId());
-			System.out.println("Adding parent rel to problem list: " + rel.getId());
-		}
-		return isProblemRel;
-	}
-
 	/**
 	 * Mark the ways and nodes of a relation as problem cases. If the relation 
 	 * contains sub relations, the routine calls itself recursively. 
@@ -426,19 +354,21 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (doneRels.get(rel.getId()))
 			return ;
 		if (depth > 15){
-			System.out.println("markSubRels reached max. depth: " + rel.getId() + " " +  depth);
+			System.out.println("MarkNeededMembers reached max. depth: " + rel.getId() + " " +  depth);
 			return ;
 		}
 		for (Member mem : rel.getMembers()) {
 			// String role = mem.getRole();
 			long memId = mem.getRef();
-			if (mem.getType().equals("way"))
+			if (mem.getType().equals("way")){
 				neededWays.set(memId);
+				problemWays.clear(memId);
+			}
 			else if (mem.getType().equals("node"))
 				neededNodes.set(memId);
 			else if (mem.getType().equals("relation")) {
 				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " " +  depth + " " + memId );
+					//System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
 				}
 				else {
 					// recursive search
@@ -476,7 +406,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			
 			if (mem.getType().equals("relation")) {
 				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " " +  depth + " " + memId );
+					System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
 				}
 				else {
 					// recursive search
@@ -533,7 +463,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			
 			if (mem.getType().equals("relation")) {
 				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " " +  depth + " " + memId );
+					System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
 				}
 				else {
 					// recursive search
@@ -627,8 +557,8 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		dataStorer.putWriterIdx(kind, childId, childWriterIdx);
 	}
 	
-	private void addWriters(BitSet writerSet, Node node){
-		WriterGridResult writerCandidates = dataStorer.getGrid().get(node);
+	private void addWriters(BitSet writerSet, int mapLat, int mapLon){
+		WriterGridResult writerCandidates = dataStorer.getGrid().get(mapLat,mapLon);
 		if (writerCandidates == null)  
 			return;
 		
@@ -638,7 +568,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			OSMWriter w = writers[n];
 			boolean found;
 			if (writerCandidates.testNeeded){
-				found = w.nodeBelongsToThisArea(node);
+				found = w.coordsBelongToThisArea(mapLat, mapLon);
 			}
 			else{ 
 				found = true;
@@ -650,44 +580,68 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		return ;
 	}
 	
-	private void addWriters(BitSet writerSet, Point p1,Point p2){
+	private void addWritersOfCrossedTiles(BitSet writerSet, Point p1,Point p2){
 		OSMWriter[] writers = dataStorer.getWriterDictionary().getWriters();
+		Rectangle lineBbox = new Rectangle(p1); 
+		lineBbox.add(p2);
+
 		for (int i = 0; i < writers.length; i++) {
-			Rectangle writerBbox = writers[i].getBBox(); 
-			if (writerBbox.contains(p1.y, p1.x))
+			OSMWriter w = writers[i];
+			if (w.getBounds().contains(p1.y, p1.x))
 				writerSet.set(i);
-			else if (writerBbox.contains(p2.y, p2.x))
+			else if (w.getBounds().contains(p2.y, p2.x))
 				writerSet.set(i);
-			else if (writerBbox.intersectsLine(p1.x,p1.y,p2.x,p2.y))
-				writerSet.set(i);
+			else {
+				Rectangle writerBbox = writers[i].getBBox();
+				if (writerBbox.intersects(lineBbox) == false && writerBbox.intersectsLine(p1.x,p1.y,p2.x,p2.y)){
+					long dd = 4;
+				}
+					
+				if (writerBbox.intersects(lineBbox)){
+					if (writerBbox.intersectsLine(p1.x,p1.y,p2.x,p2.y))
+						writerSet.set(i);
+				}
+			}
 		}
 	}
 	
 	private void addWriters (BitSet writerSet, long wayId, LongArrayList wayRefs){
 		int numRefs = wayRefs.size();
+		int foundNodes = 0; 
+		
 		Point p1 = null,p2 = null;
 		for (int i = 0; i<numRefs; i++) {
 			long id = wayRefs.getLong(i);
 			Long coord = nodeCoords.get(id);
 			if (coord != null){
+				foundNodes++;
 				int lat = (int) (0xffffffff & (coord >>> 32));
 				int lon = (int) (0xffffffff & coord);
-				if (i > 0){
-					p1 = p2;
-				}
-				p2 = new Point(lon,lat);
+				addWriters(writerSet, lat, lon);
+			}
+		}
+		if (writerSet.cardinality() > 1){
+			// TODO: add simple check if the set of writer areas forms a rectangle
+			// if yes, no need to check for crossing lines
+			for (int i = 0; i<numRefs; i++) {
+				long id = wayRefs.getLong(i);
+				Long coord = nodeCoords.get(id);
+				if (coord != null){
+					int lat = (int) (0xffffffff & (coord >>> 32));
+					int lon = (int) (0xffffffff & coord);
+					if (i > 0){
+						p1 = p2;
+					}
+					p2 = new Point(lon,lat);
 
-				if (i > 0){
-					addWriters(writerSet, p1, p2);
+					if (i > 0){
+						addWritersOfCrossedTiles(writerSet, p1, p2);
+					}
 				}
 			}
-			else 
-				System.out.println("sorry, node " + id + " for needed way " + wayId + " is missing ");
 		}
-		if (p2 == null){
-			System.out.println("sorry, no nodes found for needed way " + wayId);
-			return;
-		}
+		if (foundNodes < numRefs)
+			System.out.println("Sorry, way " + wayId + " is missing " +  (numRefs-foundNodes) + " nodes.");
 	}
 	
 	private Area getWayBbox (long wayId, LongArrayList wayRefs){
@@ -726,14 +680,28 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	}
 
 	private void markParentRels(){
-		doneRels.clear();
-		for (Relation rel: relMap.values()){
-			if (problemRels.get(rel.getId()))
-				continue;
-			alreadySearchedRels.clear();
-			CheckIfAnyMemberIsProblemRel(rel, 0);
+		while (true){
+			boolean changed = false;
+			for (Relation rel: relMap.values()){
+				if (problemRels.get(rel.getId()))
+					continue;
+				for (Member mem : rel.getMembers()) {
+					// String role = mem.getRole();
+					long memId = mem.getRef();
+					if (mem.getType().equals("relation")) {
+						if (problemRels.get(memId)){
+							problemRels.set(rel.getId());
+							parentOnlyRels.set(rel.getId());
+							System.out.println("Adding parent of problem rel "+ memId + " to problem list: " + rel.getId());
+							changed = true;
+							break;
+						}
+					} 
+				}
+			}
+			if (!changed)
+				return;
 		}
-
 	}
 }
 

@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -37,7 +36,6 @@ public class DataStorer{
 	public final static int WAY_TYPE   = 1;
 	public final static int REL_TYPE   = 2;
 	private final int numOfWriters;
-	private final int maxRealWriter;
 	private final WriterMapper[] maps = new WriterMapper[3];
 	private final String[] mapNames = {"node", "way", "rel"};
 	private final WriterDictionaryShort writerDictionary;
@@ -52,30 +50,24 @@ public class DataStorer{
 	 */
 	DataStorer (OSMWriter [] writers){
 		this.numOfWriters = writers.length;
-		int i = -1;
-		for (OSMWriter w: writers){
-			if (w.getMapId() >= 0)
-				i++; 
-			else 
-				break;
-		}
-		maxRealWriter = i;
 		this.writerDictionary = new WriterDictionaryShort(writers);
 		this.multiTileWriterDictionary = new WriterDictionaryInt(writers);
-		this.grid = new WriterGrid(writerDictionary);
-		for (i = 0; i< maps.length; i++){
+		boolean hasPseudo = false;
+		for (int i = 0; i< maps.length; i++){
 			maps[i] = new WriterMapper(mapNames[i]);
 		}
+		for (OSMWriter w: writers){
+			if (w.getMapId() < 0){
+				hasPseudo = true;
+				break;
+			}
+		}
+		this.grid = new WriterGrid(writerDictionary, hasPseudo);
 	}
 
 	public int getNumOfWriters(){
 		return numOfWriters;
 	}
-	
-	public int getMaxRealWriter(){
-		return maxRealWriter;
-	}
-	
 	
 	public WriterDictionaryShort getWriterDictionary() {
 		return writerDictionary;

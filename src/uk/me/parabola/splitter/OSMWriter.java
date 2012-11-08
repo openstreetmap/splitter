@@ -31,13 +31,13 @@ public interface OSMWriter {
 	
 	public int getMapId();
 	
-	public abstract boolean isPseudo();
-	
 	public abstract void initForWrite();
 
 	public abstract void finishWrite();
 
 	public boolean nodeBelongsToThisArea(Node node);
+
+	public boolean coordsBelongToThisArea(int mapLat, int mapLon);
 	
 	public abstract void write(Node node) throws IOException;
 

@@ -34,16 +34,21 @@ public class WriterGrid{
 	private final WriterGridResult r;
 	private final WriterDictionaryShort writerDictionary;
 
-	WriterGrid(WriterDictionaryShort writerDictionary){
+	/**
+	 * Create a grid to speed up the search of writer candidates.
+	 * @param writerDictionary 
+	 * @param withOuter 
+	 */
+	WriterGrid(WriterDictionaryShort writerDictionary, boolean withOuter){
 		this.writerDictionary = writerDictionary;  
 		r = new WriterGridResult();
 		long start = System.currentTimeMillis();
 
 		innerGrid = new Grid(INNER_GRID);
 		bounds = innerGrid.getBounds();
-		outerGrid = new Grid(OUTER_GRID);
+		outerGrid = (withOuter) ? new Grid(OUTER_GRID): null;
 		
-		System.out.println("Grids were created in " + (System.currentTimeMillis() - start) + " ms");
+		System.out.println("Grid(s) created in " + (System.currentTimeMillis() - start) + " ms");
 	}
 
 	public Area getBounds(){
@@ -52,20 +57,23 @@ public class WriterGrid{
 	public WriterGridResult get (final Node n){
 		int lat = n.getMapLat();
 		int lon = n.getMapLon();
-		return innerGrid.get(lon, lat);
+		return innerGrid.get(lat,lon);
 	}
 
-	public WriterGridResult get (int lon, int lat){
-		return innerGrid.get(lon, lat);
+	public WriterGridResult get (int lat, int lon){
+		return innerGrid.get(lat, lon);
 	}
 
 	public WriterGridResult getWithOuter(final Node n){
 		int lat = n.getMapLat();
 		int lon = n.getMapLon();
+		
 		if (bounds.contains(lat, lon))
-			return innerGrid.get(lon, lat);
-		else
-			return outerGrid.get(lon, lat);
+			return innerGrid.get(lat, lon);
+		else if (outerGrid != null)
+			return outerGrid.get(lat, lon);
+		else 
+			return null;
 	}
 	
 	private class Grid {
@@ -97,7 +105,7 @@ public class WriterGrid{
 			// calculate grid area
 			for (OSMWriter w : writers){
 				if (w.getMapId() < 0 && gridType == INNER_GRID)
-					break; // ignore pseudo-writers
+					continue; // ignore pseudo-writers
 				if (w.getExtendedBounds().getMinLat() < minLat)
 					minLat = w.getExtendedBounds().getMinLat();
 				if (w.getExtendedBounds().getMinLong() < minLon)
@@ -135,14 +143,17 @@ public class WriterGrid{
 					writerSet.clear();
 					int len = 0;
 
-					for (int j = 0; j < writerDictionary.getNumOfWriters(); j++) {
+					int numWriters = writerDictionary.getNumOfWriters();
+					for (int j = 0; j < numWriters; j++) {
 						OSMWriter w = writers[j];
 						// find grid areas that intersect with the writers' area
 						int tminLat = Math.max(testMinLat, w.getExtendedBounds().getMinLat());
-						int tminLon = Math.max(testMinLon, w.getExtendedBounds().getMinLong());
 						int tmaxLat = Math.min(testMinLat + gridStepLat,w.getExtendedBounds().getMaxLat());
+						if (tminLat > tmaxLat)
+							continue;
+						int tminLon = Math.max(testMinLon, w.getExtendedBounds().getMinLong());
 						int tmaxLon = Math.min(testMinLon + gridStepLon,w.getExtendedBounds().getMaxLong());
-						if (tminLat <= tmaxLat && tminLon <= tmaxLon) {
+						if (tminLon <= tmaxLon) {
 							// yes, they intersect
 							len++;
 							
@@ -171,7 +182,7 @@ public class WriterGrid{
 		 * the list of candidates and a boolean that shows whether this list
 		 * has to be verified or not. 
 		 */
-		public WriterGridResult get(final int lon, final int lat){
+		public WriterGridResult get(final int lat, final int lon){
 			if (!bounds.contains(lat, lon)) 
 				return null;
 			int gridLonIdx = (lon - gridMinLon ) / gridDivLon; 

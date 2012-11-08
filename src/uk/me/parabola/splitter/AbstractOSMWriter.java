@@ -36,10 +36,6 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 		this.bbox = Utils.area2Rectangle(bounds, 1);
 	}
 
-	public boolean isPseudo() {
-		return false;
-	}
-	
 	public Area getBounds() {
 		return bounds;
 	}
@@ -57,6 +53,10 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 	
 	public boolean nodeBelongsToThisArea(Node node) {
 		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
+	}
+
+	public boolean coordsBelongToThisArea(int mapLat, int mapLon) {
+		return (extendedBounds.contains(mapLat,mapLon));
 	}
 	
 }

@@ -12,6 +12,8 @@
  */
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
+
 /**
  * A map area in map units.  There is a constructor available for creating
  * in lat/long form.
@@ -28,6 +30,8 @@ public class Area {
 	private final int minLong;
 	private final int maxLat;
 	private final int maxLong;
+	private Rectangle javaRect;
+	private java.awt.geom.Area javaArea;
 
 	/**
 	 * Create an area from the given Garmin coordinates. We ensure that no dimension is zero.
@@ -61,6 +65,17 @@ public class Area {
 		maxLong = 0;
 	}
 
+	public Rectangle getRect(){
+		if (javaRect == null)
+			javaRect = new Rectangle(this.minLong, this.minLat, this.maxLong-this.minLong, this.maxLat-this.minLat);
+		return javaRect;
+	}
+	
+	public java.awt.geom.Area getJavaArea(){
+		if (javaArea == null)
+			javaArea = new java.awt.geom.Area(getRect());
+		return javaArea;
+	}
 	public void setMapId(int mapId) {
 		this.mapId = mapId;
 	}
