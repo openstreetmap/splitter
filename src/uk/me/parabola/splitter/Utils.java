@@ -12,7 +12,10 @@
  */
 package uk.me.parabola.splitter;
 
+import java.awt.Point;
+import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.geom.PathIterator;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -22,6 +25,8 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -121,6 +126,113 @@ public class Utils {
 	
 	public static Rectangle area2Rectangle (Area area, int overlap){
 		return new Rectangle(area.getMinLong()-overlap, area.getMinLat()-overlap,area.getWidth()+2*overlap,area.getHeight()+2*overlap);
+	}
+	/**
+	 * Convert area into a list of polygons each represented by a list
+	 * of points. It is possible that the area contains multiple discontinuous
+	 * polygons, so you may append more than one shape to the output list.<br/>
+	 * <b>Attention:</b> The outline of the polygon is has clockwise order whereas
+	 * holes in the polygon have counterclockwise order. 
+	 * 
+	 * Taken from Java2DConverter by WanMil in mkgmap
+	 * @param area The area to be converted.
+	 * @return a list of closed polygons
+	 */
+	public static List<List<Point>> areaToShapes(java.awt.geom.Area area) {
+		List<List<Point>> outputs = new ArrayList<List<Point>>(4);
+
+		float[] res = new float[6];
+		PathIterator pit = area.getPathIterator(null);
+		
+		// store float precision coords to check if the direction (cw/ccw)
+		// of a polygon changes due to conversion to int precision 
+		List<Float> floatLat = null;
+		List<Float>	floatLon = null;
+
+		List<Point> points = null;
+
+		int iPrevLat = Integer.MIN_VALUE;
+		int iPrevLong = Integer.MIN_VALUE;
+
+		while (!pit.isDone()) {
+			int type = pit.currentSegment(res);
+
+			float fLat = res[1];
+			float fLon = res[0];
+			int iLat = Math.round(fLat);
+			int iLon = Math.round(fLon);
+			
+			switch (type) {
+			case PathIterator.SEG_LINETO:
+				floatLat.add(fLat);
+				floatLon.add(fLon);
+
+				if (iPrevLat != iLat || iPrevLong != iLon) 
+					points.add(new Point(iLon,iLat));
+
+				iPrevLat = iLat;
+				iPrevLong = iLon;
+				break;
+			case PathIterator.SEG_MOVETO: 
+			case PathIterator.SEG_CLOSE:
+				if ((type == PathIterator.SEG_MOVETO && points != null) || type == PathIterator.SEG_CLOSE) {
+					if (points.size() > 2 && points.get(0).equals(points.get(points.size() - 1)) == false) {
+						points.add(points.get(0));
+					}
+					if (points.size() > 3){
+						// use float values to verify area size calculations with higher precision
+						if (floatLat.size() > 2) {
+							if (floatLat.get(0).equals(floatLat.get(floatLat.size() - 1)) == false
+									|| floatLon.get(0).equals(floatLon.get(floatLon.size() - 1)) == false){ 
+								floatLat.add(floatLat.get(0));
+								floatLon.add(floatLon.get(0));
+							}
+						}
+
+						outputs.add(points);
+					}
+				}
+				if (type == PathIterator.SEG_MOVETO){
+					floatLat= new ArrayList<Float>();
+					floatLon= new ArrayList<Float>();
+					floatLat.add(fLat);
+					floatLon.add(fLon);
+					points = new ArrayList<Point>();
+					points.add(new Point(iLon,iLat));
+					iPrevLat = iLat;
+					iPrevLong = iLon;
+				} else {
+					floatLat= null;
+					floatLon= null;
+					points = null;
+					iPrevLat = Integer.MIN_VALUE;
+					iPrevLong = Integer.MIN_VALUE;
+				}
+				break;
+			default:
+				System.out.println("Unsupported path iterator type " + type
+						+ ". This is an mkgmap error.");
+			}
+
+			pit.next();
+		}
+
+		return outputs;
+	}
+
+	/**
+	 * Convert list of points which describe a closed polygon to an area
+	 * Taken from Java2DConverter by WanMil in mkgmap
+	 * @param shape
+	 * @return
+	 */
+	static java.awt.geom.Area shapeToArea(List<Point> shape){
+		Polygon polygon = new Polygon();
+		for (Point point : shape) {
+			polygon.addPoint(point.x, point.y);
+		}
+		return new java.awt.geom.Area(polygon);
+
 	}
 
 }

@@ -59,4 +59,7 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 		return (extendedBounds.contains(mapLat,mapLon));
 	}
 	
+	public boolean areaIsPseudo(){
+		return false;
+	}
 }

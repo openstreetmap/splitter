@@ -222,7 +222,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	public boolean endMap() {
 		System.out.println("Statistics for coords map:");
 		coords.stats(1);
-		System.out.println("Statistics for extended ways map:");
+		System.out.println("Statistics for ways map:");
 		ways.stats(1);
 		if (isLastPass){
 			System.out.println("");
@@ -248,7 +248,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			return false; // only one writer: not a problem case
 		Rectangle bbox = null;
 		for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
-			if (writers[i].getMapId() >= 0)  
+			if (writers[i].areaIsPseudo() == false)  
 				return true; // multiple writers with a real writer area: problem case 
 			
 			Rectangle writerBbox = Utils.area2Rectangle(writers[i].getBounds(), 0);

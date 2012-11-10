@@ -32,6 +32,17 @@ public class Area {
 	private final int maxLong;
 	private Rectangle javaRect;
 	private java.awt.geom.Area javaArea;
+	private boolean isJoinable = true;
+	private boolean isResultOfSplitting;
+	private boolean isPseudoArea;
+	
+	public boolean isJoinable() {
+		return isJoinable;
+	}
+
+	public void setJoinable(boolean isJoinable) {
+		this.isJoinable = isJoinable;
+	}
 
 	/**
 	 * Create an area from the given Garmin coordinates. We ensure that no dimension is zero.
@@ -65,6 +76,7 @@ public class Area {
 		maxLong = 0;
 	}
 
+	
 	public Rectangle getRect(){
 		if (javaRect == null)
 			javaRect = new Rectangle(this.minLong, this.minLat, this.maxLong-this.minLong, this.maxLat-this.minLat);
@@ -147,5 +159,21 @@ public class Area {
 						Math.max(maxLat, area.maxLat),
 						Math.max(maxLong, area.maxLong)
 		);
+	}
+
+	public boolean isResultOfSplitting() {
+		return isResultOfSplitting;
+	}
+
+	public void setResultOfSplitting(boolean isResultOfSplitting) {
+		this.isResultOfSplitting = isResultOfSplitting;
+	}
+
+	public boolean isPseudoArea() {
+		return isPseudoArea;
+	}
+
+	public void setPseudoArea(boolean isPseudoArea) {
+		this.isPseudoArea = isPseudoArea;
 	}
 }

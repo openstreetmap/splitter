@@ -29,9 +29,7 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.awt.Point;
-import java.awt.Polygon;
 import java.awt.Rectangle;
-import java.awt.geom.PathIterator;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -44,12 +42,14 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -60,6 +60,7 @@ import java.util.regex.Pattern;
  * @author Steve Ratcliffe
  */
 public class Main {
+	
 	private static final String DEFAULT_DIR = ".";
 
 	// We store area IDs and all used combinations of area IDs in a dictionary. The index to this
@@ -119,8 +120,8 @@ public class Main {
 	
 	private LongArrayList problemWays = new LongArrayList();
 	private LongArrayList problemRels = new LongArrayList();
-	private LongArrayList calculatedProblemWays = new LongArrayList();
-	private LongArrayList calculatedProblemRels = new LongArrayList();
+	private TreeSet<Long> calculatedProblemWays = new TreeSet<Long>();
+	private TreeSet<Long> calculatedProblemRels = new TreeSet<Long>();
 	
 	// for faster access on blocks in pbf files
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
@@ -370,50 +371,61 @@ public class Main {
 	 * @throws IOException
 	 * @throws XmlPullParserException
 	 */
-	private void genProblemLists(List<Area> areas) throws IOException, XmlPullParserException {
+	private void genProblemLists(List<Area> areas, int partition) throws IOException, XmlPullParserException {
 		List<Area> workAreas = addPseudoWriters(areas);
+		
+		// debugging
+		AreaList planet = new AreaList(workAreas);
+		String planetName = "planet_partition_" + partition + ".kml";
+		File out = new File(planetName);
+		if (!out.isAbsolute())
+			kmlOutputFile = new File(fileOutputDir, planetName).getPath();
+		System.out.println("Writing planet KML file " + kmlOutputFile);
+		planet.writeKml(kmlOutputFile);
 		
 		int numPasses = getAreasPerPass(workAreas.size());
 		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
 
 		OSMWriter [] writers = new OSMWriter[workAreas.size()];
-		
 		ArrayList<Area> allAreas = new ArrayList<Area>();
 
-		int j;
-		for (j = 0; j < areas.size(); j++) {
-			Area area = areas.get(j);
-			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, area.getMapId());
-			//System.out.println("Area " + area.getMapId() + " covers " + area);
-		}
 		System.out.println("Pseudo-Writers:");
-		for (;j < writers.length; j++){
+		for (int j = 0;j < writers.length; j++){
 			Area area = workAreas.get(j);
 			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, area.getMapId());
-			System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
+			writers[j] = new PseudoOSMWriter(area, area.getMapId(), area.isPseudoArea());
+			if (area.isPseudoArea())
+				System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
 		DataStorer dataStorer = new DataStorer(writers);
-		System.out.println("Starting problem-list-generator pass(es)"); 
-		for (int i = 0; i < numPasses; i++) {
-			/*TODO: if two or passes are needed, all pseudo-writers will be used in the last.
+		System.out.println("Starting problem-list-generator pass(es) for partition " + partition); 
+		LongArrayList problemWaysThisPart = new LongArrayList();
+		LongArrayList problemRelsThisPart = new LongArrayList();
+		for (int pass = 0; pass < numPasses; pass++) {
+
+			/*TODO: if two or passes are needed, all pseudo-writers will be used in the last pass.
 			 * This might be bad if the pseudo-writers cover most of the input area. 
 			 */
-			 
-			int writerOffset = i * areasPerPass;
-			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - i * areasPerPass);
+			System.out.println("-----------------------------------");
+			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + (numPasses+1) + " for writer set " + partition);
+			long startThisPass = System.currentTimeMillis();
+			int writerOffset = pass * areasPerPass;
+			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
 			ProblemListProcessor processor = new ProblemListProcessor(
 					dataStorer, writerOffset, numWritersThisPass,
-					calculatedProblemWays, calculatedProblemRels);
+					problemWaysThisPart, problemRelsThisPart);
+			
 			processMap(processor); 
+			System.out.println("Problem-list-generator pass " + (pass+1) + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
-		
+		writeProblemList("problem-candidates-pass" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
+		calculatedProblemWays.addAll(problemWaysThisPart);
+		calculatedProblemRels.addAll(problemRelsThisPart);
 	}
+	
 	/**
 	 * If the areas were read from a split-file, they might overlap. 
 	 * For the problem-list processing we need disjoint areas.
-	 * TODO : try to execute parallel threads
 	 * @param realAreas
 	 * @throws IOException
 	 * @throws XmlPullParserException
@@ -423,17 +435,23 @@ public class Main {
 
 		ArrayList<Area> remainingAreas = new ArrayList<Area>(realAreas);
 		ArrayList<Area> distinctAreas;
+		int partition = 0;
 		while (remainingAreas.size() > 0){
+			++partition;
 			distinctAreas = getNonOverlappingAreas(remainingAreas, true);
+			//ArrayList<Area> testDistinct = getNonOverlappingAreas(distinctAreas, true);
+			//assert testDistinct.equals(distinctAreas);
 			if (distinctAreas.size() * 1.25 > maxAreasPerPass)
 				distinctAreas = getNonOverlappingAreas(remainingAreas, false);
 			else 
 				remainingAreas.clear();
-			
-			genProblemLists(distinctAreas);
+			genProblemLists(distinctAreas, partition);
 			remainingAreas.removeAll(distinctAreas);
 		} 
-		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms"); 
+		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
+		writeProblemList("problem-candidates-merged" + partition + ".txt",
+				new ArrayList<Long>(calculatedProblemWays),
+				new ArrayList<Long>(calculatedProblemRels));
 	}
 
 
@@ -491,7 +509,7 @@ public class Main {
 
 		System.out.println("Distributing data " + new Date());
 		
-
+		long startDistPass = System.currentTimeMillis();
 		if (numPasses > 1) {
 			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
 		} else {
@@ -509,7 +527,9 @@ public class Main {
 
 			processMap(processor); 
 		}
+		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms"); 
 		dataStorer.finish();
+		
 	}
 	
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
@@ -631,6 +651,7 @@ public class Main {
 		w.println();
 		w.close();
 	}
+	
 	/** Read user defined problematic relations and ways */
 	private boolean readProblemIds(String problemFileName) {
 		File problemFile = new File(problemFileName);
@@ -690,6 +711,45 @@ public class Main {
 	}
 	
 	/**
+	 * Write a file that can be given to mkgmap that contains the correct arguments
+	 * for the split file pieces.  You are encouraged to edit the file and so it
+	 * contains a template of all the arguments that you might want to use.
+	 * @param problemRelsThisPass 
+	 * @param problemWaysThisPass 
+	 */
+	protected void writeProblemList(String fname, List<Long> pWays, List<Long> pRels) {
+		PrintWriter w;
+		try {
+			w = new PrintWriter(new FileWriter(new File(fileOutputDir, fname)));
+		} catch (IOException e) {
+			System.err.println("Could not write problem-list file " + fname);
+			return;
+		}
+
+		w.println("#");
+		w.println("# This file can be given to splitter using the --problem-file option");
+		w.println("#");
+		w.println("# List of relations and ways that are known to cause problems");
+		w.println("# in splitter or mkgmap");
+		w.println("# Objects listed here are specially treated by splitter to assure"); 
+		w.println("# that complete data is written to all related tiles");  
+		w.println("# Format:");
+		w.println("# way:<id>");
+		w.println("# rel:<id>");
+		w.println("# ways");
+		for (long id: pWays){
+			w.println("way: " + id + " #");
+		}
+		w.println("# rels");
+		for (long id: pRels){
+			w.println("rel: " + id + " #");
+		}
+
+		w.println();
+		w.close();
+	}
+	
+	/**
 	 * Make sure that our writer areas cover the planet. This is done by adding 
 	 * pseudo-writers. 
 	 * TODO: It seems to be best to have as few pseudo-areas as 
@@ -703,19 +763,6 @@ public class Main {
 
 		while (!checkIfCovered(planetBounds, areas)){
 			boolean changed = addPseudoArea(areas);
-			
-			AreaList planet = new AreaList(areas);
-			String planetName = "planet.kml";
-			File out = new File(planetName);
-			if (!out.isAbsolute())
-				kmlOutputFile = new File(fileOutputDir, planetName).getPath();
-			System.out.println("Writing planet KML file");
-			try {
-				planet.writeKml(kmlOutputFile);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} 			
 			
 			if (!changed){
 				System.out.println("Failed to fill planet with pseudo-areas");
@@ -759,13 +806,16 @@ public class Main {
 	 * @param makeDisjoint if true, replace overlapping areas by disjoint ones
 	 * @return the new list
 	 */
-	ArrayList<Area> getNonOverlappingAreas(List<Area> realAreas, boolean makeDisjoint){
+	private static ArrayList<Area> getNonOverlappingAreas(List<Area> realAreas, boolean makeDisjoint){
+		
 		java.awt.geom.Area covered = new java.awt.geom.Area();
 		ArrayList<Area> splitList = new ArrayList<Area>();
+		int artificialId = -99999999;
 		if (makeDisjoint)
 			System.out.println("Removing overlaps from tiles...");
 		for (int i = 0; i < realAreas.size(); i++){
 			Area area1= realAreas.get(i);
+			
 			Rectangle r1 = area1.getRect();
 			if (covered.intersects(r1) == false){
 				splitList.add(area1);
@@ -773,28 +823,36 @@ public class Main {
 			else {
 				if (makeDisjoint == false)
 					continue;
-				//System.out.println("splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size());	
-				// find intersecting areas
-				ArrayList<Area> toAdd = new ArrayList<Area>();
+				//String msg = "splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size() + " overlapping ";	
+				// find intersecting areas in the already covered part
+				ArrayList<Area> splitAreas = new ArrayList<Area>();
+				
 				for (int j = 0; j < splitList.size(); j++){
 					Area area2 = splitList.get(j);
 					if (area2 == null)
 						continue;
 					Rectangle r2 = area2.getRect();
 					if (r1.intersects(r2)){
-						java.awt.geom.Area overlap = new java.awt.geom.Area(area1.getJavaArea());
+						java.awt.geom.Area overlap = new java.awt.geom.Area(area1.getRect());
 						overlap.intersect(area2.getJavaArea());
 						Rectangle ro = overlap.getBounds();
 						if (ro.height == 0 || ro.width == 0)
 							continue;
+						//msg += area2.getMapId() + " ";
 						Area aNew = new Area(ro.y, ro.x, (int)ro.getMaxY(),(int)ro.getMaxX());
-						aNew.setMapId(area1.getMapId());
-						splitList.set(j, null);
-						toAdd.add(aNew);
-						
+						aNew.setMapId(artificialId++);
+						aNew.setResultOfSplitting(true);
+						aNew.setName("" + area1.getMapId());
+						aNew.setJoinable(false);
+						covered.subtract(area2.getJavaArea());
+						covered.add(overlap);
+						splitList.set(j, aNew);
+ 
 						java.awt.geom.Area coveredByPair = new java.awt.geom.Area(r1);
 						coveredByPair.add(new java.awt.geom.Area(r2));
-						// create up to five new rectangles
+						
+						java.awt.geom.Area originalPair = new java.awt.geom.Area(coveredByPair);
+						
 						int minX = coveredByPair.getBounds().x;
 						int minY = coveredByPair.getBounds().y;
 						int maxX = (int) coveredByPair.getBounds().getMaxX();
@@ -802,36 +860,101 @@ public class Main {
 						coveredByPair.subtract(overlap);
 						if (coveredByPair.isEmpty())
 							continue; // two equal areas a
+
+						coveredByPair.subtract(covered);
+						java.awt.geom.Area testSplit = new java.awt.geom.Area(overlap);
 						
 						Rectangle[] rectPair = {r1,r2};
 						Area[] areaPair = {area1,area2};
+						int lx = minX;
+						int lw = ro.x-minX;
+						int rx = (int)ro.getMaxX();
+						int rw = maxX - rx;
+						int uy = (int)ro.getMaxY();
+						int uh = maxY - uy;
+						int by = minY;
+						int bh = ro.y - by;
 						Rectangle[] clippers = {
-								new Rectangle(minX,minY,ro.x-minX,maxY-minY), //left
-								new Rectangle((int) ro.getMaxX(),minY,(int)(maxX-ro.getMaxX()),maxY-minY), //right
-								new Rectangle(minX,(int)ro.getMaxY(),maxX-minX, (int)(maxY-ro.getMaxY())), // top
-								new Rectangle(minX,minY,maxX-minX,ro.y-minY)}; // bottom
+								new Rectangle(lx, 	minY, lw, 	    bh),		// lower left
+								new Rectangle(ro.x,	minY, ro.width, bh),     	// lower middle
+								new Rectangle(rx, 	minY, rw, 		bh),     	// lower right
+								new Rectangle(lx, 	ro.y, lw, 		ro.height), // left
+								new Rectangle(rx, 	ro.y, rw, 		ro.height), // right
+								new Rectangle(lx, 	uy,   lw, 		uh), 		// upper left
+								new Rectangle(ro.x, uy,   ro.width, uh), 		// upper middle
+								new Rectangle(rx, 	uy,   rw, 		uh)  		// upper right
+								}; 
+						
 						for (Rectangle clipper: clippers){
-							for (int l = 0; l <= 1; l++){
-								Rectangle test = clipper.intersection(rectPair[l]);
+							for (int k = 0; k <= 1; k++){
+								Rectangle test = clipper.intersection(rectPair[k]);
 								if (!test.isEmpty()){
-									coveredByPair.subtract(new java.awt.geom.Area(clipper));
-									Area newA = new Area(test.y,test.x,(int)test.getMaxY(),(int)test.getMaxX());
-									newA.setMapId(areaPair[l].getMapId());
-									toAdd.add(newA);
+									testSplit.add(new java.awt.geom.Area(test));
+									if (k==1 || covered.intersects(test) == false){
+										aNew = new Area(test.y,test.x,(int)test.getMaxY(),(int)test.getMaxX());
+										aNew.setMapId(areaPair[k].getMapId());
+										aNew.setResultOfSplitting(true);
+										splitAreas.add(aNew);
+										covered.add(aNew.getJavaArea());
+									}
 								}
 							}
 						}
+						assert testSplit.equals(originalPair);
 					}
 				}
-				splitList.addAll(toAdd);
+				
+				// recombine parts that form a rectangle
+				for (Area splitArea: splitAreas){
+					if (splitArea.isJoinable()){
+						for (int j = 0; j < splitList.size(); j++){
+							Area area = splitList.get(j);
+							if (area == null || area.isJoinable() == false || area.getMapId() != splitArea.getMapId() )
+								continue;
+							boolean doJoin = false;
+							if (splitArea.getMaxLat() == area.getMaxLat()
+									&& splitArea.getMinLat() == area.getMinLat()
+									&& (splitArea.getMinLong() == area.getMaxLong() || splitArea.getMaxLong() == area.getMinLong()))
+									doJoin = true;
+							else if (splitArea.getMinLong() == area.getMinLong()
+									&& splitArea.getMaxLong()== area.getMaxLong()
+									&& (splitArea.getMinLat() == area.getMaxLat() || splitArea.getMaxLat() == area.getMinLat()))
+									doJoin = true;
+							if (doJoin){
+								splitArea = area.add(splitArea);
+								splitArea.setMapId(area.getMapId());
+								splitArea.setResultOfSplitting(true);
+								splitList.set(j, splitArea);
+								splitArea = null; // don't add later
+								break;
+							}
+						}
+					}
+					if (splitArea != null){
+						splitList.add(splitArea);
+					}
+				}
+				/*
+				if (msg.isEmpty() == false) 
+					System.out.println(msg);
+					*/
 			}
 			covered.add(new java.awt.geom.Area(r1));
 		}
+		covered.reset();
 		Iterator <Area> iter = splitList.iterator();
 		while (iter.hasNext()){
 			Area a = iter.next();
 			if (a == null)
 				iter.remove();
+			else {
+				Rectangle r1 = a.getRect();
+				if (covered.intersects(r1) == true){
+					System.out.println("Failed to create list of distinct areas");
+					System.exit(-1);
+				}
+				covered.add(a.getJavaArea());
+			}
 		}
 		return splitList;
 	}
@@ -850,17 +973,28 @@ public class Main {
 		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
 		java.awt.geom.Area uncovered = new java.awt.geom.Area(planetBounds); 
 		java.awt.geom.Area covered = new java.awt.geom.Area(); 
-		
 		for (Area area: areas){
 			uncovered.subtract(area.getJavaArea());
 			covered.add(area.getJavaArea());
 		}
-		
+		Rectangle rCov = covered.getBounds();
+		Rectangle[] topAndBottom = {
+				new Rectangle(planetBounds.x,(int)rCov.getMaxY(),planetBounds.width, (int)(planetBounds.getMaxY()-rCov.getMaxY())), // top
+				new Rectangle(planetBounds.x,planetBounds.y,planetBounds.width,rCov.y-planetBounds.y)}; // bottom
+		for (Rectangle border: topAndBottom){
+			if (!border.isEmpty()){
+				uncovered.subtract(new java.awt.geom.Area(border));
+				covered.add(new java.awt.geom.Area(border));
+				Area pseudo = new Area(border.y,border.x,(int)border.getMaxY(),(int)border.getMaxX());
+				pseudo.setMapId(-1 * (areas.size()+1));
+				pseudo.setPseudoArea(true);
+				areas.add(pseudo);
+			}
+		}
 		while (uncovered.isEmpty() == false){
 			boolean changed = false;
-			List<List<Point>> shapes = areaToShapes(uncovered);
+			List<List<Point>> shapes = Utils.areaToShapes(uncovered);
 			// we divide planet into stripes for all vertices of the uncovered area
-			// TODO: An optimized version could try to find fewer rectangles.
 			int minX = uncovered.getBounds().x;
 			int nextX = Integer.MAX_VALUE;
 			for (int i = 0; i < shapes.size(); i++){
@@ -875,25 +1009,25 @@ public class Main {
 			// cut out already covered area
 			stripeLon.subtract(covered);
 			// the remaining area must be a set of zero or more disjoint rectangles
-			List<List<Point>> stripeShapes = areaToShapes(stripeLon);
+			List<List<Point>> stripeShapes = Utils.areaToShapes(stripeLon);
 			for (int j = 0; j < stripeShapes .size(); j++){
 				List<Point> rectShape = stripeShapes .get(j);
-				java.awt.geom.Area test = shapeToArea(rectShape);
+				java.awt.geom.Area test = Utils.shapeToArea(rectShape);
 				test = simplifyArea(test);
 				assert test.isRectangular();
 				Rectangle pseudoRect = test.getBounds();
 				if (uncovered.contains(pseudoRect)){
 					boolean wasMerged = false;
-					
 					// check if new area can be merged with last rectangles
 					for (int k=areas.size()-1; k >= oldSize; k--){
 						Area prev = areas.get(k);
-						if (prev.getMaxLong() < pseudoRect.x || prev.getMapId() >= 0)
-							break;
+						if (prev.getMaxLong() < pseudoRect.x || prev.isPseudoArea() == false)
+							continue;
 						if (prev.getHeight() == pseudoRect.height && prev.getMaxLong() == pseudoRect.x){
 							// merge
 							Area pseudo = prev.add(new Area(pseudoRect.y,pseudoRect.x,(int)pseudoRect.getMaxY(),(int)pseudoRect.getMaxX()));
 							pseudo.setMapId(prev.getMapId());
+							pseudo.setPseudoArea(true);
 							areas.set(k, pseudo);
 							//System.out.println("Enlarged pseudo area " + pseudo.getMapId() + " " + pseudo);
 							wasMerged = true;
@@ -904,6 +1038,7 @@ public class Main {
 					if (!wasMerged){
 						Area pseudo = new Area(pseudoRect.y, pseudoRect.x, (int)pseudoRect.getMaxY(), (int)pseudoRect.getMaxX());
 						pseudo.setMapId(-1 * (areas.size()+1));
+						pseudo.setPseudoArea(true);
 						//System.out.println("Adding pseudo area " + pseudo.getMapId() + " " + pseudo); 
 						areas.add(pseudo);
 					}
@@ -918,104 +1053,4 @@ public class Main {
 		return oldSize != areas.size();
 	}
 
-	/**
-	 * Convert area into a list of polygons each represented by a list
-	 * of points. It is possible that the area contains multiple discontiguous
-	 * polygons, so you may append more than one shape to the output list.<br/>
-	 * <b>Attention:</b> The outline of the polygon is has clockwise order whereas
-	 * holes in the polygon have counterclockwise order. 
-	 * 
-	 * @param area The area to be converted.
-	 * @return a list of closed polygons
-	 */
-	public static List<List<Point>> areaToShapes(java.awt.geom.Area area) {
-		List<List<Point>> outputs = new ArrayList<List<Point>>(4);
-
-		float[] res = new float[6];
-		PathIterator pit = area.getPathIterator(null);
-		
-		// store float precision coords to check if the direction (cw/ccw)
-		// of a polygon changes due to conversion to int precision 
-		List<Float> floatLat = null;
-		List<Float>	floatLon = null;
-
-		List<Point> points = null;
-
-		int iPrevLat = Integer.MIN_VALUE;
-		int iPrevLong = Integer.MIN_VALUE;
-
-		while (!pit.isDone()) {
-			int type = pit.currentSegment(res);
-
-			float fLat = res[1];
-			float fLon = res[0];
-			int iLat = Math.round(fLat);
-			int iLon = Math.round(fLon);
-			
-			switch (type) {
-			case PathIterator.SEG_LINETO:
-				floatLat.add(fLat);
-				floatLon.add(fLon);
-
-				if (iPrevLat != iLat || iPrevLong != iLon) 
-					points.add(new Point(iLon,iLat));
-
-				iPrevLat = iLat;
-				iPrevLong = iLon;
-				break;
-			case PathIterator.SEG_MOVETO: 
-			case PathIterator.SEG_CLOSE:
-				if ((type == PathIterator.SEG_MOVETO && points != null) || type == PathIterator.SEG_CLOSE) {
-					if (points.size() > 2 && points.get(0).equals(points.get(points.size() - 1)) == false) {
-						points.add(points.get(0));
-					}
-					if (points.size() > 3){
-						// use float values to verify area size calculations with higher precision
-						if (floatLat.size() > 2) {
-							if (floatLat.get(0).equals(floatLat.get(floatLat.size() - 1)) == false
-									|| floatLon.get(0).equals(floatLon.get(floatLon.size() - 1)) == false){ 
-								floatLat.add(floatLat.get(0));
-								floatLon.add(floatLon.get(0));
-							}
-						}
-
-						outputs.add(points);
-					}
-				}
-				if (type == PathIterator.SEG_MOVETO){
-					floatLat= new ArrayList<Float>();
-					floatLon= new ArrayList<Float>();
-					floatLat.add(fLat);
-					floatLon.add(fLon);
-					points = new ArrayList<Point>();
-					points.add(new Point(iLon,iLat));
-					iPrevLat = iLat;
-					iPrevLong = iLon;
-				} else {
-					floatLat= null;
-					floatLon= null;
-					points = null;
-					iPrevLat = Integer.MIN_VALUE;
-					iPrevLong = Integer.MIN_VALUE;
-				}
-				break;
-			default:
-				System.out.println("Unsupported path iterator type " + type
-						+ ". This is an mkgmap error.");
-			}
-
-			pit.next();
-		}
-
-		return outputs;
-	}
-
-	java.awt.geom.Area shapeToArea(List<Point> shape){
-		Polygon polygon = new Polygon();
-		for (Point point : shape) {
-			polygon.addPoint(point.x, point.y);
-		}
-		return new java.awt.geom.Area(polygon);
-
-	}
 }
