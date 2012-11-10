@@ -20,7 +20,8 @@ import java.util.List;
  */
 public class Relation extends Element {
 	private final List<Member> members = new ArrayList<Member>();
-	boolean isMultiPolygon;
+	private boolean isMultiPolygon;
+	private boolean isOnLoop;
 
 	public boolean isMultiPolygon() {
 		return isMultiPolygon;
@@ -51,6 +52,14 @@ public class Relation extends Element {
 
 	public List<Member> getMembers() {
 		return members;
+	}
+
+	public boolean isOnLoop() {
+		return isOnLoop;
+	}
+
+	public void setOnLoop(boolean isOnLoop) {
+		this.isOnLoop = isOnLoop;
 	}
 
 	static class Member {

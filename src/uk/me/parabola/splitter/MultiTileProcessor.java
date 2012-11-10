@@ -268,7 +268,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		for (Relation rel: relMap.values()){
 			BitSet relWriters = null;
 			alreadySearchedRels.clear();
-			if (rel.isMultiPolygon){
+			if (rel.isMultiPolygon()){
 				getSubRelAreas(rel, 0);
 				Area relArea = relAreas.get(rel.getId());
 				relWriters = checkBoundingBox(relArea);
@@ -406,7 +406,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			
 			if (mem.getType().equals("relation")) {
 				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
+					if (rel.isOnLoop() == false)
+						System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
+					rel.setOnLoop(true);
 				}
 				else {
 					// recursive search
@@ -463,7 +465,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			
 			if (mem.getType().equals("relation")) {
 				if (alreadySearchedRels.get(memId)){
-					System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
+					if (rel.isOnLoop() == false)
+						System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
+					rel.setOnLoop(true);
 				}
 				else {
 					// recursive search
@@ -501,7 +505,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private void stats(String msg){
 		System.out.println("Stats for MultiTileProcessor pass " + pass + " " + msg);
 		if (problemRels != null)
-			System.out.println("SparseBitSet multiTileRels " + problemRels.cardinality() + " (" + problemRels.bytes() + "  bytes)");
+			System.out.println("SparseBitSet problemRels " + problemRels.cardinality() + " (" + problemRels.bytes() + "  bytes)");
 		if (neededWays != null)
 			System.out.println("SparseBitSet neededWays " + neededWays.cardinality() + " (" + neededWays.bytes() + "  bytes)");
 		if (neededNodes != null)
@@ -641,7 +645,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			}
 		}
 		if (foundNodes < numRefs)
-			System.out.println("Sorry, way " + wayId + " is missing " +  (numRefs-foundNodes) + " nodes.");
+			System.out.println("Sorry, way " + wayId + " is missing " +  (numRefs-foundNodes) + " node(s).");
 	}
 	
 	private Area getWayBbox (long wayId, LongArrayList wayRefs){
