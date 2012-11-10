@@ -43,6 +43,8 @@ public class DataStorer{
 	private final WriterIndex writerIndex;
 	private SparseLong2ShortMapFunction usedWays = null;
 	private final HashMap<Long,Integer> usedRels = new HashMap<Long, Integer>();
+	private boolean idsAreNotSorted;
+	private boolean savedToFiles = false;
 
 	/** 
 	 * Create a dictionary for a given number of writers
@@ -52,7 +54,6 @@ public class DataStorer{
 		this.numOfWriters = writers.length;
 		this.writerDictionary = new WriterDictionaryShort(writers);
 		this.multiTileWriterDictionary = new WriterDictionaryInt(writers);
-		boolean hasPseudo = false;
 		for (int i = 0; i< maps.length; i++){
 			maps[i] = new WriterMapper(mapNames[i]);
 		}
@@ -63,7 +64,7 @@ public class DataStorer{
 	public int getNumOfWriters(){
 		return numOfWriters;
 	}
-	
+
 	public WriterDictionaryShort getWriterDictionary() {
 		return writerDictionary;
 	}
@@ -85,21 +86,25 @@ public class DataStorer{
 	public SparseLong2ShortMapFunction getUsedWays() {
 		return usedWays;
 	}
-	
+
 	public HashMap<Long, Integer> getUsedRels() {
 		return usedRels;
 	}
 
 	public Integer putWriterIdx (int mapType, long id, int idx){
+		if (savedToFiles){
+			System.out.println("Fatal error: tried to update fixed map");
+			System.exit(-1);
+		}
 		return maps[mapType].put(id,idx);
 	}
+
 	public Integer getWriterIdx (int mapType, long id){
+		if (savedToFiles)
+			return maps[mapType].getSeq(id);
 		return maps[mapType].getRandom(id);
 	}
-	public Integer getWriterIdxSeq (int mapType, long id){
-		return maps[mapType].getSeq(id);
-	}
-	
+
 	/**
 	 * This indicates that all data is collected and only 
 	 * sequential read access 
@@ -107,20 +112,27 @@ public class DataStorer{
 	 * @throws IOException
 	 */
 	public void setReadOnly(File fileOutputDir) throws IOException{
+		if (idsAreNotSorted)
+			return; // can't use files to save heap
 		for (int i = 0; i< maps.length; i++){
 			maps[i].writeMapToFile(fileOutputDir);
 		}
+		savedToFiles = true;
 	}
-	
+
 	public void restart() throws IOException{
+		if (!savedToFiles)
+			return;
 		for (WriterMapper map: maps)
 			map.close();
 	}
-	
+
 	public void finish(){
+		if (!savedToFiles)
+			return;
 		for (WriterMapper map: maps)
 			map.finish();
-		
+
 	}
 	/**
 	 * 
@@ -134,7 +146,7 @@ public class DataStorer{
 		DataInputStream dis;
 		long currentKey;
 		Integer currentVal;
-		
+
 		public WriterMapper(String name) {
 			this.name = name;
 			this.map = new TreeMap<Long, Integer>();
@@ -145,27 +157,25 @@ public class DataStorer{
 				try {
 					close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-						
 				tmpFile.delete();
 			}
 		}
-		
-		void stats (){
+
+		public void stats (){
 			System.out.println("TreeMap<Long,Integer> " + name + "-Writers  : " + Util.format(map.size()));
 		}
 
-		Integer put(long key, int value){
+		public Integer put(long key, int value){
 			return map.put(key, value);
 		}
-		
-		Integer getRandom(long id){
+
+		public  Integer getRandom(long id){
 			return map.get(id);
 		}
-		
-		Integer getSeq(long id){
+
+		public Integer getSeq(long id){
 			if (currentKey == Long.MIN_VALUE){
 				try{
 					open();
@@ -180,7 +190,7 @@ public class DataStorer{
 				return null;
 			}
 			return currentVal;
-				
+
 		}
 		private void writeMapToFile(File fileOutputDir) throws IOException{
 			tmpFile = File.createTempFile(name, null, fileOutputDir);
@@ -208,13 +218,13 @@ public class DataStorer{
 			open();
 			map = null;
 		}
-		
+
 		void open() throws IOException{
 			FileInputStream fis = new FileInputStream(tmpFile);
 			BufferedInputStream stream = new BufferedInputStream(fis);
 			dis = new DataInputStream(stream);
 		}
-		
+
 		void readPair() {
 			try {
 				currentKey = dis.readLong();
@@ -223,9 +233,9 @@ public class DataStorer{
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			
+
 		}
-		
+
 		void close() throws IOException{
 			currentKey = Long.MIN_VALUE;
 			dis.close();
@@ -233,6 +243,14 @@ public class DataStorer{
 	}
 	public void setUsedWays(SparseLong2ShortMapFunction ways) {
 		usedWays = ways;
+	}
+
+	public boolean isIdsAreNotSorted() {
+		return idsAreNotSorted;
+	}
+
+	public void setIdsAreNotSorted(boolean idsAreNotSorted) {
+		this.idsAreNotSorted = idsAreNotSorted;
 	}
 
 }

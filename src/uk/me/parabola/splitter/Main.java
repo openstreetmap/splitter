@@ -42,7 +42,6 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -407,7 +406,7 @@ public class Main {
 			 * This might be bad if the pseudo-writers cover most of the input area. 
 			 */
 			System.out.println("-----------------------------------");
-			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + (numPasses+1) + " for writer set " + partition);
+			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses + " for writer set " + partition);
 			long startThisPass = System.currentTimeMillis();
 			int writerOffset = pass * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);

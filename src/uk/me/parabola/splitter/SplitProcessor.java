@@ -104,7 +104,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processWay(Way w) {
-		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.WAY_TYPE, w.getId());
+		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.WAY_TYPE, w.getId());
 		if (multiTileWriterIdx != null){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			// set only active writer bits
@@ -150,8 +150,12 @@ class SplitProcessor extends AbstractMapProcessor {
 	}
 
 	@Override
-	public void processRelation(Relation r) {
-		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.REL_TYPE, r.getId());
+	public void processRelation(Relation rel) {
+		if (rel.getId() == 20614){
+			long dd = 4;
+		}
+		
+		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, rel.getId());
 		if (multiTileWriterIdx != null){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			try {
@@ -159,11 +163,11 @@ class SplitProcessor extends AbstractMapProcessor {
 				for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
 					currentRelAreaSet.set(i);
 				}
-				writeRelation(r);
+				writeRelation(rel);
 				//System.out.println("added rel: " +  r.getId());
 				currentRelAreaSet.clear();
 			} catch (IOException e) {
-				throw new RuntimeException("failed to write relation " + r.getId(),
+				throw new RuntimeException("failed to write relation " + rel.getId(),
 						e);
 			}
 		}
@@ -171,7 +175,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			short oldclIndex = unassigned;
 			short oldwlIndex = unassigned;
 			try {
-				for (Member mem : r.getMembers()) {
+				for (Member mem : rel.getMembers()) {
 					// String role = mem.getRole();
 					long id = mem.getRef();
 					if (mem.getType().equals("node")) {
@@ -199,10 +203,10 @@ class SplitProcessor extends AbstractMapProcessor {
 					}
 				}
 
-				writeRelation(r);
+				writeRelation(rel);
 				currentRelAreaSet.clear();
 			} catch (IOException e) {
-				throw new RuntimeException("failed to write relation " + r.getId(),
+				throw new RuntimeException("failed to write relation " + rel.getId(),
 						e);
 			}
 		}
@@ -253,7 +257,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
 		WriterGridResult writerCandidates = writerIndex.get(currentNode);
-		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.NODE_TYPE, currentNode.getId());
+		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.NODE_TYPE, currentNode.getId());
 		boolean isSpecialNode = (multiTileWriterIdx != null);
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;

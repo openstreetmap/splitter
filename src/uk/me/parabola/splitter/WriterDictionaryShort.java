@@ -14,9 +14,11 @@ package uk.me.parabola.splitter;
 
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * Maps a BitSet containing the used writers to a short value.  
@@ -32,8 +34,9 @@ public class WriterDictionaryShort{
 	private final ArrayList<ShortArrayList> arrays; 
 	private final int numOfWriters;
 	private final HashMap<BitSet, Short> index;
-
-	/** 
+	private final HashSet<Short> simpleNeighbours = new HashSet<Short>();
+	
+	/**
 	 * Create a dictionary for a given array of writers
 	 * @param writers the array of writers
 	 */
@@ -50,13 +53,18 @@ public class WriterDictionaryShort{
 	 * initialize the dictionary with sets containing a single writer.
 	 */
 	private void init(){
+		ArrayList<Rectangle> rectangles = new ArrayList<Rectangle>(numOfWriters);
 		ArrayList<BitSet> writerSets = new ArrayList<BitSet>(numOfWriters);
 		for (int i=0; i < numOfWriters; i++){
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
+			rectangles.add(Utils.area2Rectangle(writers[i].getBounds(), 0));
 			writerSets.add(b);
 		}
+		findSimpleNeigbours(rectangles, writerSets);
+		System.out.println("cached " + simpleNeighbours.size() + " combinations of areas that form rectangles.");
+		return;
 	}
 	
 	/**
@@ -86,6 +94,53 @@ public class WriterDictionaryShort{
 		return combiIndex;
 	}
 
+	/**
+	 * find those areas that build rectangles when they are 
+	 * added together. A way or relation that lies exactly within 
+	 * such a combination cannot cross other areas. 
+	 */
+	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<BitSet> writerSets){
+		ArrayList<Rectangle> newRectangles = new ArrayList<Rectangle>();
+		ArrayList<BitSet> newWriterSets = new ArrayList<BitSet>();
+		
+		for (int i = 0; i < rectangles.size(); i++){
+			Rectangle r1 =  rectangles.get(i);
+			for (int j = i+1; j < rectangles.size(); j++){
+				Rectangle r2 =  rectangles.get(j);
+				boolean isSimple = false;
+				if (r1.y == r2.y && r1.height == r2.height 
+						&& (r1.x == r2.getMaxX() || r2.x == r1.getMaxX())) 
+					isSimple = true;
+				else if (r1.x == r2.x && r1.width == r2.width 
+						&& (r1.y == r2.getMaxY() || r2.y == r1.getMaxY()))
+					isSimple = true;
+				if (isSimple){
+					BitSet simpleNeighbour = new BitSet();
+					simpleNeighbour.or(writerSets.get(i));
+					simpleNeighbour.or(writerSets.get(j));
+					if (simpleNeighbour.cardinality() <= 10){
+						short idx = translate(simpleNeighbour);
+						if (simpleNeighbours.contains(idx) == false){
+							simpleNeighbours.add(idx);
+							//System.out.println("simple neighbor: " + getMapIds(simpleNeighbour));
+							Rectangle pair = new Rectangle(r1);
+							pair.add(r2);
+							newRectangles.add(pair);
+							newWriterSets.add(simpleNeighbour);
+						}
+					}
+				}
+			}
+		}
+		if (newRectangles.isEmpty() == false){
+			rectangles.addAll(newRectangles);
+			writerSets.addAll(newWriterSets);
+			newRectangles = null;
+			newWriterSets = null;
+			if (simpleNeighbours.size() < 1000)
+				findSimpleNeigbours(rectangles,writerSets);
+		}
+	}
 	/**
 	 * Return the BitSet that is related to the short value.
 	 * The caller must make sure that the short is valid.
@@ -123,6 +178,14 @@ public class WriterDictionaryShort{
 		return writers;
 	}
 	
+	public boolean mayCross(short writerIdx){
+		if (writerIdx + DICT_START < numOfWriters)
+			return false;
+		if (simpleNeighbours.contains(writerIdx))
+			return false;
+		return true;
+	}
+	
 	public String getMapIds(BitSet writerSet){
 		StringBuilder sb = new StringBuilder("{");
 		for (int k = 0;k<numOfWriters;k++){
@@ -132,7 +195,6 @@ public class WriterDictionaryShort{
 			}
 		}
 		return sb.substring(0, sb.length()-2) + "}";
-		
 	}
 
 	public int getWriterNum(short writerIdx) {
