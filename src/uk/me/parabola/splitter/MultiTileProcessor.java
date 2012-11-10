@@ -634,7 +634,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 					}
 					p2 = new Point(lon,lat);
 
-					if (i > 0){
+					if (p1 != null){
 						addWritersOfCrossedTiles(writerSet, p1, p2);
 					}
 				}
