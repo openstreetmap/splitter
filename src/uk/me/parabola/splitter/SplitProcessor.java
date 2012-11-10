@@ -33,14 +33,14 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final DataStorer dataStorer;
 
 	//	for statistics
-	//private long countQuickTest = 0;
-	//private long countFullTest = 0;
+	private long countQuickTest = 0;
+	private long countFullTest = 0;
 	private long countCoords = 0;
 	private long countWays = 0;
 	private final int writerOffset;
 	private final int lastWriter;
 	private final boolean isLastPass;
-	private WriterGrid grid;
+	private WriterIndex writerIndex;
 	private final int maxThreads;
 	private final short unassigned = Short.MIN_VALUE;
 
@@ -65,7 +65,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.ways   = new SparseLong2ShortMapInline();
 		this.coords.defaultReturnValue(unassigned);
 		this.ways.defaultReturnValue(unassigned); 		
-		this.grid = dataStorer.getGrid();
+		this.writerIndex = dataStorer.getGrid();
 		this.countWays = ways.size();
 		this.writerOffset = writerOffset;
 		this.lastWriter = writerOffset + numWritersThisPass-1;
@@ -215,7 +215,8 @@ class SplitProcessor extends AbstractMapProcessor {
 			System.out.println("");
 			System.out.println("Final statistics for ways map:");
 			ways.stats(1);
-		}
+			System.out.println("Full Node tests:  " + Utils.format(countFullTest));
+			System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		}
 
 		for (int i = 0; i < writerInputQueues.length; i++) {
 			try {
@@ -251,7 +252,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private void writeNode(Node currentNode) throws IOException {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
-		WriterGridResult writerCandidates = grid.get(currentNode);
+		WriterGridResult writerCandidates = writerIndex.get(currentNode);
 		Integer multiTileWriterIdx = dataStorer.getWriterIdxSeq(DataStorer.NODE_TYPE, currentNode.getId());
 		boolean isSpecialNode = (multiTileWriterIdx != null);
 		if (writerCandidates == null && !isSpecialNode)  {
@@ -268,11 +269,11 @@ class SplitProcessor extends AbstractMapProcessor {
 				boolean found;
 				if (writerCandidates.testNeeded){
 					found = w.nodeBelongsToThisArea(currentNode);
-					//++countFullTest;
+					++countFullTest;
 				}
 				else{ 
 					found = true;
-					//++countQuickTest;
+					++countQuickTest;
 				}
 				if (found) {
 					usedWriters.set(n);

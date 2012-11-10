@@ -50,7 +50,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private long countCoords = 0;
 	private boolean isFirstPass;
 	private boolean isLastPass;
-	private WriterGrid grid;
+	private WriterIndex writerIndex;
 
 	private Rectangle realWriterBbox;
 	
@@ -69,14 +69,14 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		//this.ways = dataStorer.getWays();
 		
 		writerSet = new BitSet(writerDictionary.getNumOfWriters());
-		this.grid = dataStorer.getGrid();
+		this.writerIndex = dataStorer.getGrid();
 		this.coords = new SparseLong2ShortMapInline();
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.isFirstPass = (writerOffset == 0);
 		this.isLastPass = (writerOffset + numWritersThisPass == writers.length);
 		this.problemWays = problemWays;
 		this.problemRels = problemRels;
-		this.realWriterBbox = Utils.area2Rectangle(grid.getBounds(), 0);
+		this.realWriterBbox = Utils.area2Rectangle(writerIndex.getBounds(), 0);
 	}
 	
 	
@@ -90,7 +90,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		int countWriters = 0;
 		short lastUsedWriter = UNASSIGNED;
 		short writerIdx = UNASSIGNED;
-		WriterGridResult writerCandidates = grid.getWithOuter(node);
+		WriterGridResult writerCandidates = writerIndex.get(node);
 		if (writerCandidates == null) 
 			return;
 		

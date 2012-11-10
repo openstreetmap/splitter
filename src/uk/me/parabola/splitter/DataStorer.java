@@ -40,7 +40,7 @@ public class DataStorer{
 	private final String[] mapNames = {"node", "way", "rel"};
 	private final WriterDictionaryShort writerDictionary;
 	private final WriterDictionaryInt multiTileWriterDictionary;
-	private final WriterGrid grid;
+	private final WriterIndex writerIndex;
 	private SparseLong2ShortMapFunction usedWays = null;
 	private final HashMap<Long,Integer> usedRels = new HashMap<Long, Integer>();
 
@@ -56,13 +56,8 @@ public class DataStorer{
 		for (int i = 0; i< maps.length; i++){
 			maps[i] = new WriterMapper(mapNames[i]);
 		}
-		for (OSMWriter w: writers){
-			if (w.getMapId() < 0){
-				hasPseudo = true;
-				break;
-			}
-		}
-		this.grid = new WriterGrid(writerDictionary, hasPseudo);
+		this.writerIndex = new WriterGrid(writerDictionary);
+		return;
 	}
 
 	public int getNumOfWriters(){
@@ -79,8 +74,8 @@ public class DataStorer{
 			map.stats();
 	}
 
-	public WriterGrid getGrid() {
-		return grid;
+	public WriterIndex getGrid() {
+		return writerIndex;
 	}
 
 	public WriterDictionaryInt getMultiTileWriterDictionary() {
