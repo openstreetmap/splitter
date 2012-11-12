@@ -21,9 +21,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
@@ -114,10 +116,15 @@ public class DataStorer{
 	public void setReadOnly(File fileOutputDir) throws IOException{
 		if (idsAreNotSorted)
 			return; // can't use files to save heap
+		if (maps[NODE_TYPE].size() <= 100000)
+			return;
+		System.out.println("Writing maps to temp files... ");
+		long start = System.currentTimeMillis();
 		for (int i = 0; i< maps.length; i++){
 			maps[i].writeMapToFile(fileOutputDir);
 		}
 		savedToFiles = true;
+		System.out.println("Writing temp files took " + (System.currentTimeMillis()-start) + " ms");
 	}
 
 	public void restart() throws IOException{
@@ -149,8 +156,11 @@ public class DataStorer{
 
 		public WriterMapper(String name) {
 			this.name = name;
-			this.map = new TreeMap<Long, Integer>();
+			this.map = new HashMap<Long, Integer>();
 			currentKey = Long.MIN_VALUE;
+		}
+		public int size() {
+			return map.size();
 		}
 		public void finish() {
 			if (tmpFile != null && tmpFile.exists()){
@@ -164,7 +174,7 @@ public class DataStorer{
 		}
 
 		public void stats (){
-			System.out.println("TreeMap<Long,Integer> " + name + "-Writers  : " + Util.format(map.size()));
+			System.out.println(map.getClass().getSimpleName() + "<Long,Integer> " + name + "-Writers  : " + Util.format(map.size()));
 		}
 
 		public Integer put(long key, int value){
@@ -192,30 +202,46 @@ public class DataStorer{
 			return currentVal;
 
 		}
+		
+		/**
+		 * Write content of a map to a temporary file, making sure that data is sorted by the keys. 
+		 * @param fileOutputDir
+		 * @throws IOException
+		 */
 		private void writeMapToFile(File fileOutputDir) throws IOException{
-			tmpFile = File.createTempFile(name, null, fileOutputDir);
-			tmpFile.deleteOnExit();
-			FileOutputStream fos = new FileOutputStream(tmpFile);
-			BufferedOutputStream stream = new BufferedOutputStream(fos);
-			DataOutputStream dos = new DataOutputStream(stream);
-			long lastKey = Long.MIN_VALUE;
-			Iterator<Map.Entry<Long,Integer>> iter = map.entrySet().iterator();
-			while(iter.hasNext()) {
-				Map.Entry<Long,Integer> pair = iter.next();
-				long key = pair.getKey();
-				assert lastKey < key;
-				lastKey = key;
-				Integer val = pair.getValue();
-				if (val != null){
-					dos.writeLong(key);
-					dos.writeInt(val);
+			for (int i = 0; i < 2; i++){
+				tmpFile = File.createTempFile(name, null, fileOutputDir);
+				tmpFile.deleteOnExit();
+				FileOutputStream fos = new FileOutputStream(tmpFile);
+				BufferedOutputStream stream = new BufferedOutputStream(fos);
+				DataOutputStream dos = new DataOutputStream(stream);
+				long lastKey = Long.MIN_VALUE;
+				Iterator<Map.Entry<Long,Integer>> iter = map.entrySet().iterator();
+				while(iter.hasNext()) {
+					Map.Entry<Long,Integer> pair = iter.next();
+					long key = pair.getKey();
+					assert i == 0  | lastKey < key;
+					lastKey = key;
+					Integer val = pair.getValue();
+					if (val != null){
+						dos.writeLong(key);
+						dos.writeInt(val);
+					}
 				}
+				// write sentinel
+				dos.writeLong(Long.MAX_VALUE);
+				dos.writeInt(Integer.MAX_VALUE);
+				dos.close();
+				open();
+				if (map instanceof SortedMap)
+					break;
+				map = new TreeMap<Long, Integer>();
+				do{
+					readPair();
+					map.put(currentKey, currentVal);
+				} while (currentKey != Long.MAX_VALUE);
+				finish();
 			}
-			// write sentinel
-			dos.writeLong(Long.MAX_VALUE);
-			dos.writeInt(Integer.MAX_VALUE);
-			dos.close();
-			open();
 			map = null;
 		}
 

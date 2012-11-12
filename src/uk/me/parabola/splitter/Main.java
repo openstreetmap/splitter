@@ -502,9 +502,8 @@ public class Main {
 
 			System.out.println("-----------------------------------");
 		}
-		System.out.println("Writing temp files " + new Date());
+		
 		dataStorer.setReadOnly(fileOutputDir);
-		System.out.println("-----------------------------------");
 
 		System.out.println("Distributing data " + new Date());
 		
