@@ -85,6 +85,20 @@ public class TestCustomCollections {
 			boolean b = map.containsKey(idOffset + i);
 			Assert.assertEquals(b, false);
 		}
+    long mapSize = map.size();
+    // seq. update existing records 
+		for (int i = 1; i < 1000; i++) {
+			short j = map.put(idOffset + i, (short) (i+333));
+			Assert.assertEquals(j, i);
+			Assert.assertEquals(map.size(), mapSize);
+		}
+    // random read access 3, update existing entries 
+		for (int i = 1; i < 1000; i++) {
+        int key = 1000 + (short) (Math.random() * 200);
+			short j = map.put(idOffset + i, (short) (i+555));
+			Assert.assertEquals(true, j == i+333 | j == i+555);
+			Assert.assertEquals(map.size(), mapSize);
+		}
 
 		Assert.assertEquals(map.get(idOffset + 123456), Short.MIN_VALUE);
 		map.put(idOffset + 123456, (short) 999);
