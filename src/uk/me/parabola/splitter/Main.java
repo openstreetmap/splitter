@@ -438,8 +438,6 @@ public class Main {
 		while (remainingAreas.size() > 0){
 			++partition;
 			distinctAreas = getNonOverlappingAreas(remainingAreas, true);
-			//ArrayList<Area> testDistinct = getNonOverlappingAreas(distinctAreas, true);
-			//assert testDistinct.equals(distinctAreas);
 			if (distinctAreas.size() * 1.25 > maxAreasPerPass)
 				distinctAreas = getNonOverlappingAreas(remainingAreas, false);
 			else 
@@ -789,10 +787,17 @@ public class Main {
 
 	private boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
 		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
+		long sumTiles = 0;
 		
 		for (Area area: areas){
+			sumTiles += (long)area.getHeight() * (long)area.getWidth();
 			bbox.subtract(area.getJavaArea());
 		}
+		long areaBox = (long) bounds.height*(long)bounds.width;
+		
+		if (sumTiles != areaBox)
+			return false;
+			
 		return bbox.isEmpty();
 	}
 
@@ -1006,6 +1011,7 @@ public class Main {
 			java.awt.geom.Area stripeLon = new java.awt.geom.Area(new Rectangle(minX, planetBounds.y, nextX - minX, planetBounds.height));
 			// cut out already covered area
 			stripeLon.subtract(covered);
+			assert stripeLon.isEmpty() == false;
 			// the remaining area must be a set of zero or more disjoint rectangles
 			List<List<Point>> stripeShapes = Utils.areaToShapes(stripeLon);
 			for (int j = 0; j < stripeShapes .size(); j++){
@@ -1015,13 +1021,14 @@ public class Main {
 				assert test.isRectangular();
 				Rectangle pseudoRect = test.getBounds();
 				if (uncovered.contains(pseudoRect)){
+					assert test.getBounds().width == stripeLon.getBounds().width;
 					boolean wasMerged = false;
 					// check if new area can be merged with last rectangles
 					for (int k=areas.size()-1; k >= oldSize; k--){
 						Area prev = areas.get(k);
 						if (prev.getMaxLong() < pseudoRect.x || prev.isPseudoArea() == false)
 							continue;
-						if (prev.getHeight() == pseudoRect.height && prev.getMaxLong() == pseudoRect.x){
+						if (prev.getHeight() == pseudoRect.height && prev.getMaxLong() == pseudoRect.x && prev.getMinLat() == pseudoRect.y){
 							// merge
 							Area pseudo = prev.add(new Area(pseudoRect.y,pseudoRect.x,(int)pseudoRect.getMaxY(),(int)pseudoRect.getMaxX()));
 							pseudo.setMapId(prev.getMapId());
