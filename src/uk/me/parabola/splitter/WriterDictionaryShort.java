@@ -197,10 +197,12 @@ public class WriterDictionaryShort{
 		return sb.substring(0, sb.length()-2) + "}";
 	}
 
-	public int getWriterNum(short writerIdx) {
-		int writerId = writerIdx + DICT_START;
-		if (writerId < numOfWriters)
-			return writerId;
-		return -1; // multiple writers
+	/**
+	 * return the id of a single writer or 
+	 * @param writerIdx
+	 * @return
+	 */
+	public boolean isSingleWriterIdx(short writerIdx) {
+		return (writerIdx + DICT_START < numOfWriters);
 	}
 }

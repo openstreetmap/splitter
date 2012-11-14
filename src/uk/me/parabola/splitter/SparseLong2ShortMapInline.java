@@ -10,6 +10,7 @@ import java.util.HashMap;
 /**
  * SparseLong2ShortMapInline implements SparseLong2ShortMapFunction 
  * optimized for low memory requirements and inserts in sequential order.
+ * Don't use this for a rather small number of pairs. 
  *
  * Inspired by SparseInt2ShortMapInline.
  * 
@@ -20,20 +21,19 @@ import java.util.HashMap;
  * to separate used and unused entries in the chunk. Thus, the chunk length 
  * depends on the number of used entries, not on the highest used entry.
  * A typical (uncompressed) chunk looks like this:
- * {m1,m2,m3,m4,v1,v1,v1,v1,v1,v1,v2,v2,v2,v2,v1,v1,v1,v1,v1,u,?,?,...}
- * m1-m4: the bit-mask
+ * v1,v1,v1,v1,v1,v1,v2,v2,v2,v2,v1,v1,v1,v1,v1,u,?,?,...}
  * v1,v2: values stored in the chunk
  * u: "unassigned" value
  * ?: anything
  * 
  * After applying Run Length Encryption on this the chunk looks like this:
- * {m1,m2,m3,m4,u,6,v1,4,v2,5,v1,?,?,?}
- * The unassigned value on index 5 signals a compressed chunk.
+ * {u,6,v1,4,v2,5,v1,?,?,?}
+ * The unassigned value on index 0 signals a compressed chunk.
  * 
- * An (uncompressed)  ONE_VALUE_CHUNK may look like this:
- * {m1,m2,m3,m4,v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,u,?,?,...}
+ * An (uncompressed) ONE_VALUE_CHUNK may look like this:
+ * {v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,u,?,?,...}
  * This is stored without run length info in the shortest possible trunk:
- * {m1,m2,m3,m4,v1}
+ * {v1}
  * 
  * Fortunately, OSM data is distributed in a way that most(!) chunks contain
  * just one distinct value, so most chunks can be stored in 24 or 32 bytes
@@ -78,9 +78,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	private static final long INVALID_CHUNK_ID = 1L; // must NOT be divisible by CHUNK_SIZE 
 	private static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); // number of entries addressed by one topMap entry 
 
-	private static final int CHUNK_MASK_SIZE = 0;	// number of chunk elements needed to store the chunk mask
-	private static final int ONE_VALUE_CHUNK_SIZE = CHUNK_MASK_SIZE+1; 
-	private static final int CHUNK_SIZES = CHUNK_SIZE+CHUNK_MASK_SIZE;
+	private static final int ONE_VALUE_CHUNK_SIZE = 1; 
 
 	/** What to return on unassigned indices */
 	private short unassigned = UNASSIGNED;
@@ -88,9 +86,9 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 	
 	private long currentChunkId = INVALID_CHUNK_ID; 
-	private short [] currentChunk = new short[CHUNK_SIZES]; 
-	private short [] tmpWork = new short[CHUNK_SIZES]; 
-	private short [] RLEWork = new short[CHUNK_SIZES];
+	private short [] currentChunk = new short[CHUNK_SIZE];  // stores the values in the real position 
+	private short [] tmpWork = new short[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
+	private short [] RLEWork = new short[CHUNK_SIZE];  // for the RLE-compressed chunk
 
 
 	// for statistics
@@ -99,7 +97,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	private long uncompressedLen = 0;
 	private long compressedLen = 0;
 
-	private HashMap<Long,int[]> topMap;
+	private HashMap<Long,int[]> topMap; 
 	private short[][][] chunkStore; 
 	private long[][][] maskStore; 
 	private int[] freePosInSore;
@@ -130,28 +128,28 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 * compressed chunk stored in buffer RLEWork.
 	 */
 	private int chunkCompressRLE (int maxlen){
-		int opos = CHUNK_MASK_SIZE + 1;
-		for (int i = CHUNK_MASK_SIZE; i < maxlen; i++) {
+		int opos =  1;
+		for (int i = 0; i < maxlen; i++) {
 			short runLength = 1;
 			while (i+1 < maxlen && tmpWork[i] == tmpWork[i+1]) {
 				runLength++;
 				i++;
 			}
 			if (opos+2 >= tmpWork.length) 
-				return -1;
+				return -1; // compressed record is not shorter
 			RLEWork[opos++] = runLength;
 			RLEWork[opos++] = tmpWork[i]; 
 		}
-		if (opos == CHUNK_MASK_SIZE + 3){
+		if (opos == 3){
 			// special case: the chunk contains only one distinct value
-			// we can store this in a length-6 chunk because we don't need
-			// the length counter
-			RLEWork[CHUNK_MASK_SIZE] = RLEWork[CHUNK_MASK_SIZE+2];
+			// we can store this in a length-1 chunk because we don't need
+			// the length counter nor the compression flag
+			RLEWork[0] = RLEWork[2];
 			return ONE_VALUE_CHUNK_SIZE;
 		}
 
 		if (opos < maxlen){
-			RLEWork[CHUNK_MASK_SIZE] = unassigned; // signal a compressed record
+			RLEWork[0] = unassigned; // signal a normal compressed record
 			return opos;
 		}
 		else 
@@ -164,7 +162,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	private void saveCurrentChunk(){
 		long mask = 0;
 		int RLELen = -1;
-		int opos = CHUNK_MASK_SIZE;
+		int opos = 0;
 		long elementMask = 1L;
 		short [] chunkToSave;
 		// move used entries to the beginning
@@ -246,7 +244,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			return;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
-		int chunkLen = x + CHUNK_MASK_SIZE + 1;
+		int chunkLen = x +  1;
 		short [] store = chunkStore[x][y];
 		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 
@@ -260,7 +258,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			int opos = 0;
 			if (chunkLen == ONE_VALUE_CHUNK_SIZE) {
 				// decode one-value-chunk
-				short val = store[startPos + CHUNK_MASK_SIZE];
+				short val = store[startPos];
 				elementmask = 1;
 				for (opos = 0; opos<CHUNK_SIZE; opos++){
 					if ((chunkMask & elementmask) != 0)
@@ -270,7 +268,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			}
 			else {
 				// decode RLE-compressed chunk with multiple values
-				int ipos = startPos + CHUNK_MASK_SIZE+1;
+				int ipos = startPos + 1;
 				int len = store[ipos++];
 				short val = store[ipos++];
 				while (len > 0){
@@ -291,7 +289,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		}
 		else {
 			// decode uncompressed chunk
-			int ipos = startPos + CHUNK_MASK_SIZE;
+			int ipos = startPos;
 			elementmask = 1;
 			for (int opos=0; opos < CHUNK_SIZE; opos++) {
 				if ((chunkMask & elementmask) != 0) 
@@ -320,7 +318,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			return unassigned;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
-		int chunkLen = x + CHUNK_MASK_SIZE + 1;
+		int chunkLen = x +  1;
 		short [] store = chunkStore[x][y];
 		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 		
@@ -332,7 +330,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		else {
 			int startOfChunk = z * chunkLen + 1;
 			// the map contains the key, extract the value
-			short firstAfterMask = store[startOfChunk + CHUNK_MASK_SIZE];
+			short firstAfterMask = store[startOfChunk];
 			if (chunkLen == ONE_VALUE_CHUNK_SIZE)
 				return firstAfterMask;
 			else {
@@ -340,7 +338,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 				if (firstAfterMask == unassigned){
 					// extract from compressed chunk 
 					short len; 
-					for (int j=CHUNK_MASK_SIZE+1; j < chunkLen; j+=2){
+					for (int j=1; j < chunkLen; j+=2){
 						len =  store[j+startOfChunk];
 						index -= len;
 						if (index < 0) return store[j+startOfChunk+1];
@@ -349,7 +347,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 				}
 				else {
 					// extract from uncompressed chunk
-					return store[index + CHUNK_MASK_SIZE + startOfChunk];
+					return store[index +  startOfChunk];
 				}
 			}
 		}
@@ -359,10 +357,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	public void clear() {
 		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
 		topMap = new HashMap<Long, int[]>();
-		chunkStore = new short[CHUNK_SIZES+1][][];
-		maskStore = new long[CHUNK_SIZES+1][][];
-		freePosInSore = new int[CHUNK_SIZES+1];
-		countChunkLen = new long[CHUNK_SIZE + CHUNK_MASK_SIZE + 1 ]; // used for statistics
+		chunkStore = new short[CHUNK_SIZE+1][][];
+		maskStore = new long[CHUNK_SIZE+1][][];
+		freePosInSore = new int[CHUNK_SIZE+1];
+		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -401,7 +399,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		}
 		
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
-		int x = len-CHUNK_MASK_SIZE - 1;
+		int x = len - 1;
 		if (chunkStore[x] == null){
 			chunkStore[x] = new short[2][];
 			maskStore[x] = new long[2][];
@@ -447,28 +445,33 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	public void stats(int msgLevel) {
 		long totalOverhead = 0;
 		long totalBytes = 0;
+		long totalChunks = 0;
 		int i;
 		
-		for (i=1; i <=CHUNK_SIZE + CHUNK_MASK_SIZE; i++) {
-			long bytes = countChunkLen[i] * (i*(2+8)) ; // 2 bytes for the short + 8 bytes for the mask
-			int freePos = freePosInSore[i-CHUNK_MASK_SIZE-1];
+		for (i=1; i <=CHUNK_SIZE; i++) {
+			long bytes = countChunkLen[i] * (i*2+8) ; // 2 bytes for the shorts + 8 bytes for the mask
+			totalChunks += countChunkLen[i];
+			int freePos = freePosInSore[i-1];
 			long overhead = (freePos == 0) ? 0: (64 - freePos % 64) * i * 2 + 
-					chunkStore[i-CHUNK_MASK_SIZE-1].length * 8 + maskStore[i-CHUNK_MASK_SIZE-1].length * 8;
+					chunkStore[i-1].length * 4 + maskStore[i-1].length * 8;
 			if (msgLevel > 0) { 
 				System.out.println("Length-" + i + " chunks: " + Utils.format(countChunkLen[i]) + ", used Bytes including overhead: " + Utils.format(bytes+overhead));
-				//System.out.println("Length-" + i + " stores: " + Utils.format(chunkStore[i-CHUNK_MASK_SIZE-1].length) + " pos " + freePosInSore[i-CHUNK_MASK_SIZE-1]);
+				//System.out.println("Length-" + i + " stores: " + Utils.format(chunkStore[i-1].length) + " pos " + freePosInSore[i-1]);
 			}
 			totalBytes += bytes;
 			totalOverhead += overhead;
 		}
-		totalOverhead += topMap.size() * LARGE_VECTOR_SIZE * 4; 
-		//pctusage = Math.min(100, 1 + Math.round((float)usedChunks*100/(topMap.size()*LARGE_VECTOR_SIZE))) ;
-		long bytesPerKey = (size()==0) ? 0: (totalBytes + totalOverhead) / size();
+		totalOverhead += topMap.size() * LARGE_VECTOR_SIZE * 4;
+		
+		float bytesPerKey = (size()==0) ? 0: (totalBytes + totalOverhead)*100 / size();
 		if (msgLevel > 0){
 			System.out.println();
-			System.out.println("Number of stored ids: " + Utils.format(size()) + ", bytes per id: ~" + bytesPerKey);
+			System.out.println("Number of stored ids: " + Utils.format(size()) + " require ca. " + (float)Math.round(bytesPerKey)/100 + " bytes per pair. " + 
+					totalChunks + " chunks are used, the avg. number of pairs in one chunk is " + (float)Math.round(size()*100L/totalChunks)/100 + " of " + CHUNK_SIZE
+					+ " possible."); 
 		}
-		System.out.println("Map details: bytes/overhead " + Utils.format(totalBytes) + "/" + Utils.format(totalOverhead));  
+		System.out.println("Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
+				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 4/1024/1024 + "MB");  
 		if (msgLevel > 0 & uncompressedLen > 0){
 			System.out.print("RLE compresion info: compressed / uncompressed size / ratio: " + 
 					Utils.format(compressedLen) + " / "+ 
@@ -505,3 +508,4 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 
 
+ 

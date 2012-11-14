@@ -313,7 +313,7 @@ class SplitProcessor extends AbstractMapProcessor {
 				writersID = (short) (lastUsedWriter  - WriterDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
-			if (countCoords % 1000000 == 0){
+			if (countCoords % 10000000 == 0){
 				System.out.println("MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
 			}

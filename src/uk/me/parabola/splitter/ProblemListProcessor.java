@@ -121,7 +121,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				writerIdx = (short) (lastUsedWriter  - WriterDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
 			coords.put(node.getId(), writerIdx);
 			++countCoords;
-			if (countCoords % 1000000 == 0){
+			if (countCoords % 10000000 == 0){
 				System.out.println("MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
 			}
@@ -156,8 +156,10 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			}
 		}
 		if (isLastPass){
-			if (checkWriters(writerSet))
+			if (checkWriters(writerSet)){
 				problemWays.add(way.getId());
+				//System.out.println("gen: w" + way.getId() + " touches " + writerDictionary.getMapIds(writerSet));
+			}
 		}
 		if (writerSet.isEmpty() == false){
 			wayWriterIdx = writerDictionary.translate(writerSet);
@@ -208,8 +210,10 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (writerSet.isEmpty())
 			return;
 		if (isLastPass){
-			if (checkWriters(writerSet))
+			if (checkWriters(writerSet)){
 				problemRels.add(rel.getId());
+				//System.out.println("gen: r" + rel.getId() + " touches " + writerDictionary.getMapIds(writerSet));
+			}
 			return;
 		}
 		

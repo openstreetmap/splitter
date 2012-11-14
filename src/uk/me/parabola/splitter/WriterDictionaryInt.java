@@ -95,4 +95,14 @@ public class WriterDictionaryInt{
 	public int getNumOfWriters(){
 		return numOfWriters;
 	}
+
+	/**
+	 * return the id of a single writer or 
+	 * @param writerIdx
+	 * @return
+	 */
+	public boolean isSingleWriterIdx(int writerIdx) {
+		return (writerIdx < numOfWriters);
+	}
+
 }
