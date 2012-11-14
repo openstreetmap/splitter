@@ -791,7 +791,6 @@ public class Main {
 
 	private boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
 		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
-<<<<<<< .mine
 		long sumTiles = 0;
 
 		for (Area area: areas){
