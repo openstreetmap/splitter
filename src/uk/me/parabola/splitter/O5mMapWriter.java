@@ -76,15 +76,15 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	
 	  // has table; elements point to matching strings in stw__tab[];
 	  // -1: no matching element;
-	private int [] stw__hashtab = new int[STW_HASH_TAB_MAX];
+	private int [] stw__hashtab;
 	  // for to chaining of string table rows which match
 	  // the same hash value; matching rows are chained in a loop;
 	  // if there is only one row matching, it will point to itself;
-	private int [] stw__tabprev = new int [STW__TAB_MAX];
-	private int [] stw__tabnext = new int [STW__TAB_MAX];
+	private int [] stw__tabprev;
+	private int [] stw__tabnext;
 	  // has value of this element as a link back to the hash table;
 	  // a -1 element indicates that the string table entry is not used; 	
-	private int [] stw__tabhash = new int [STW__TAB_MAX];
+	private int [] stw__tabhash;
 	
 	private byte[] ioBuf;
 	
