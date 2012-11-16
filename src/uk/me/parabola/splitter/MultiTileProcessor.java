@@ -14,14 +14,15 @@ package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
 
+import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -37,28 +38,27 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 	private int pass = PASS1_RELS_ONLY;
 	private final DataStorer dataStorer;
-	private HashMap<Long, Relation> relMap = new HashMap<Long, Relation>();
-	//private final HashMap<Long, LongArrayList> problemWayNodes = new HashMap<Long, LongArrayList>();
+	private final WriterDictionaryInt multiTileDictionary;
+	private Map<Long, Relation> relMap = new LinkedHashMap<Long, Relation>();
+	private Long2IntClosedMapFunction nodeWriterMap;
+	private Long2IntClosedMapFunction wayWriterMap;
+	private Long2IntClosedMapFunction relWriterMap;
 	private HashMap<Long, Rectangle> relBboxes = new HashMap<Long, Rectangle>();
-	private HashMap<Long, Long> nodeCoords = null; 
-	LongArrayList nodeCoordIds = null; 
-	LongArrayList nodeCoordVals = null; 
-	private final SparseBitSet alreadySearchedRels = new SparseBitSet();
-	private final SparseBitSet doneRels = new SparseBitSet();
+	private int [] nodeLons;
+	private int [] nodeLats;
 	private SparseBitSet problemRels = new SparseBitSet();
-	private SparseBitSet parentOnlyRels = new SparseBitSet();
-	private SparseBitSet problemWays = new SparseBitSet();
 	private SparseBitSet neededWays = new SparseBitSet();
 	private SparseBitSet neededNodes = new SparseBitSet();
 	private Map<Long, Rectangle> wayBboxMap = new HashMap<Long, Rectangle>();
 	private final BitSet workWriterSet;
 	private long lastCoordId = Long.MIN_VALUE;
-
+	private int foundWays;
+	private int visitId = 0;
 
 	MultiTileProcessor(DataStorer dataStorer, LongArrayList problemWayList, LongArrayList problemRelList) {
 		this.dataStorer = dataStorer;
+		multiTileDictionary = dataStorer.getMultiTileWriterDictionary();
 		for (long id: problemWayList){
-			problemWays.set(id);
 			neededWays.set(id);
 		}
 		for (long id: problemRelList){
@@ -111,8 +111,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			for (long id : way.getRefs()) {
 				neededNodes.set(id);
 			}
+			foundWays++;
 		}
-		if (pass == PASS3_NODES_AND_WAYS){
+		else if (pass == PASS3_NODES_AND_WAYS){
 			if (!neededWays.get(way.getId()))
 				return;
 			// calculate the bbox
@@ -129,20 +130,22 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			else {
 				addWritersOfWay(workWriterSet, wayBbox, way.getId(), way.getRefs());
 			}
-			if (!workWriterSet.isEmpty()){
-				int wayWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(workWriterSet);
-				dataStorer.putWriterIdx(DataStorer.WAY_TYPE, way.getId(), wayWriterIdx);
+			if (workWriterSet.isEmpty())
+				wayWriterMap.add(way.getId(), WriterDictionaryInt.UNASSIGNED);
+			else {
+				int wayWriterIdx = multiTileDictionary.translate(workWriterSet);
+				wayWriterMap.add(way.getId(), wayWriterIdx);
 			}
 		}
-		if (pass == PASS4_WAYS_ONLY){
+		else if (pass == PASS4_WAYS_ONLY){
 			// propagate the ways writers to all nodes 
 			if (!neededWays.get(way.getId()))
 				return;
-			Integer wayWriterIdx = dataStorer.getWriterIdx(DataStorer.WAY_TYPE, way.getId());
-			if (wayWriterIdx !=  null){
-				BitSet wayWriterSet = dataStorer.getMultiTileWriterDictionary().getBitSet(wayWriterIdx);
+			int wayWriterIdx = wayWriterMap.getRandom(way.getId());
+			if (wayWriterIdx !=  WriterDictionaryInt.UNASSIGNED){
+				BitSet wayWriterSet = multiTileDictionary.getBitSet(wayWriterIdx);
 				for (long id : way.getRefs()) {
-					addOrMergeWriters(DataStorer.NODE_TYPE, wayWriterSet, wayWriterIdx, id);
+					addOrMergeWriters(nodeWriterMap, wayWriterSet, wayWriterIdx, id);
 				}
 			}
 		}
@@ -155,7 +158,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			while(tags.hasNext()) {
 				Element.Tag t = tags.next();
 				if ("type".equals(t.key) && "multipolygon".equals(t.value) || "boundary".equals(t.value)){
-					rel.setMultiPolygon(true);
+					rel.markAsMultiPolygon();
 					break;
 				}
 			}
@@ -169,7 +172,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	public boolean endMap() {
 		if (pass == PASS1_RELS_ONLY){
 			stats("endMap start");
-			System.out.println("starting to resolve relations containing problem relations");
+			System.out.println("starting to resolve relations containing problem relations ...");
 			// add all ways and nodes of problem rels so that we collect the coordinates
 			markProblemMembers();
 			// we want to see the parent rels, but not all children of all parents 
@@ -183,105 +186,141 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				}
 			}
 			stats("endMap Pass1 end");
+			System.out.println("starting to collect ids of needed way nodes ...");
 			++pass;
-			return false;
 		}
-		if (pass == PASS2_WAYS_ONLY){
+		else if (pass == PASS2_WAYS_ONLY){
 			stats("endMap Pass2 end");
 			++pass;
-			System.out.println("starting to collect coordinates for " + Utils.format(neededNodes.cardinality()) + " special nodes ");
-
-			nodeCoordIds = new LongArrayList(neededNodes.cardinality());
-			nodeCoordVals = new LongArrayList(neededNodes.cardinality());
-			return false;
+			System.out.println("Found " + foundWays + " needed ways");
+			System.out.println("Starting to collect coordinates for " + Utils.format(neededNodes.cardinality()) + " special nodes ");
+			// critical part: we have to allocate possibly large arrays here
+			nodeWriterMap = new Long2IntClosedMap("node", neededNodes.cardinality(), WriterDictionaryInt.UNASSIGNED);
+			wayWriterMap = new Long2IntClosedMap("way", foundWays, WriterDictionaryInt.UNASSIGNED);
+			dataStorer.setWriterMap(DataStorer.NODE_TYPE, nodeWriterMap);
+			dataStorer.setWriterMap(DataStorer.WAY_TYPE, wayWriterMap);
+			nodeLons = new int[neededNodes.cardinality()];
+			nodeLats = new int[neededNodes.cardinality()];
 		}
-
-		if (pass == PASS3_NODES_AND_WAYS){
+		else if (pass == PASS3_NODES_AND_WAYS){
 			neededNodes = null;
-
+			System.out.println("Found " + nodeWriterMap.size() + " needed nodes");
 			calcWritersOfRelWaysAndNodes();
-			// return memory to GC
-			nodeCoords = null;
-			nodeCoordIds = null;
-			nodeCoordVals = null;
-			calcWritersOfRels();
+			// return coordinate memory to GC
+			nodeLats = null;
+			nodeLons = null;
+			
+			calcWritersOfMultiPolygonRels();
 			mergeRelMemWriters();
-			orWritersOfRelMembers();
+			propagateWritersOfRelsToMembers();
 
 			problemRels = null;
-			problemWays = null;
-			parentOnlyRels = null;
-			relMap = null;
+			//problemWays = null;
+			//parentOnlyRels = null;
 			wayBboxMap = null;
 			relBboxes = null;
+			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), WriterDictionaryInt.UNASSIGNED);
+			for (Map.Entry<Long, Relation> entry: relMap.entrySet()) {
+				int val = entry.getValue().getMultiTileWriterIndex();
+				if (val != WriterDictionaryInt.UNASSIGNED)
+					relWriterMap.add(entry.getKey(), val);
+			}
+			relMap = null;
+			dataStorer.setWriterMap(DataStorer.REL_TYPE, relWriterMap);
 			stats("endMap Pass3 end");
 			++pass;
 			return false;
 		}
-		if (pass == PASS4_WAYS_ONLY){
+		else if (pass == PASS4_WAYS_ONLY){
 			stats("endMap Pass4 end");
-			++pass;
+			return true; 
 		}
-		return true;
+		return false; // not done yet
 	}
 
 	/**
-	 * Makes sure that all the elements of a relation are written to the same tiles as the relation info itself.
+	 * Mark all members of given problem relations as problem cases. 
 	 */
-	private void orWritersOfRelMembers() {
-		// make sure that the ways and nodes of the problem relations are written to all needed tiles
+	private void markProblemMembers() {
+		LongArrayList visited = new LongArrayList();
 		for (Relation rel: relMap.values()){
-			Integer relWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, rel.getId());
-			if (relWriterIdx == null)
+			if (!problemRels.get(rel.getId()))
 				continue;
-			BitSet relWriters =  dataStorer.getMultiTileWriterDictionary().getBitSet(relWriterIdx);
-			for (Member mem: rel.getMembers()){
-				if (mem.getType().equals("way")){
-					addOrMergeWriters(DataStorer.WAY_TYPE, relWriters, relWriterIdx, mem.getRef());
-				}
-				else if (mem.getType().equals("node")){
-					addOrMergeWriters(DataStorer.NODE_TYPE, relWriters, relWriterIdx, mem.getRef());
-				}
-			}
-		}
-
-	}
-
-	private void mergeRelMemWriters() {
-		// or combine the writers of sub-relations with the parent relation 
-		doneRels.clear();
-		for (Relation rel: relMap.values()){
-			alreadySearchedRels.clear();
-			orSubRelWriters(rel, 0);
+			incVisitID();
+			visited.clear();
+			MarkNeededMembers(rel, 0, visited);
+			assert visited.size() == 0;
 		}
 	}
 
-	private void calcWritersOfRels() {
-		// recurse thru sub relations
-		doneRels.clear();
-		for (Relation rel: relMap.values()){
-			BitSet relWriters = new BitSet();
-			alreadySearchedRels.clear();
-			if (rel.isMultiPolygon()){
-				getSubRelBboxes(rel, 0);
-				Rectangle relBbox = relBboxes.get(rel.getId());
-				checkBoundingBox(relWriters, relBbox);
-				// now we know the bounding box of the relation, so we can calculate the tiles
-				// this is far away from being precise, but very fast
-				if (!relWriters.isEmpty()){
-					int writerIdx = dataStorer.getMultiTileWriterDictionary().translate(relWriters);
-					dataStorer.putWriterIdx(DataStorer.REL_TYPE, rel.getId(), writerIdx);
+	/**
+	 * Mark the ways and nodes of a relation as problem cases. If the relation 
+	 * contains sub relations, the routine calls itself recursively. 
+	 * @param rel the relation 
+	 * @param depth used to detect loops 
+	 * @param visited 
+	 * @return
+	 */
+	private void MarkNeededMembers(Relation rel, int depth, LongArrayList visited){
+		if (rel.getVisitId() == visitId)
+			return;
+		rel.setVisitId(visitId);
+		if (depth > 15){
+			System.out.println("MarkNeededMembers reached max. depth: " + rel.getId() + " " +  depth);
+			return ;
+		}
+		for (Member mem : rel.getMembers()) {
+			long memId = mem.getRef();
+			if (mem.getType().equals("way")){
+				neededWays.set(memId);
+			}
+			else if (mem.getType().equals("node"))
+				neededNodes.set(memId);
+			else if (mem.getType().equals("relation")) {
+				Relation subRel = relMap.get(memId);
+				if (subRel != null && subRel.getVisitId() != visitId){
+					problemRels.set(memId);
+					visited.add(memId);
+					MarkNeededMembers(subRel, depth+1, visited);
+					visited.remove(visited.size()-1);
+				}
+				else
+					loopAction(rel, memId, visited);
+			} 
+		}
+	}
+
+	/**
+	 * Mark the parents of problem relations as problem relations.
+	 */
+	private void markParentRels(){
+		while (true){
+			boolean changed = false;
+			for (Relation rel: relMap.values()){
+				if (rel.hasRelMembers() == false || problemRels.get(rel.getId()))
+					continue;
+				for (Member mem : rel.getMembers()) {
+					long memId = mem.getRef();
+					if (mem.getType().equals("relation")) {
+						if (problemRels.get(memId)){
+							problemRels.set(rel.getId());
+							rel.setAddedAsParent();
+							System.out.println("Adding parent of problem rel "+ memId + " to problem list: " + rel.getId());
+							changed = true;
+							break;
+						}
+					} 
 				}
 			}
-			else{
-				orSubRelWriters(rel, 0);
-			}
-			assert doneRels.get(rel.getId());
+			if (!changed)
+				return;
 		}
 	}
 
 	private void calcWritersOfRelWaysAndNodes() {
 		for (Relation rel: relMap.values()){
+			if (!rel.hasWayMembers() &&  !rel.hasNodeMembers())
+				continue;
 			Rectangle relBbox = null;
 			boolean isNotComplete = false;
 			BitSet writerSet = new BitSet(); 
@@ -290,18 +329,17 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				Rectangle memBbox = null;
 				boolean memFound = false;
 				if (mem.getType().equals("node")){
-					Long coord = findCoord(memId);
-					if (coord != null){
-						int lat = (int) (0xffffffff & (coord >>> 32));
-						int lon = (int) (0xffffffff & coord);
-						addWritersOfPoint(writerSet, lat, lon);
+					int pos = nodeWriterMap.getKeyPos(memId);
+					if (pos >= 0){
+						addWritersOfPoint(writerSet, nodeLats[pos], nodeLons[pos]);
 						memFound = true;
 					}
 				}
 				else if (mem.getType().equals("way")){
-					Integer idx = dataStorer.getWriterIdx(DataStorer.WAY_TYPE, memId);
-					if (idx != null){
-						writerSet.or(dataStorer.getMultiTileWriterDictionary().getBitSet(idx));
+					int idx = wayWriterMap.getRandom(memId);
+					if (idx != WriterDictionaryInt.UNASSIGNED){
+						writerSet.or(multiTileDictionary.getBitSet(idx));
+						memFound = true;
 					}
 					memBbox = wayBboxMap.get(memId);
 					if (memBbox != null)
@@ -315,23 +353,127 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				}
 				if (memBbox == null)
 					continue;
-
+	
 				if (relBbox == null)
 					relBbox = new Rectangle(memBbox);
 				else 
 					relBbox.add(memBbox);
-
+	
 			}
-
-			relBboxes.put(rel.getId(), relBbox);
+	
+			if (relBbox != null)
+				relBboxes.put(rel.getId(), relBbox);
 			if (!writerSet.isEmpty()){
-				int idx = dataStorer.getMultiTileWriterDictionary().translate(writerSet);
-				dataStorer.putWriterIdx(DataStorer.REL_TYPE, rel.getId(), idx);
-				if (isNotComplete && parentOnlyRels.get(rel.getId()) == false)
+				int idx = multiTileDictionary.translate(writerSet);
+				rel.setMultiTileWriterIndex(idx);
+				if (isNotComplete && rel.wasAddedAsParent() == false)
 					System.out.println("Sorry, data for relation " + rel.getId() + " is incomplete");
 			}
 		}
+	
+	}
 
+	private void calcWritersOfMultiPolygonRels() {
+		// recurse thru sub relations
+		LongArrayList visited = new LongArrayList();
+		for (Relation rel: relMap.values()){
+			BitSet relWriters = new BitSet();
+			if (rel.isMultiPolygon()){
+				incVisitID();
+				visited.clear();
+				getSubRelBboxes(rel, 0, visited);
+				Rectangle relBbox = relBboxes.get(rel.getId());
+				checkBoundingBox(relWriters, relBbox);
+				// now we know the bounding box of the relation, so we can calculate the tiles
+				// this is far away from being precise, but very fast
+				if (!relWriters.isEmpty()){
+					int writerIdx = multiTileDictionary.translate(relWriters);
+					rel.setMultiTileWriterIndex(writerIdx);
+				}
+			}
+		}
+	}
+
+	/**
+	 * or-combine all writers of the members of a relation 
+	 */
+	private void mergeRelMemWriters() {
+		// or combine the writers of sub-relations with the parent relation 
+		LongArrayList visited = new LongArrayList();
+		for (Relation rel: relMap.values()){
+			incVisitID();
+			visited.clear();
+			orSubRelWriters(rel, 0, visited);
+		}
+	}
+
+	/**
+	 * Make sure that all the elements of a relation are written to the same tiles as the relation info itself.
+	 */
+	private void propagateWritersOfRelsToMembers() {
+		// make sure that the ways and nodes of the problem relations are written to all needed tiles
+		for (Relation rel: relMap.values()){
+			if (rel.wasAddedAsParent())
+				continue;
+			int relWriterIdx = rel.getMultiTileWriterIndex();
+			if (relWriterIdx == WriterDictionaryInt.UNASSIGNED)
+				continue;
+			BitSet relWriters =  multiTileDictionary.getBitSet(relWriterIdx);
+			for (Member mem: rel.getMembers()){
+				if (mem.getType().equals("way")){
+					addOrMergeWriters(wayWriterMap, relWriters, relWriterIdx, mem.getRef());
+				}
+				else if (mem.getType().equals("node")){
+					addOrMergeWriters(nodeWriterMap, relWriters, relWriterIdx, mem.getRef());
+				}
+			}
+		}
+
+	}
+
+	/**
+	 * If a relation contains relations, collect the bounding boxes of the sub rels. The routine calls 
+	 * itself recursively when the sub relation contains sub relations. 
+	 * @param rel the relation 
+	 * @param depth used to detect loops 
+	 * @return
+	 */
+	private void getSubRelBboxes(Relation rel, int depth, LongArrayList visited){
+		if (rel.getVisitId() == visitId)
+			return;
+		rel.setVisitId(visitId);
+		if (depth > 15){
+			System.out.println("getSubRelBboxes reached max. depth: " + rel.getId() + " " +  depth);
+			return ;
+		}
+		Rectangle relBbox = relBboxes.get(rel.getId());
+		boolean changed = false;
+		for (Member mem : rel.getMembers()) {
+			long memId = mem.getRef();
+	
+			if (mem.getType().equals("relation")) {
+				Relation subRel = relMap.get(memId);
+				if (subRel == null)
+					continue;
+				if (subRel.getVisitId() == visitId)
+					loopAction(rel, memId, visited);
+				else {
+					visited.add(memId);
+					getSubRelBboxes(subRel, depth+1, visited);
+					visited.remove(visited.size()-1);
+					Rectangle memBbox = relBboxes.get(mem.getRef());
+					if (memBbox != null){
+						if (relBbox == null)
+							relBbox = new Rectangle(memBbox);
+						else
+							relBbox.add(memBbox);
+						changed = true;
+					}
+				}
+			} 
+		}
+		if (changed)
+			relBboxes.put(rel.getId(), relBbox);
 	}
 
 	/**
@@ -341,146 +483,18 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 */
 	private void storeCoord(Node node) {
 		// store two ints in one long to save memory
-		long lat = 0xffffffffL & node.getMapLat();
-		long lon = 0xffffffffL & node.getMapLon();
-		long coord = (lat << 32) | lon;
+		int lat = node.getMapLat();
+		int lon = node.getMapLon();
 
 		long id = node.getId();
-		if (lastCoordId >= id && nodeCoords == null){
-			System.out.println("Node ids are not sorted, switching to HashMap to store coordinates");
-			nodeCoords = new HashMap<Long, Long>();
-			for (int i = 0; i < nodeCoordIds.size(); i++){
-				nodeCoords.put(nodeCoordIds.get(i), nodeCoordVals.get(i));
-			}
-			nodeCoordIds = null;
-			nodeCoordVals = null;
+		if (lastCoordId >= id){
+			throw new IllegalArgumentException ("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
 		}
+		int nodePos = nodeWriterMap.add(id, WriterDictionaryInt.UNASSIGNED);
 		lastCoordId = id;
-		if (nodeCoords != null)
-			nodeCoords.put(id, coord);
-		else {
-			nodeCoordIds.add(id);
-			nodeCoordVals.add(coord);
-		}
-		/*
-		int lat2 = (int) (0xffffffff & (coord >>> 32));
-		int lon2 = (int) (0xffffffff & coord);
-		if (lat2 != node.getMapLat()  || lon2 != node.getMapLon()){
-			long dd = 4;
-		}
-		 */
+		nodeLons[nodePos ] = lon;
+		nodeLats[nodePos] = lat;
 	}
-
-	/**
-	 * Use either Map or perform binary search to find coordinates
-	 * @param memId
-	 * @return
-	 */
-	private Long findCoord(long memId) {
-		if (nodeCoords != null)
-			return nodeCoords.get(memId);
-		int pos = Arrays.binarySearch(nodeCoordIds.elements(), 0, nodeCoordIds.size(), memId);
-		if (pos >= 0)
-			return nodeCoordVals.get(pos);
-		else 
-			return null;
-	}
-
-	/**
-	 * Mark the ways and nodes of a relation as problem cases. If the relation 
-	 * contains sub relations, the routine calls itself recursively. 
-	 * @param rel the relation 
-	 * @param depth used to detect loops 
-	 * @return
-	 */
-	private void MarkNeededMembers(Relation rel, int depth){
-
-		alreadySearchedRels.set(rel.getId());
-		if (doneRels.get(rel.getId()))
-			return ;
-		if (depth > 15){
-			System.out.println("MarkNeededMembers reached max. depth: " + rel.getId() + " " +  depth);
-			return ;
-		}
-		for (Member mem : rel.getMembers()) {
-			// String role = mem.getRole();
-			long memId = mem.getRef();
-			if (mem.getType().equals("way")){
-				neededWays.set(memId);
-				problemWays.clear(memId);
-			}
-			else if (mem.getType().equals("node"))
-				neededNodes.set(memId);
-			else if (mem.getType().equals("relation")) {
-				if (alreadySearchedRels.get(memId)){
-					//System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
-				}
-				else {
-					// recursive search
-					Relation subRel = relMap.get(memId);
-					if (subRel != null){
-						problemRels.set(memId);
-						MarkNeededMembers(subRel, depth+1);
-					}
-				}
-			} 
-		}
-		doneRels.set(rel.getId());
-	}
-
-
-	/**
-	 * If a relation contains relations, collect the areas and writers of the sub rels. The routine calls 
-	 * itself recursively when the sub relation contains sub relations. 
-	 * @param rel the relation 
-	 * @param depth used to detect loops 
-	 * @return
-	 */
-	private void getSubRelBboxes(Relation rel, int depth){
-		alreadySearchedRels.set(rel.getId());
-		if (doneRels.get(rel.getId()))
-			return ;
-		if (depth > 15){
-			System.out.println("getSubRelWriters reached max. depth: " + rel.getId() + " " +  depth);
-			return ;
-		}
-		Rectangle relBbox = relBboxes.get(rel.getId());
-		boolean changed = false;
-		for (Member mem : rel.getMembers()) {
-			long memId = mem.getRef();
-
-			if (mem.getType().equals("relation")) {
-				if (alreadySearchedRels.get(memId)){
-					if (rel.isOnLoop() == false)
-						System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
-					rel.setOnLoop(true);
-				}
-				else {
-					// recursive search
-					Relation subRel = relMap.get(memId);
-					if (subRel != null){
-						getSubRelBboxes(subRel, depth+1);
-						Rectangle memBbox = relBboxes.get(mem.getRef());
-						if (memBbox == null)
-							System.out.println("sorry, no nodes found for relation : " + mem.getRef() + " which is a sub-rel of " + rel.getId());
-						else {
-							if (relBbox == null)
-								relBbox = new Rectangle(memBbox);
-							else
-								relBbox.add(memBbox);
-							changed = true;
-						}
-					}
-				}
-			} 
-		}
-		if (relBbox == null)
-			System.out.println("sorry, no nodes found for relation : " + rel.getId());
-		else if (changed)
-			relBboxes.put(rel.getId(), relBbox);
-		doneRels.set(rel.getId());
-	}
-
 
 	/**
 	 * If a relation contains relations, or-combine the writers of the sub-
@@ -490,55 +504,52 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * @param depth used to detect loops 
 	 * @return
 	 */
-	private void orSubRelWriters(Relation rel, int depth){
-		alreadySearchedRels.set(rel.getId());
-		if (doneRels.get(rel.getId()))
-			return ;
+	private void orSubRelWriters(Relation rel, int depth, LongArrayList visited ){
+		if (rel.getVisitId() == visitId)
+			return;
+		rel.setVisitId(visitId);
 		if (depth > 15){
 			System.out.println("orSubRelWriters reached max. depth: " + rel.getId() + " " +  depth);
 			return ;
 		}
 		BitSet relWriters = new BitSet();
-		Integer relWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, rel.getId());
-		if (relWriterIdx != null)
-			relWriters.or(dataStorer.getMultiTileWriterDictionary().getBitSet(relWriterIdx));
+		int relWriterIdx = rel.getMultiTileWriterIndex();
+		if (relWriterIdx != WriterDictionaryInt.UNASSIGNED)
+			relWriters.or(multiTileDictionary.getBitSet(relWriterIdx));
 
 		boolean changed = false;
 		for (Member mem : rel.getMembers()) {
 			long memId = mem.getRef();
 
 			if (mem.getType().equals("relation")) {
-				if (alreadySearchedRels.get(memId)){
-					if (rel.isOnLoop() == false)
-						System.out.println("loop in relation: " + rel.getId() + " (depth:" +  depth + ") subrel: " + memId );
-					rel.setOnLoop(true);
-				}
+				Relation subRel = relMap.get(memId);
+				if (subRel == null)
+					continue;
+				if (subRel.getVisitId() == visitId)
+					loopAction(rel, memId, visited);
 				else {
-					// recursive search
-					Relation subRel = relMap.get(memId);
-					if (subRel != null){
-						orSubRelWriters(subRel, depth+1);
-						Integer memWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, memId);
-						if (memWriterIdx == null){
-							continue;
-						}
-						BitSet memWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(memWriterIdx);
-						BitSet test = new BitSet();
-						test.or(memWriters);
-						test.andNot(relWriters);
-						if (test.isEmpty() == false){
-							relWriters.or(memWriters);
-							changed = true;
-						}
+					visited.add(rel.getId());
+					orSubRelWriters(subRel, depth+1, visited);
+					visited.remove(visited.size()-1);
+					int memWriterIdx = subRel.getMultiTileWriterIndex();
+					if (memWriterIdx == WriterDictionaryInt.UNASSIGNED || memWriterIdx == relWriterIdx){
+						continue;
+					}
+					BitSet memWriters = multiTileDictionary.getBitSet(memWriterIdx);
+					BitSet test = new BitSet();
+					test.or(memWriters);
+					test.andNot(relWriters);
+					if (test.isEmpty() == false){
+						relWriters.or(memWriters);
+						changed = true;
 					}
 				}
-			} 
+			}
 		}
 		if (changed){
-			relWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(relWriters);
-			dataStorer.putWriterIdx(DataStorer.REL_TYPE, rel.getId(), relWriterIdx);
+			relWriterIdx = multiTileDictionary.translate(relWriters);
+			rel.setMultiTileWriterIndex(relWriterIdx);
 		}
-		doneRels.set(rel.getId());
 	}
 
 
@@ -556,8 +567,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			System.out.println("SparseBitSet neededNodes " + neededNodes.cardinality() + " (" + neededNodes.bytes() + "  bytes)");
 		if (relMap != null)
 			System.out.println("Number of stored relations: " + relMap.size());
+		System.out.println("Number of stored combis in big dictionary: " + Util.format(multiTileDictionary.size()));
 		if (pass == PASS4_WAYS_ONLY)
 			dataStorer.stats();
+			
 	}
 
 	/**
@@ -579,28 +592,30 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	/**
 	 * Merge the writers of a parent object with the writes of the child, 
 	 * add or update the entry in the Map
-	 * @param kind
+	 * @param map
 	 * @param parentWriters
 	 * @param parentWriterIdx
 	 * @param childId
 	 */
-	private void addOrMergeWriters(int kind, BitSet parentWriters, int parentWriterIdx, long childId) {
-		Integer childWriterIdx = null;
-		childWriterIdx = dataStorer.getWriterIdx(kind, childId);
-		if (childWriterIdx != null){
+	private void addOrMergeWriters(Long2IntClosedMapFunction map, BitSet parentWriters, int parentWriterIdx, long childId) {
+		int pos = map.getKeyPos(childId);
+		if (pos < 0)
+			return;
+		int childWriterIdx = map.getRandom(childId);
+		if (childWriterIdx != WriterDictionaryInt.UNASSIGNED){
 			// we have already calculated writers for this child
 			if (parentWriterIdx == childWriterIdx)
 				return;
 			// we have to merge (without changing the stored BitSets!)
-			BitSet childWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(childWriterIdx);
+			BitSet childWriters = multiTileDictionary.getBitSet(childWriterIdx);
 			BitSet mergedWriters = new BitSet(); 
 			mergedWriters.or(childWriters);
 			mergedWriters.or(parentWriters);
-			childWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(mergedWriters);
+			childWriterIdx = multiTileDictionary.translate(mergedWriters);
 		}
 		else
 			childWriterIdx = parentWriterIdx;
-		dataStorer.putWriterIdx(kind, childId, childWriterIdx);
+		map.replace(childId, childWriterIdx);
 	}
 
 	/**
@@ -609,21 +624,24 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * @param writerSet an already allocate BitSet which may be modified
 	 * @param mapLat latitude value 
 	 * @param mapLon longitude value
+	 * @return true if a writer was found
 	 */
-	private void addWritersOfPoint(BitSet writerSet, int mapLat, int mapLon){
+	private boolean addWritersOfPoint(BitSet writerSet, int mapLat, int mapLon){
 		WriterGridResult writerCandidates = dataStorer.getGrid().get(mapLat,mapLon);
 		if (writerCandidates == null)  
-			return;
+			return false;
 
-		OSMWriter[] writers = dataStorer.getWriterDictionary().getWriters(); 
+		OSMWriter[] writers = dataStorer.getWriterDictionary().getWriters();
+		boolean foundWriter = false;
 		for (int i = 0; i < writerCandidates.l.size(); i++) {
 			int n = writerCandidates.l.get(i);
 			OSMWriter w = writers[n];
 			boolean found = (writerCandidates.testNeeded) ? w.coordsBelongToThisArea(mapLat, mapLon) : true;
+			foundWriter |= found;
 			if (found) 
 				writerSet.set(n);
 		}
-		return ;
+		return foundWriter;
 	}
 
 	/**
@@ -653,44 +671,51 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private void addWritersOfWay (BitSet writerSet, Rectangle wayBbox, long wayId, LongArrayList wayRefs){
 		int numRefs = wayRefs.size();
 		int foundNodes = 0; 
+		boolean needsCrossTileCheck = false;
 
 		Point p1 = null,p2 = null;
 		for (int i = 0; i<numRefs; i++) {
 			long id = wayRefs.getLong(i);
-			Long coord = findCoord(id);
-			if (coord != null){
+			int pos = nodeWriterMap.getKeyPos(id);
+			if (pos >= 0){
 				foundNodes++;
-				int lat = (int) (0xffffffff & (coord >>> 32));
-				int lon = (int) (0xffffffff & coord);
-				addWritersOfPoint(writerSet, lat, lon);
-			}
-		}
-		if (writerSet.cardinality() > 1){
-			short idx = dataStorer.getWriterDictionary().translate(writerSet);
-			if (dataStorer.getWriterDictionary().mayCross(idx)){
-				BitSet possibleWriters = new BitSet();
-				checkBoundingBox(possibleWriters ,wayBbox);
-				// the way did cross a border tile
-				for (int i = 0; i<numRefs; i++) {
-					long id = wayRefs.getLong(i);
-					Long coord = findCoord(id);
-					if (coord != null){
-						int lat = (int) (0xffffffff & (coord >>> 32));
-						int lon = (int) (0xffffffff & coord);
-						if (i > 0){
-							p1 = p2;
-						}
-						p2 = new Point(lon,lat);
-
-						if (p1 != null){
-							addWritersOfCrossedTiles(writerSet, possibleWriters, p1, p2);
-						}
-					}
-				}
+				boolean hasWriters = addWritersOfPoint(writerSet, nodeLats[pos], nodeLons[pos]);
+				if (!hasWriters)
+					needsCrossTileCheck = true;
 			}
 		}
 		if (foundNodes < numRefs)
 			System.out.println("Sorry, way " + wayId + " is missing " +  (numRefs-foundNodes) + " node(s).");
+		if (needsCrossTileCheck == false){
+			int numWriters = writerSet.cardinality();
+
+			if (numWriters == 0) 
+				needsCrossTileCheck = true; 
+			else if (numWriters > 1){
+				short idx = dataStorer.getWriterDictionary().translate(writerSet);
+				if (dataStorer.getWriterDictionary().mayCross(idx))
+					needsCrossTileCheck = true;
+			}
+		}
+		if (needsCrossTileCheck){
+			BitSet possibleWriters = new BitSet();
+			checkBoundingBox(possibleWriters ,wayBbox);
+			// the way did cross a border tile
+			for (int i = 0; i<numRefs; i++) {
+				long id = wayRefs.getLong(i);
+				int pos = nodeWriterMap.getKeyPos(id);
+				if (pos >= 0){
+					if (i > 0){
+						p1 = p2;
+					}
+					p2 = new Point(nodeLons[pos],nodeLats[pos]);
+
+					if (p1 != null){
+						addWritersOfCrossedTiles(writerSet, possibleWriters, p1, p2);
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -706,10 +731,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		int numRefs = wayRefs.size();
 		for (int i = 0; i<numRefs; i++) {
 			long id = wayRefs.getLong(i);
-			Long coord = findCoord(id);
-			if (coord != null){
-				int lat = (int) (0xffffffff & (coord >>> 32));
-				int lon = (int) (0xffffffff & coord);
+			int pos = nodeWriterMap.getKeyPos(id);
+			if (pos >= 0){
+				int lat = nodeLats[pos];
+				int lon = nodeLons[pos];
 				if (lat < minLat) minLat = lat;
 				if (lat > maxLat) maxLat = lat;
 				if (lon < minLon) minLon = lon;
@@ -724,45 +749,22 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		return new Rectangle(minLon, minLat, maxLon-minLon, maxLat-minLat);
 	}
 
-	/**
-	 * Mark all members of problem relations as problem cases.
-	 */
-	private void markProblemMembers() {
-		doneRels.clear();
-		for (Relation rel: relMap.values()){
-			if (!problemRels.get(rel.getId()))
-				continue;
-			alreadySearchedRels.clear();
-			MarkNeededMembers(rel, 0);
+	private void incVisitID() {
+		if (visitId == Integer.MAX_VALUE){
+			// unlikely
+			visitId = 0;
+			for (Map.Entry<Long, Relation> entry : relMap.entrySet()){
+				entry.getValue().setVisitId(visitId);
+			}
 		}
+		visitId++;
 	}
 
-	/**
-	 * Mark the parents of problem relations as problem relations.
-	 */
-	private void markParentRels(){
-		while (true){
-			boolean changed = false;
-			for (Relation rel: relMap.values()){
-				if (problemRels.get(rel.getId()))
-					continue;
-				for (Member mem : rel.getMembers()) {
-					// String role = mem.getRole();
-					long memId = mem.getRef();
-					if (mem.getType().equals("relation")) {
-						if (problemRels.get(memId)){
-							problemRels.set(rel.getId());
-							parentOnlyRels.set(rel.getId());
-							System.out.println("Adding parent of problem rel "+ memId + " to problem list: " + rel.getId());
-							changed = true;
-							break;
-						}
-					} 
-				}
+	void loopAction(Relation rel, long memId, LongArrayList visited){
+			if (rel.isOnLoop() == false && visited.contains(memId)){
+				System.out.println("Loop in relation. Members of the loop: " + visited.toString());
+				rel.markOnLoop();
 			}
-			if (!changed)
-				return;
-		}
 	}
 }
 

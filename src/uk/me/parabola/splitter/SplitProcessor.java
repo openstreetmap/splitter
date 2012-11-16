@@ -31,6 +31,9 @@ class SplitProcessor extends AbstractMapProcessor {
 	private SparseLong2ShortMapFunction ways; 	
 	private final WriterDictionaryShort writerDictionary;
 	private final DataStorer dataStorer;
+	private final Long2IntClosedMapFunction nodeWriterMap;
+	private final Long2IntClosedMapFunction wayWriterMap;
+	private final Long2IntClosedMapFunction relWriterMap;
 
 	//	for statistics
 	private long countQuickTest = 0;
@@ -77,6 +80,9 @@ class SplitProcessor extends AbstractMapProcessor {
 			writerInputQueues[i] = new InputQueueInfo(this.writers[i + writerOffset]);
 			writers[i + writerOffset].initForWrite(); 
 		}
+		nodeWriterMap = dataStorer.getWriterMap(DataStorer.NODE_TYPE);
+		wayWriterMap = dataStorer.getWriterMap(DataStorer.WAY_TYPE);
+		relWriterMap = dataStorer.getWriterMap(DataStorer.REL_TYPE);
 		currentWayAreaSet = new BitSet(writers.length);
 		currentRelAreaSet = new BitSet(writers.length);
 		usedWriters = new BitSet(); 
@@ -104,8 +110,8 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processWay(Way w) {
-		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.WAY_TYPE, w.getId());
-		if (multiTileWriterIdx != null){
+		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): WriterDictionaryInt.UNASSIGNED;
+		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			// set only active writer bits
 			for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
@@ -151,12 +157,8 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processRelation(Relation rel) {
-		if (rel.getId() == 20614){
-			long dd = 4;
-		}
-		
-		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.REL_TYPE, rel.getId());
-		if (multiTileWriterIdx != null){
+		int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
+		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			try {
 				// set only active writer bits
@@ -257,8 +259,9 @@ class SplitProcessor extends AbstractMapProcessor {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
 		WriterGridResult writerCandidates = writerIndex.get(currentNode);
-		Integer multiTileWriterIdx = dataStorer.getWriterIdx(DataStorer.NODE_TYPE, currentNode.getId());
-		boolean isSpecialNode = (multiTileWriterIdx != null);
+		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): WriterDictionaryInt.UNASSIGNED;
+
+		boolean isSpecialNode = (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED);
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}

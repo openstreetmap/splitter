@@ -26,6 +26,7 @@ import java.util.HashMap;
  *
  */
 public class WriterDictionaryInt{
+	public final static int UNASSIGNED = -1;
 	private final ArrayList<BitSet> sets; 
 	private final int numOfWriters;
 	private final HashMap<BitSet, Integer> index;

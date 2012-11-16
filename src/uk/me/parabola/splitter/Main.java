@@ -408,7 +408,7 @@ public class Main {
 			 * This might be bad if the pseudo-writers cover most of the input area. 
 			 */
 			System.out.println("-----------------------------------");
-			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses + " for writer set " + partition);
+			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses + " for partition " + partition);
 			long startThisPass = System.currentTimeMillis();
 			int writerOffset = pass * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
@@ -417,7 +417,7 @@ public class Main {
 					problemWaysThisPart, problemRelsThisPart);
 			
 			processMap(processor); 
-			System.out.println("Problem-list-generator pass " + (pass+1) + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
+			System.out.println("Problem-list-generator pass " + (pass+1) + " for partition " + partition+ " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
 		writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
 		calculatedProblemWays.addAll(problemWaysThisPart);
@@ -506,7 +506,7 @@ public class Main {
 		// System.exit(-1);
 		
 		// the final split passes
-		dataStorer.setReadOnly(fileOutputDir);
+		dataStorer.switchToSeqAccess(fileOutputDir);
 		System.out.println("Distributing data " + new Date());
 		
 		long startDistPass = System.currentTimeMillis();
@@ -518,7 +518,7 @@ public class Main {
 		for (int i = 0; i < numPasses; i++) {
 			int writerOffset = i * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
-			dataStorer.restart();
+			dataStorer.restartWriterMaps();
 			SplitProcessor processor = new SplitProcessor(dataStorer, writerOffset, numWritersThisPass, maxThreads);
 
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numWritersThisPass +

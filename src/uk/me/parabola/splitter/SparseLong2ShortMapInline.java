@@ -448,6 +448,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		long totalChunks = 0;
 		int i;
 		
+		if (size() == 0){
+			System.out.println("Map is empty");
+			return;
+		}
 		for (i=1; i <=CHUNK_SIZE; i++) {
 			long bytes = countChunkLen[i] * (i*2+8) ; // 2 bytes for the shorts + 8 bytes for the mask
 			totalChunks += countChunkLen[i];
@@ -461,17 +465,18 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			totalBytes += bytes;
 			totalOverhead += overhead;
 		}
-		totalOverhead += topMap.size() * LARGE_VECTOR_SIZE * 4;
+		totalOverhead += topMap.size() * (long)LARGE_VECTOR_SIZE * 4;
 		
-		float bytesPerKey = (size()==0) ? 0: (totalBytes + totalOverhead)*100 / size();
+		float bytesPerKey = (size()==0) ? 0: (float)((totalBytes + totalOverhead)*100 / size()) / 100;
 		if (msgLevel > 0){
 			System.out.println();
-			System.out.println("Number of stored ids: " + Utils.format(size()) + " require ca. " + (float)Math.round(bytesPerKey)/100 + " bytes per pair. " + 
-					totalChunks + " chunks are used, the avg. number of pairs in one chunk is " + (float)Math.round(size()*100L/totalChunks)/100 + " of " + CHUNK_SIZE
-					+ " possible."); 
+			System.out.println("Number of stored ids: " + Utils.format(size()) + " require ca. " + 
+					bytesPerKey + " bytes per pair. " + 
+					totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " + 
+					((totalChunks==0) ? 0 :(size() / totalChunks)) + "."); 
 		}
 		System.out.println("Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
-				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 4/1024/1024 + "MB");  
+				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 4/1024/1024 + " MB");  
 		if (msgLevel > 0 & uncompressedLen > 0){
 			System.out.print("RLE compresion info: compressed / uncompressed size / ratio: " + 
 					Utils.format(compressedLen) + " / "+ 

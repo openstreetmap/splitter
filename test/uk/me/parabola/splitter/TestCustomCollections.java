@@ -13,6 +13,8 @@
 
 package uk.me.parabola.splitter;
 
+import java.io.IOException;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -36,7 +38,7 @@ public class TestCustomCollections {
 
 	private void testMap(SparseLong2ShortMapInline map, long idOffset) {
 		map.defaultReturnValue((short) Short.MIN_VALUE);
-   
+
 		for (short i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i);
 			Assert.assertEquals(j, Short.MIN_VALUE);
@@ -48,14 +50,14 @@ public class TestCustomCollections {
 			Assert.assertEquals(b, true);
 		}
 
-    
+
 		for (short i = 1; i < 1000; i++) {
 			Assert.assertEquals(map.get(idOffset + i), i);
 		}
 
-    // random read access 
+		// random read access 
 		for (short i = 1; i < 1000; i++) {
-        short key = (short) Math.max(1, (Math.random() * 1000));
+			short key = (short) Math.max(1, (Math.random() * 1000));
 			Assert.assertEquals(map.get(idOffset + key), key);
 		}
 
@@ -71,9 +73,9 @@ public class TestCustomCollections {
 			Assert.assertEquals(j, Short.MIN_VALUE);
 			Assert.assertEquals(map.size(), i);
 		}
-    // random read access 2 
+		// random read access 2 
 		for (int i = 1; i < 1000; i++) {
-        int key = 1000 + (short) (Math.random() * 200);
+			int key = 1000 + (short) (Math.random() * 200);
 			Assert.assertEquals(map.get(idOffset + key), 333);
 		}
 
@@ -85,16 +87,15 @@ public class TestCustomCollections {
 			boolean b = map.containsKey(idOffset + i);
 			Assert.assertEquals(b, false);
 		}
-    long mapSize = map.size();
-    // seq. update existing records 
+		long mapSize = map.size();
+		// seq. update existing records 
 		for (int i = 1; i < 1000; i++) {
 			short j = map.put(idOffset + i, (short) (i+333));
 			Assert.assertEquals(j, i);
 			Assert.assertEquals(map.size(), mapSize);
 		}
-    // random read access 3, update existing entries 
+		// random read access 3, update existing entries 
 		for (int i = 1; i < 1000; i++) {
-        int key = 1000 + (short) (Math.random() * 200);
 			short j = map.put(idOffset + i, (short) (i+555));
 			Assert.assertEquals(true, j == i+333 | j == i+555);
 			Assert.assertEquals(map.size(), mapSize);
@@ -105,12 +106,61 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset + 123456), 999);
 		map.put(idOffset + 123456, (short) 888);
 		Assert.assertEquals(map.get(idOffset + 123456), 888);
-   
+
 		Assert.assertEquals(map.get(idOffset - 123456), Short.MIN_VALUE);
 		map.put(idOffset - 123456, (short) 999);
 		Assert.assertEquals(map.get(idOffset - 123456), 999);
 		map.put(idOffset - 123456, (short) 888);
 		Assert.assertEquals(map.get(idOffset - 123456), 888);
-   
+
 	}
+
+	@Test
+	public void testLong2IntMap() {
+		testMap(new Long2IntClosedMap("test", 10000, -1));
+	}
+
+	private void testMap(Long2IntClosedMapFunction map) {
+		int val;
+		for (int i = 1; i < 1000; i++) {
+			int j = map.add((long)i*10, i);
+			Assert.assertEquals(j, i-1);
+			Assert.assertEquals(map.size(), i);
+		}
+
+		for (int i = 1; i < 1000; i++) {
+			int pos = map.getKeyPos(i*10);
+			Assert.assertEquals(i, pos+1);
+		}
+
+		for (int i = 1; i < 1000; i++) {
+			val = map.getRandom(i*10);
+			Assert.assertEquals(i, val);
+		}
+
+		try {
+			map.switchToSeqAccess(null);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		try{
+			val = map.getRandom(5);
+		} catch (IllegalArgumentException e){
+			Assert.assertEquals(e.getMessage(), "random access on sequential-only map requested");
+		}
+		val = map.getSeq(5);
+		Assert.assertEquals(val,-1);
+		val = map.getSeq(10);
+		Assert.assertEquals(val,1);
+		val = map.getSeq(19);
+		Assert.assertEquals(val,-1);
+		val = map.getSeq(30);
+		Assert.assertEquals(val,3);
+
+		map.finish();
+	}
+
+
 }
