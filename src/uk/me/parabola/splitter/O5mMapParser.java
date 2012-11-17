@@ -91,7 +91,7 @@ public class O5mMapParser implements MapReader{
 	private long lastRef[];
 	private long lastTs;
 	private long lastChangeSet;
-	private long lastLon,lastLat;
+	private int lastLon,lastLat;
 	
 	/**
 	 * A parser for the o5m format
@@ -215,7 +215,7 @@ public class O5mMapParser implements MapReader{
 	 * read (and ignore) the file timestamp data set
 	 */
 	private void readFileTimestamp(){
-		/*long fileTimeStamp = */readSignedNum();
+		/*long fileTimeStamp = */readSignedNum64();
 	}
 	
 	/**
@@ -234,10 +234,10 @@ public class O5mMapParser implements MapReader{
 	 * @throws IOException
 	 */
 	private void readBBox() {
-		double leftf = (double) (100L*readSignedNum()) * FACTOR;
-		double bottomf = (double) (100L*readSignedNum()) * FACTOR;
-		double rightf = (double) (100L*readSignedNum()) * FACTOR;
-		double topf = (double) (100L*readSignedNum()) * FACTOR;
+		double leftf = (double) (100L*readSignedNum32()) * FACTOR;
+		double bottomf = (double) (100L*readSignedNum32()) * FACTOR;
+		double rightf = (double) (100L*readSignedNum32()) * FACTOR;
+		double topf = (double) (100L*readSignedNum32()) * FACTOR;
 		assert bytesToRead == 0;
 		System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
 
@@ -255,17 +255,20 @@ public class O5mMapParser implements MapReader{
 	 */
 	private void readNode() throws IOException{
 		Node node = new Node();
-		lastNodeId += readSignedNum();
+		lastNodeId += readSignedNum64();
 		if (bytesToRead == 0)
 			return; // only nodeId: this is a delete action, we ignore it 
 		readVersionTsAuthor();
 		if (bytesToRead == 0)
 			return; // only nodeId+version: this is a delete action, we ignore it 
-		long lon = readSignedNum() + lastLon; lastLon = lon;
-		long lat = readSignedNum() + lastLat; lastLat = lat;
+		int lon = readSignedNum32() + lastLon; lastLon = lon;
+		int lat = readSignedNum32() + lastLat; lastLat = lat;
 			
 		double flon = (double)(100L*lon) * FACTOR;
 		double flat = (double)(100L*lat) * FACTOR;
+		assert flat >= -90.0 && flat <= 90.0;  
+		assert flon >= -180.0 && flon <= 180.0;  
+
 		node.set(lastNodeId, flat, flon);
 		readTags(node);
 		countNode(lastNodeId);
@@ -277,7 +280,7 @@ public class O5mMapParser implements MapReader{
 	 * @throws IOException
 	 */
 	private void readWay() throws IOException{
-		lastWayId += readSignedNum();
+		lastWayId += readSignedNum64();
 		if (bytesToRead == 0)
 			return; // only wayId: this is a delete action, we ignore it 
 
@@ -286,11 +289,11 @@ public class O5mMapParser implements MapReader{
 			return; // only wayId + version: this is a delete action, we ignore it 
 		Way way = new Way();
 		way.set(lastWayId);
-		long refSize = readUnsignedNum64();
+		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		
 		while(bytesToRead > stop){
-			lastRef[0] += readSignedNum();
+			lastRef[0] += readSignedNum64();
 			way.addRef(lastRef[0]);
 		}
 		
@@ -305,7 +308,7 @@ public class O5mMapParser implements MapReader{
 	 * @throws IOException
 	 */
 	private void readRel() throws IOException{
-		lastRelId += readSignedNum(); 
+		lastRelId += readSignedNum64(); 
 		if (bytesToRead == 0)
 			return; // only relId: this is a delete action, we ignore it 
 		readVersionTsAuthor();
@@ -314,10 +317,10 @@ public class O5mMapParser implements MapReader{
 		
 		Relation rel = new Relation();
 		rel.setId(lastRelId);
-		long refSize = readUnsignedNum64();
+		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		while(bytesToRead > stop){
-			long deltaRef = readSignedNum();
+			long deltaRef = readSignedNum64();
 			int refType = readRelRef();
 			lastRef[refType] += deltaRef;
 			rel.addMember(stringPair[0], lastRef[refType], stringPair[1]);
@@ -373,9 +376,9 @@ public class O5mMapParser implements MapReader{
 		int version = readUnsignedNum32(); 
 		if (version != 0){
 			// version info
-			long ts = readSignedNum() + lastTs; lastTs = ts;
+			long ts = readSignedNum64() + lastTs; lastTs = ts;
 			if (ts != 0){
-				long changeSet = readSignedNum() + lastChangeSet; lastChangeSet = changeSet;
+				long changeSet = readSignedNum32() + lastChangeSet; lastChangeSet = changeSet;
 				readAuthor();
 			}
 		}
@@ -538,7 +541,40 @@ public class O5mMapParser implements MapReader{
 	 * @return the number
 	 * @throws IOException
 	 */
-	private long readSignedNum() {
+	private int readSignedNum32() {
+		int result;
+		int b = ioBuf[ioPos++];
+		--bytesToRead;
+		result = b;
+		if ((b & 0x80) == 0){  // just one byte
+			if ((b & 0x01) == 1)
+				return -1-(result>>1); 
+			else
+				return result>>1;
+		}
+		int sign = b & 0x01;
+		result = (result & 0x7e)>>1;
+		int fac = 0x40;
+		while (((b = ioBuf[ioPos++]) & 0x80) != 0){ // more bytes will follow
+			--bytesToRead;
+			result += fac * (b & 0x7f) ;
+			fac  <<= 7;
+		}
+		--bytesToRead;
+		result += fac * b;
+		if (sign == 1) // negative
+			return -1-result;
+		else
+			return result;
+
+	}
+
+	/**
+	 * read a varying length signed number (see o5m definition)
+	 * @return the number
+	 * @throws IOException
+	 */
+	private long readSignedNum64() {
 		long result;
 		int b = ioBuf[ioPos++];
 		--bytesToRead;
