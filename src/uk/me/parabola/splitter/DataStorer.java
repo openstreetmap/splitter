@@ -107,11 +107,16 @@ public class DataStorer{
 	}
 
 	public void switchToSeqAccess(File fileOutputDir) throws IOException {
-		System.out.println("Writing results of MultiTileAnalyser to temp files ...");
+		boolean msgWritten = false;
 		long start = System.currentTimeMillis();
 		for (Long2IntClosedMapFunction map: maps){
-			if (map != null)
+			if (map != null){
+				if (!msgWritten){
+					System.out.println("Writing results of MultiTileAnalyser to temp files ...");
+					msgWritten = true;
+				}
 				map.switchToSeqAccess(fileOutputDir);
+			}
 		}		
 		System.out.println("Writing temp files took " + (System.currentTimeMillis()-start) + " ms");
 	}
@@ -123,10 +128,10 @@ public class DataStorer{
 		}		
 	}
 
-	public void stats() {
+	public void stats(final String prefix) {
 		for (Long2IntClosedMapFunction map: maps){
 			if (map != null)
-				map.stats();
+				map.stats(prefix);
 		}		
 		
 	}

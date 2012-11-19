@@ -37,5 +37,5 @@ interface Long2IntClosedMapFunction {
 	 * @return the previously stored value
 	 */
 	public int replace(long key, int val);
-	public void stats();
+	public void stats(final String prefix);
 }

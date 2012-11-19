@@ -16,9 +16,10 @@ package uk.me.parabola.splitter;
 public class PseudoOSMWriter extends AbstractOSMWriter{
 	private final boolean areaIsPseudo;
 	
-	public PseudoOSMWriter(Area bounds, int mapId, boolean areaIsPseudo) {
+	public PseudoOSMWriter(Area bounds, int mapId, boolean areaIsPseudo, int overlap) {
 		// no overlap for pseudo writers !
-		super(bounds, null, mapId, 0);
+		super(bounds, null, mapId, overlap);
+		assert areaIsPseudo && overlap==0 || !areaIsPseudo;
 		this.areaIsPseudo = areaIsPseudo;
 	}
 	

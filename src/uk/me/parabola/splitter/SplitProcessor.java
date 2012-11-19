@@ -221,6 +221,12 @@ class SplitProcessor extends AbstractMapProcessor {
 			System.out.println("");
 			System.out.println("Final statistics for ways map:");
 			ways.stats(1);
+			long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+			long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
+			long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
+			long usedMem = totalMem - freeMem;
+			System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+			
 			System.out.println("Full Node tests:  " + Utils.format(countFullTest));
 			System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		}
 

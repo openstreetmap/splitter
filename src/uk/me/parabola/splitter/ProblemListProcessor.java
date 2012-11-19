@@ -230,11 +230,17 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		ways.stats(1);
 		if (isLastPass){
 			System.out.println("");
-			System.out.println("Number of stored integers for ways: " + Util.format(dataStorer.getUsedWays().size()));
-			System.out.println("Number of stored integers for rels: " + Util.format(dataStorer.getUsedRels().size()));
-			System.out.println("Number of stored combis in big dictionary: " + Util.format(dataStorer.getMultiTileWriterDictionary().size()));
-			System.out.println("Number of detected problem ways: " + Util.format(problemWays.size()));
-			System.out.println("Number of detected problem rels: " + Util.format(problemRels.size()));
+			System.out.println("  Number of stored integers for ways: " + Util.format(dataStorer.getUsedWays().size()));
+			System.out.println("  Number of stored integers for rels: " + Util.format(dataStorer.getUsedRels().size()));
+			System.out.println("  Number of stored combis in big dictionary: " + Util.format(dataStorer.getMultiTileWriterDictionary().size()));
+			System.out.println("  Number of detected problem ways: " + Util.format(problemWays.size()));
+			System.out.println("  Number of detected problem rels: " + Util.format(problemRels.size()));
+			long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+			long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
+			long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
+			long usedMem = totalMem - freeMem;
+			System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+			System.out.println("");
 			dataStorer.getUsedWays().clear();
 			dataStorer.getUsedRels().clear();
 		}

@@ -255,13 +255,8 @@ public class Main {
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
 		outputType = params.getOutput();
-		// Remove warning and make the default pbf after a while.
-		if (outputType.equals("unset")) {
-			System.err.println("\n\n**** WARNING: the default output type has changed to pbf, use --output=xml for .osm.gz files\n");
-			outputType = "pbf";
-		}
-		if(!outputType.equals("xml") && !outputType.equals("pbf") && !outputType.equals("o5m")) {
-			System.err.println("The --output parameter must be either xml or pbf or o5m. Resetting to xml.");
+		if("xml pbf o5m simulate".contains(outputType) == false) {
+			System.err.println("The --output parameter must be either xml, pbf, o5m, or simulate. Resetting to xml.");
 			outputType = "xml";
 		}
 		
@@ -303,6 +298,11 @@ public class Main {
 				System.exit(-1);
 		}
 		generateProblemList = params.isKeepComplete();
+		if (mixed && (generateProblemList || problemFile != null)){
+			System.err.println("--mixed=true is not supported in combination with --keep-complete=true or --problem-file.");
+			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
+			System.exit(-1);
+		}
 	}
 
 	/**
@@ -394,7 +394,7 @@ public class Main {
 		for (int j = 0;j < writers.length; j++){
 			Area area = workAreas.get(j);
 			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, area.getMapId(), area.isPseudoArea());
+			writers[j] = new PseudoOSMWriter(area, area.getMapId(), area.isPseudoArea(), 0);
 			if (area.isPseudoArea())
 				System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
@@ -470,6 +470,8 @@ public class Main {
 				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
 			else if ("o5m".equals(outputType))
 				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			else if ("simulate".equals(outputType))
+				w = new PseudoOSMWriter(area, area.getMapId(), false, overlapAmount);
 			else 
 				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
 			allWriters[j] = w;
@@ -503,7 +505,7 @@ public class Main {
 
 			System.out.println("-----------------------------------");
 		}
-		// System.exit(-1);
+		//System.err.println("stopped before write");System.exit(-1);
 		
 		// the final split passes
 		dataStorer.switchToSeqAccess(fileOutputDir);

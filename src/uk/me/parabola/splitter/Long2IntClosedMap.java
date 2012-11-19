@@ -180,8 +180,8 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	}
 
 	@Override
-	public void stats() {
-		System.out.println(name + "WriterMap contains " + Utils.format(size) + " keys");
+	public void stats(String prefix) {
+		System.out.println(prefix + name + "WriterMap contains " + Utils.format(size) + " pairs.");
 		
 	}
 }
