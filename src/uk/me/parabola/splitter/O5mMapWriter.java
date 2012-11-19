@@ -65,7 +65,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private long lastWayId;
 	private long lastRelId;
 	private long lastRef[];
-	private long lastLon,lastLat;
+	private int lastLon,lastLat;
 	
 	boolean isFirstNode = true;
 	boolean isFirstWay = true;
@@ -178,10 +178,10 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		long delta = node.getId() - lastNodeId; lastNodeId = node.getId(); 
 		writeSignedNum(delta, stream);
 		stream.write(0x00); // no version info
-		long o5Lon = (long)(node.getLon() * FACTOR);
-		long o5Lat = (long)(node.getLat() * FACTOR);
-		long deltaLon = o5Lon - lastLon; lastLon = o5Lon;
-		long deltaLat = o5Lat - lastLat; lastLat = o5Lat;
+		int o5Lon = (int)(node.getLon() * FACTOR);
+		int o5Lat = (int)(node.getLat() * FACTOR);
+		int deltaLon = o5Lon - lastLon; lastLon = o5Lon;
+		int deltaLat = o5Lat - lastLat; lastLat = o5Lat;
 		writeSignedNum(deltaLon, stream);
 		writeSignedNum(deltaLat, stream);
 		writeTags(node, stream);
