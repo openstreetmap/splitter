@@ -1,4 +1,16 @@
-package uk.me.parabola.splitter;
+/*
+ * Copyright (C) 2012.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 or
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ */
+ package uk.me.parabola.splitter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -13,9 +25,10 @@ import java.util.Arrays;
 
 /**
  * Stores long/short pairs. 
- * TODO: reduce number of allocated bytes for the keys. We use longs, but most OSM IDs
- *  use not more than 31 bits.
+ * Requires less heap space compared to a HashMap while updates are allowed, and almost no
+ * heap when sequential access is used. This is NOT a general purpose class.
  * 
+ * @author GerdP 
  */
 class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	private File tmpFile;

@@ -139,9 +139,6 @@ public class ParamParser {
 				}
 				MethodParamPair pair = paramMap.get(name);
 				if (pair != null) {
-					if ("version".equals(pair.param.getName())){
-						wantVersion = true;
-					}
 					if (pair.getParam().getReturnType() == Boolean.class && value == null) {
 						result.put(pair.getMethod(), Boolean.TRUE);
 					} else {
@@ -156,6 +153,8 @@ public class ParamParser {
 					// Unknown parameter
 					if ("help".equals(name)) {
 						wantHelp = true;
+					} else if ("version".equals(name)){
+						wantVersion = true;
 					} else {
 						errors.add("Parameter " + arg + " is not recognised, ignoring");
 					}

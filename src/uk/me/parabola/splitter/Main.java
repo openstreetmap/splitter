@@ -116,6 +116,7 @@ public class Main {
 	// a list of way or relation ids that should be handled specially
 	private String problemFile; 
 	private boolean generateProblemList;
+	private String problemReport;
 	
 	private LongArrayList problemWays = new LongArrayList();
 	private LongArrayList problemRels = new LongArrayList();
@@ -305,6 +306,10 @@ public class Main {
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
 			System.exit(-1);
 		}
+		problemReport = params.getProblemReport();
+		if (generateProblemList == false && problemReport != null){
+			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
+		}
 	}
 
 	/**
@@ -378,6 +383,7 @@ public class Main {
 		List<Area> workAreas = addPseudoWriters(areas);
 		
 		// debugging
+		/*
 		AreaList planet = new AreaList(workAreas);
 		String planetName = "planet-partition-" + partition + ".kml";
 		File out = new File(planetName);
@@ -385,7 +391,7 @@ public class Main {
 			kmlOutputFile = new File(fileOutputDir, planetName).getPath();
 		System.out.println("Writing planet KML file " + kmlOutputFile);
 		planet.writeKml(kmlOutputFile);
-		
+		*/
 		int numPasses = getAreasPerPass(workAreas.size());
 		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
 
@@ -421,7 +427,7 @@ public class Main {
 			processMap(processor); 
 			System.out.println("Problem-list-generator pass " + (pass+1) + " for partition " + partition+ " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
-		writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
+		//writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
 		calculatedProblemWays.addAll(problemWaysThisPart);
 		calculatedProblemRels.addAll(problemRelsThisPart);
 	}
@@ -451,9 +457,12 @@ public class Main {
 			remainingAreas.removeAll(distinctAreas);
 		} 
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
-		writeProblemList("problem-candidates-final.txt", 
-				new ArrayList<Long>(calculatedProblemWays),
-				new ArrayList<Long>(calculatedProblemRels));
+		
+		if (problemReport != null){
+			writeProblemList(problemReport, 
+					new ArrayList<Long>(calculatedProblemWays),
+					new ArrayList<Long>(calculatedProblemRels));
+		}
 	}
 
 

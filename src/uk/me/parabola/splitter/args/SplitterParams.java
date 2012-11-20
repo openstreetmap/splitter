@@ -78,4 +78,8 @@ public interface SplitterParams {
 
 	@Option(description = "Just write program version and build timestamp")
 	boolean getVersion();
+
+	@Option(description = "The name of a file to write the generated problem list created with --keep-complete.")
+	String getProblemReport();
+
 }
