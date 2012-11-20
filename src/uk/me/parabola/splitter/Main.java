@@ -241,6 +241,8 @@ public class Main {
 			System.exit(-1);
 		}
 
+		System.out.println("Splitter version " + Version.VERSION + " compiled " + Version.TIMESTAMP);
+		 
 		for (Map.Entry<String, Object> entry : parser.getConvertedParams().entrySet()) {
 			String name = entry.getKey();
 			Object value = entry.getValue();
@@ -754,8 +756,6 @@ public class Main {
 	/**
 	 * Make sure that our writer areas cover the planet. This is done by adding 
 	 * pseudo-writers. 
-	 * TODO: It seems to be best to have as few pseudo-areas as 
-	 * possible, so this might be optimized   
 	 * @param realAreas
 	 * @return
 	 */

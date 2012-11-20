@@ -75,4 +75,7 @@ public interface SplitterParams {
 
 	@Option(description = "Write complete ways and relations if possible (requires more time and heap memory!)")
 	boolean isKeepComplete();
+
+	@Option(description = "Just write program version and build timestamp")
+	boolean getVersion();
 }

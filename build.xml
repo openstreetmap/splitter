@@ -49,6 +49,13 @@
   <property name="dsiutils.jar" location="${lib}/dsiutils-1.0.11.jar"/>
   <property name="protobuf.jar" location="${lib}/protobuf.jar"/>
 
+	<!-- the project's build timestamp -->
+	<tstamp>
+		<format property="build.timestamp" pattern="yyyy-MM-dd'T'HH:mm:ssZ" />
+	</tstamp>
+
+  
+
   <!-- Classpaths -->
   <path id="classpath">
     <pathelement location="${build.classes}"/>
@@ -70,7 +77,85 @@
     <mkdir dir="${build.classes}"/>
     <mkdir dir="${build.test-classes}"/>
     <mkdir dir="${build.test-output}"/>
+		<property environment="env"/>
+
+		<condition property="have.svn">
+			<and>
+				<available file="${top}/.svn"/>
+				<or>
+					<available file="svnversion" filepath="${env.PATH}"/>
+					<available file="svnversion.exe" filepath="${env.PATH}"/>
+					<available file="svnversion.exe" filepath="${env.Path}"/>
+				</or>
+			</and>
+		</condition>
+		<condition property="have.git">
+			<available file="${top}/.git"/>
+		</condition>
   </target>
+
+	<target name="svn-version" if="have.svn">
+		<exec executable="svnversion" dir="${top}" logError="false"
+					outputproperty="svn.version.tmp" resultproperty="svnversion.result"
+					failifexecutionfails="false">
+			<arg value="-n" /><arg value="-c" />
+			<redirector><outputfilterchain><tokenfilter>
+				<replaceregex pattern="^([0-9]*:)?" replace="" />
+				<replaceregex pattern="^exported$" replace="" />
+			</tokenfilter></outputfilterchain></redirector>
+		</exec>
+		<condition property="svn.version.build" value="${svn.version.tmp}" else="unknown">
+			<and>
+				<isset property="svn.version.tmp" />
+				<equals arg1="${svnversion.result}" arg2="0" />
+				<not><equals arg1="${svn.version.tmp}" arg2="" /></not>
+			</and>
+		</condition>
+		
+		<property name="project.version" value="${svn.version.build}" />
+	</target>
+
+	<target name="git-version" if="have.git">
+		<exec executable="git" dir="${top}" logError="false"
+					outputproperty="git.version.tmp" resultproperty="gitdescribe.result"
+					failifexecutionfails="false">
+			<arg value="describe" /><arg value="--dirty" /><arg value="--tags" /><arg value="--always" />
+		</exec>
+		<condition property="git.version.build" value="${git.version.tmp}">
+			<and>
+				<isset property="git.version.tmp" />
+				<equals arg1="${gitdescribe.result}" arg2="0" />
+				<not><equals arg1="${git.version.tmp}" arg2="" /></not>
+			</and>
+		</condition>
+		<property name="project.version" value="${git.version.build}" />
+	</target>
+
+	<target name="check-version" depends="svn-version, git-version">
+		<property file="${build.classes}/splitter-version.properties"/>
+		<condition property="have.version">
+			<or>
+				<and>
+					<isset property="have.svn"/>
+					<equals arg1="${svn.version.build}" arg2="${svn.version}"/>
+				</and>
+				<and>
+					<not><isset property="have.svn"/></not>
+					<available file="${build}/classes/splitter-version.properties"/>
+				</and>
+			</or>
+		</condition>
+	</target>
+
+	<target name="version-file" unless="have.version">
+		<property name="project.version" value="${build.timestamp}" />
+		<property name="svn.version.build" value="unknown"/>
+
+		<propertyfile file="${build.classes}/splitter-version.properties">
+			<entry key="svn.version" value="${svn.version.build}" />
+			<entry key="build.timestamp" value="${build.timestamp}" />
+		</propertyfile>
+	</target>
 
   <target name="compile" depends="prepare" description="main compilation">
     <javac srcdir="${src}" destdir="${build.classes}" debug="yes" includeantruntime="false">
@@ -105,7 +190,7 @@
   </target>
 
 
-  <target name="dist" depends="build" description="Make the distribution area">
+  <target name="dist" depends="build, check-version, version-file" description="Make the distribution area">
 
     <mkdir dir="${dist}"/>
     <mkdir dir="${dist}/doc/api"/>
