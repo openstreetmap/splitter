@@ -33,11 +33,8 @@ public class Version {
 	public static final String VERSION = getSvnVersion();
 	public static final String TIMESTAMP = getTimeStamp();
 
-	// A default version to use.  This will be changed from time to time to
-	// be the then current version number with a 'svn' suffix.  If this shows
-	// up then a more accurate version was not available, but it may be useful
-	// to know roughly.
-	private static final String DEFAULT_VERSION = "svn";
+	// A default version to use.  
+	private static final String DEFAULT_VERSION = "unknown";
 	private static final String DEFAULT_TIMESTAMP = "unknown";
 
 	/**
@@ -60,8 +57,12 @@ public class Version {
 		} catch (IOException e) {
 			return DEFAULT_VERSION;
 		}
-
-		return props.getProperty("svn.version", DEFAULT_VERSION);
+		String version = props.getProperty("svn.version", DEFAULT_VERSION);
+		version = "Unversioned directory";
+		if (version.matches("[1-9]+.*"))
+			return version;
+		else 
+			return DEFAULT_VERSION;
 	}
 	private static String getTimeStamp() {
 		InputStream is = Version.class.getResourceAsStream("/splitter-version.properties");

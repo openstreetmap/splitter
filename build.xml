@@ -80,14 +80,11 @@
 		<property environment="env"/>
 
 		<condition property="have.svn">
-			<and>
-				<available file="${top}/.svn"/>
-				<or>
-					<available file="svnversion" filepath="${env.PATH}"/>
-					<available file="svnversion.exe" filepath="${env.PATH}"/>
-					<available file="svnversion.exe" filepath="${env.Path}"/>
-				</or>
-			</and>
+			<or>
+				<available file="svnversion" filepath="${env.PATH}"/>
+				<available file="svnversion.exe" filepath="${env.PATH}"/>
+				<available file="svnversion.exe" filepath="${env.Path}"/>
+			</or>
 		</condition>
 		<condition property="have.git">
 			<available file="${top}/.git"/>
