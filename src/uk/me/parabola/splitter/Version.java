@@ -58,7 +58,6 @@ public class Version {
 			return DEFAULT_VERSION;
 		}
 		String version = props.getProperty("svn.version", DEFAULT_VERSION);
-		version = "Unversioned directory";
 		if (version.matches("[1-9]+.*"))
 			return version;
 		else 
