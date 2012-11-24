@@ -77,7 +77,17 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 
 	@Override
 	public SplittableArea getRoundedArea(int resolution) {
-		Area bounds = RoundingUtils.round(getExactArea(), resolution, "blow");
+		Area bounds = RoundingUtils.round(getExactArea(), resolution);
 		return new SplittableDensityArea(densityMap.subset(bounds));
+	}
+
+	@Override
+	public void saveMap(String fileName) {
+		if (bounds != null && details != null && details.getBounds() != null)
+			densityMap.saveMap(fileName, details.getBounds(), bounds);
+	}
+	@Override
+	public void readMap(String fileName) {
+		bounds = densityMap.readMap(fileName, details);
 	}
 }

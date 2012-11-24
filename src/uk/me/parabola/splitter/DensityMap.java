@@ -13,6 +13,15 @@
 
 package uk.me.parabola.splitter;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
+import java.util.regex.Pattern;
+
 /**
  * Builds up a map of node densities across the total area being split.
  * Density information is held at the maximum desired map resolution.
@@ -26,7 +35,7 @@ public class DensityMap {
 	private final long[][] nodeMap;
 	private Area bounds;
 	private long totalNodeCount;
-	private boolean trim;
+	private final boolean trim;
 
 	/**
 	 * Creates a density map.
@@ -38,12 +47,16 @@ public class DensityMap {
 		assert resolution >=1 && resolution <= 24;
 		shift = 24 - resolution;
 
-		bounds = RoundingUtils.round(area, resolution, "move");
+		bounds = RoundingUtils.round(area, resolution);
 		height = bounds.getHeight() >> shift;
 		width = bounds.getWidth() >> shift;
 		nodeMap = new long[width][];
 	}
 
+	public boolean isTrim(){
+		return trim == true;
+	}
+	
 	public int getShift() {
 		return shift;
 	}
@@ -85,18 +98,18 @@ public class DensityMap {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
 	}
 
-	public DensityMap subset(Area subset) {
-		int minLat = Math.max(bounds.getMinLat(), subset.getMinLat());
-		int minLon = Math.max(bounds.getMinLong(), subset.getMinLong());
-		int maxLat = Math.min(bounds.getMaxLat(), subset.getMaxLat());
-		int maxLon = Math.min(bounds.getMaxLong(), subset.getMaxLong());
+	public DensityMap subset(final Area subsetBounds) {
+		int minLat = Math.max(bounds.getMinLat(), subsetBounds.getMinLat());
+		int minLon = Math.max(bounds.getMinLong(), subsetBounds.getMinLong());
+		int maxLat = Math.min(bounds.getMaxLat(), subsetBounds.getMaxLat());
+		int maxLon = Math.min(bounds.getMaxLong(), subsetBounds.getMaxLong());
 
 		// If the area doesn't intersect with the density map, return an empty map
 		if (minLat > maxLat || minLon > maxLon) {
 			return new DensityMap(Area.EMPTY, trim, 24 - shift);
 		}
 
-		subset = new Area(minLat, minLon, maxLat, maxLon);
+		Area subset = new Area(minLat, minLon, maxLat, maxLon);
 		if (trim) {
 			subset = trim(subset);
 		}
@@ -163,19 +176,12 @@ public class DensityMap {
 			maxY--;
 		}
 
+		assert yToLat(minY) % (1<<shift) == 0;
+		assert yToLat(maxY) % (1<<shift) == 0;
+		assert xToLon(minX) % (1<<shift) == 0;
+		assert xToLon(maxX) % (1<<shift) == 0;
 		Area trimmedArea = new Area(yToLat(minY), xToLon(minX), yToLat(maxY), xToLon(maxX));
-		Area rounded = RoundingUtils.round(trimmedArea, 24 - shift, "move");
-
-		// Make sure the rounding hasn't pushed the area outside its original boundaries
-		int latAdjust = Math.max(0, rounded.getMaxLat() - area.getMaxLat());
-		int lonAdjust = Math.max(0, rounded.getMaxLong() - area.getMaxLong());
-		if (latAdjust > 0 || lonAdjust > 0) {
-			rounded = new Area(rounded.getMinLat() - latAdjust,
-							rounded.getMinLong() - lonAdjust,
-							rounded.getMaxLat() - latAdjust,
-							rounded.getMaxLong() - lonAdjust);
-		}
-		return rounded;
+		return trimmedArea;
 	}
 
 	private boolean isEmptyX(int x, int start, int end) {
@@ -212,4 +218,116 @@ public class DensityMap {
 	private int lonToX(int lon) {
 		return lon - bounds.getMinLong() >>> shift;
 	}
+
+	/**
+	 * For debugging, to be removed. 
+	 * @param fileName
+	 * @param detailBounds
+	 * @param collectorBounds
+	 */
+	public void saveMap(String fileName, Area detailBounds, Area collectorBounds) {
+		try {
+			FileWriter f = new FileWriter(new File(fileName));
+			f.write(detailBounds.getMinLat() + "," + detailBounds.getMinLong() + "," + detailBounds.getMaxLat() + "," + detailBounds.getMaxLong() + '\n');
+			f.write(collectorBounds.getMinLat() + "," + collectorBounds.getMinLong() + "," + collectorBounds.getMaxLat() + "," + collectorBounds.getMaxLong() + '\n');
+			//f.write(bounds.getMinLat() + "," + bounds.getMinLong() + "," + bounds.getMaxLat() + "," + bounds.getMaxLong() + '\n');
+			for (int x=0; x<width; x++){
+				if (nodeMap[x] != null){
+					for (int y=0; y<height; y++){
+						if (nodeMap[x][y] != 0)
+							f.write(x+ "," + y + "," + nodeMap[x][y] + '\n');
+					}
+				}
+			}
+			f.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * For debugging, to be removed.
+	 * @param fileName
+	 * @param details
+	 * @return
+	 */
+	public Area readMap(String fileName, MapDetails details) {
+		File mapFile = new File(fileName);
+		Area collectorBounds = null;
+		if (!mapFile.exists()) {
+			System.out.println("Error: map file doesn't exist: " + mapFile);  
+			return null;
+		}
+		try {
+			InputStream fileStream = new FileInputStream(mapFile);
+			LineNumberReader problemReader = new LineNumberReader(
+					new InputStreamReader(fileStream));
+			Pattern csvSplitter = Pattern.compile(Pattern.quote(","));
+			
+			String problemLine;
+			String[] items;
+			problemLine = problemReader.readLine();
+			if (problemLine != null){
+				items = csvSplitter.split(problemLine);
+				if (items.length != 4){
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					return null;
+				}
+				details.addToBounds(Integer.parseInt(items[0]), Integer.parseInt(items[1]));
+				details.addToBounds(Integer.parseInt(items[2]),Integer.parseInt(items[3]));
+			}
+			problemLine = problemReader.readLine();
+			if (problemLine != null){
+				items = csvSplitter.split(problemLine);
+				if (items.length != 4){
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					return null;
+				}
+				collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
+						Integer.parseInt(items[2]),Integer.parseInt(items[3]));
+			}
+			while ((problemLine = problemReader.readLine()) != null) {
+				items = csvSplitter.split(problemLine);
+				if (items.length != 3) {
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					return null;
+				}
+				int x,y;
+				long sum;
+				try{
+					x = Integer.parseInt(items[0]);
+					y = Integer.parseInt(items[1]);
+					sum = Long.parseLong(items[2]);
+				
+					if (x < 0 || x >= width || y < 0 || y>=height){
+						System.out.println("Error: Invalid data in map file, line number " + + problemReader.getLineNumber() + ": "   
+								+ problemLine);
+
+					}
+					else{
+						if (nodeMap[x] == null)
+							nodeMap[x] = new long[height];
+						nodeMap[x][y] = sum;
+						totalNodeCount += sum;
+					}
+				}
+				catch(NumberFormatException exp){
+					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
+							+ problemLine + exp);
+					return null;
+				}
+			}
+			problemReader.close();
+		} catch (IOException exp) {
+			System.out.println("Error: Cannot read problem file " + mapFile +  
+					exp);
+			return null;
+		}
+		return collectorBounds;
+	}
+
 }

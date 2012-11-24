@@ -18,4 +18,7 @@ public interface MapCollector extends MapProcessor {
 
 	SplittableArea getRoundedArea(int resolution);
 
+	void saveMap(String fileName);
+	void readMap(String fileName);
+
 }

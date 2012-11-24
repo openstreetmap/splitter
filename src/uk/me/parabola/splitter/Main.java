@@ -186,8 +186,10 @@ public class Main {
 			int alignment = 1 << (24 - resolution);
 			System.out.println("Map is being split for resolution " + resolution + ':');
 			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units");
-			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment * 2) + " map units wide and high");
+			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areaList = calculateAreas();
+			if (areaList == null || areaList.getAreas().isEmpty())
+				return;
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
 			}
@@ -320,8 +322,15 @@ public class Main {
 
 		MapCollector pass1Collector = new DensityMapCollector(trim, resolution); 
 		MapProcessor processor = pass1Collector;
-
-		processMap(processor);
+		
+		File densityData = new File("densities.txt");
+		File densityOutData = new File(fileOutputDir,"densities-out.txt");
+		if (densityData.exists() && densityData.isFile()){
+			System.err.println("reading density data from " + densityData.getAbsolutePath());
+			pass1Collector.readMap(densityData.getAbsolutePath());
+		}
+		else
+			processMap(processor);
 		//MapReader mapReader = processMap(processor);
 
 		//System.out.print("A total of " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
@@ -336,7 +345,11 @@ public class Main {
 		System.out.println("Time: " + new Date());
 
 		Area exactArea = pass1Collector.getExactArea();
+		pass1Collector.saveMap(densityOutData.getAbsolutePath());
+		
 		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
+		if (splittableArea.hasData() == false)
+			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);
 		System.out.println("Trimmed and rounded map coverage is " + splittableArea.getBounds());
 		System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");

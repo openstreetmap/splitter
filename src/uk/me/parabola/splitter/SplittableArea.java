@@ -27,4 +27,6 @@ public interface SplittableArea {
 	 * Each area returned must be aligned to the appropriate overview map resolution.
 	 */
 	List<Area> split(long maxNodes);
+	
+	boolean hasData();
 }
