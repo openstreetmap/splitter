@@ -148,12 +148,20 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			else {
 				addWritersOfWay(workWriterSet, wayBbox, way.getId(), way.getRefs());
 			}
+			int wayWriterIdx;
 			if (workWriterSet.isEmpty())
-				wayWriterMap.add(way.getId(), WriterDictionaryInt.UNASSIGNED);
-			else {
-				int wayWriterIdx = multiTileDictionary.translate(workWriterSet);
+				wayWriterIdx = WriterDictionaryInt.UNASSIGNED;
+			else 
+				wayWriterIdx = multiTileDictionary.translate(workWriterSet);
+			
+			try{
 				wayWriterMap.add(way.getId(), wayWriterIdx);
+			}catch (IllegalArgumentException e){
+				System.err.println(e.getMessage());
+				System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+				System.exit(-1);
 			}
+
 		}
 		else if (pass == PASS4_WAYS_ONLY){
 			// propagate the ways writers to all nodes 
@@ -235,8 +243,15 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), WriterDictionaryInt.UNASSIGNED);
 			for (Map.Entry<Long, MTRelation> entry: relMap.entrySet()) {
 				int val = entry.getValue().getMultiTileWriterIndex();
-				if (val != WriterDictionaryInt.UNASSIGNED)
-					relWriterMap.add(entry.getKey(), val);
+				if (val != WriterDictionaryInt.UNASSIGNED){
+					try{
+						relWriterMap.add(entry.getKey(), val);
+					}catch (IllegalArgumentException e){
+						System.err.println(e);
+						System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+						System.exit(-1);
+					}
+				}
 			}
 			relMap = null;
 			dataStorer.setWriterMap(DataStorer.REL_TYPE, relWriterMap);
@@ -455,7 +470,15 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (lastCoordId >= id){
 			throw new IllegalArgumentException ("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
 		}
-		int nodePos = nodeWriterMap.add(id, WriterDictionaryInt.UNASSIGNED);
+		int nodePos = -1;
+		try{
+			nodePos = nodeWriterMap.add(id, WriterDictionaryInt.UNASSIGNED);
+		}catch (IllegalArgumentException e){
+			System.err.println(e.getMessage());
+			System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+			System.exit(-1);
+		}
+				
 		lastCoordId = id;
 		nodeLons[nodePos ] = lon;
 		nodeLats[nodePos] = lat;

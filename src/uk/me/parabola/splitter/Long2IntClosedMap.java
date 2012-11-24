@@ -54,12 +54,12 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public int add(long key, int val) {
 		if (keys == null){
-			throw new IllegalArgumentException("add on read-only map requested");
+			throw new IllegalArgumentException(name + ": Add on read-only map requested");
 		}
 		if (size > 0 && keys[size-1] > key)
-			throw new IllegalArgumentException("New key is not higher than last key");
+			throw new IllegalArgumentException("New " + name + " id " + key + " is not higher than last id " + keys[size-1]);
 		if (size+1 > maxSize)
-			throw new IllegalArgumentException(name + " map is full.");
+			throw new IllegalArgumentException(name + " Map is full.");
 		keys[size] = key;
 		vals[size] = val;
 		size++;
