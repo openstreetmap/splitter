@@ -15,11 +15,10 @@ package uk.me.parabola.splitter;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.regex.Pattern;
+import java.util.Set;
 
 /**
  * Splits a density map into multiple areas, none of which
@@ -28,19 +27,17 @@ import java.util.regex.Pattern;
  * @author GerdP
  */
 public class SplittableDensityArea implements SplittableArea {
-	private static final int MAX_LOOPS = 100;	// number of loops to find better solution
+	private static final int MAX_LOOPS = 20;	// number of loops to find better solution
 	private double minAspectRatio = Double.MAX_VALUE;
 	private double maxAspectRatio = Double.MIN_VALUE;
 	private long minNodes = Long.MAX_VALUE;
-	private String stack = "";
 	private DensityMap allDensities;
 	private int spread = 0;
-	private int goBack = -1;
 	private long startSplit = System.currentTimeMillis();
-	private String next;
 	private long bestRating = Long.MAX_VALUE;
 	private List<Tile> bestResult;
 	private double[] aspectRatioFactor;
+	private Set<Tile> cache ;
 
 	public SplittableDensityArea(DensityMap densities) {
 		this.allDensities = densities;
@@ -50,7 +47,7 @@ public class SplittableDensityArea implements SplittableArea {
 		int minLat = densities.getBounds().getMinLat(); 
 		int maxLat = densities.getBounds().getMaxLat();
 		int lat = 0;
-		// calculate once the needed complex math functions
+		// performance: calculate only once the needed complex math results
 		for (int i = 0; i < aspectRatioFactor.length; i++ ){
 			lat = minLat + i* (1<<densities.getShift());
 			assert lat <= maxLat;
@@ -68,52 +65,62 @@ public class SplittableDensityArea implements SplittableArea {
 	public List<Area> split(long maxNodes) {
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
-
+		cache = new HashSet<Tile>();
 		List<Tile> tiles;
-		long numLoops = 0;
-		minAspectRatio = 1.0;
-		maxAspectRatio = 1;
-		minNodes = maxNodes / 3;
-		if (maxNodes < 500000)
-			minNodes = 0;
-		stack = "";
-		next = "";
-		while (numLoops < MAX_LOOPS){
+		// start values for optimization process (they make sure that we find a solution)
+		maxAspectRatio = 1L<<allDensities.getShift();
+		minAspectRatio = 1.0/maxAspectRatio; 
+		minNodes = 0;
+		
+		Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight());
+		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			tiles = new ArrayList<Tile>();
-			boolean res;
-			do{
-				if (next.isEmpty()){
-					if (minNodes == 0){
-						minAspectRatio = 0.0;
-						maxAspectRatio = 128;
-						
-					}
-					else {
-						minAspectRatio /= 2;
-						maxAspectRatio *= 2;
-						if (maxAspectRatio >= 16){
-							spread = 1;
-						}
-						if (maxAspectRatio >= 64){
-							minAspectRatio = 0.0;
-							spread = 2;
-						}
-					}
+			boolean res = false;
+
+			double saveMinAspectRatio = minAspectRatio; 
+			double saveMaxAspectRatio = maxAspectRatio; 
+			double saveMinNodes = minNodes;
+			res = findSolution(0,startTile, maxNodes, tiles);
+			if (res == true){
+				long rating = getRating(tiles, maxNodes);
+				if (rating < bestRating){
+					bestRating = rating;
+					bestResult = tiles;
+					System.out.println("Best solution until now has " + bestResult.size() + " tiles and a rating of " + bestRating);
 				}
-				numLoops++;
-				Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight());
-				res = findSolutions(startTile, maxNodes, "", tiles);
-				if (res == false && spread <= 2) 
-					++spread;
-			}while(res == false && numLoops < MAX_LOOPS);
-			if (bestResult == null)
+			}
+			if (res == false && spread >= 1 && bestResult != null)
+				break; // no hope to find something better in a reasonable time
+			if (res == false){
+				// no solution found for the criteria, search also with "non-natural" split lines
+				spread = 1;
+				continue;
+			}
+			if (bestResult == null){
 				bestResult = tiles;
-			if (numLoops % 10 == 0)
-				System.out.println(numLoops + " solutions tested.");
-			if (stack.isEmpty())
-				break;
-			next = stack;
-			stack = "";
+				if (bestResult.size() == 1)
+					break;;
+			}
+
+			if (bestResult != null){
+				// found a correct start, change criteria to find a better(nicer) result
+				minAspectRatio *= 2;
+				maxAspectRatio /= 2;
+				if (minAspectRatio > 0.5)
+					minAspectRatio = 0.5;
+				if (maxAspectRatio < 2 )
+					minAspectRatio = 2;
+				if (minNodes == 0)
+					minNodes += maxNodes/20;
+			} else if (numLoops > 0){
+				// no correct solution found, try also with "unnatural" split lines
+				spread = Math.min(spread+1, 3);
+			}
+
+			if (saveMaxAspectRatio != maxAspectRatio || saveMinAspectRatio != minAspectRatio || saveMinNodes != minNodes){
+				System.out.println("criterias were changed, resetting cache");
+				cache.clear();
+			}
 		} 
 		List<Area> res = convert(bestResult, maxNodes);
 		System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
@@ -130,11 +137,14 @@ public class SplittableDensityArea implements SplittableArea {
 	 * @param tile
 	 * @return
 	 */
-	public double getAspectRatio(Tile tile) {
+	private double getAspectRatio(Tile tile) {
 		int width1 = (int) (tile.width * aspectRatioFactor[tile.y]);
 		int width2 = (int) (tile.width * aspectRatioFactor[tile.y+tile.height]);
 		int width = Math.max(width1, width2);		
 		double ratio = ((double)width)/(tile.height << allDensities.getShift());
+		if (ratio <= 0.0){
+			assert Boolean.TRUE;
+		}
 		return ratio;
 	}
 	
@@ -220,7 +230,7 @@ public class SplittableDensityArea implements SplittableArea {
 	 * @param tiles list of tiles
 	 * @return list of areas
 	 */
-	List<Area> convert(List<Tile> tiles, long maxNodes){
+	private List<Area> convert(List<Tile> tiles, long maxNodes){
 		List<Area> result = new ArrayList<Area>();
 		int num = 1;
 		int shift = allDensities.getShift();
@@ -244,58 +254,24 @@ public class SplittableDensityArea implements SplittableArea {
 		
 	}
 	/**
-	 * 
-	 * @param densities
-	 * @param maxNodes
-	 * @param splitPath
-	 * @param tiles
-	 * @return
+	 * Try to split the tile into nice parts recursively 
+	 * @param depth the recursion depth
+	 * @param tile the tile to be split
+	 * @param maxNodes max number of nodes that should be in one tile
+	 * @param tiles the list of parts
+	 * @return true if a solution was found
 	 */
-	private boolean findSolutions(Tile tile, long maxNodes, String splitPath, List<Tile> tiles){
-		boolean addThis = false;
-		/*
-		if (++tested > 100000 && bestResult == null){
-			if (goBack < 0){
-				goBack = splitPath.length() / 6 / 2;
-				if (spread > 0)
-					goBack = 1;
-				return false;
-			}
-			else if (goBack >= 0){ 
-				if (splitPath.length() > 6*goBack)
-					return false;
-				else {
-					goBack = -1;
-					tested = 0;
-				}
-			}
-		}
-		*/
-		if (tile.count == 0){
+	private boolean findSolution(int depth, final Tile tile, long maxNodes, List<Tile> tiles){
+		int checkRes = check(depth, tile, maxNodes, tiles);
+		if (checkRes == OK_RETURN)
 			return true;
-		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
-			addThis = true; // can't split further
-		} else if (tile.count < minNodes && splitPath.isEmpty()) {
-			addThis = true; // nothing to do
-		} else if (tile.count < minNodes){
+		else if (checkRes == NOT_OK)
 			return false;
-		} else if (tile.count <= maxNodes) {
-			double ratio = getAspectRatio(tile);
-			if (ratio < minAspectRatio || ratio > maxAspectRatio)
-				return false;
-			addThis = true;
-		} else if (tile.width < 2 && tile.height < 2)
-			return false;
-
-		if (addThis){
-			tiles.add(new Tile(tile));
-			return true;
-		}
 		int splitX = getSplitHoriz(tile);
 		int splitY = getSplitVert(tile);
 		ArrayList<Integer> dx = new ArrayList<Integer>();
 		ArrayList<Integer> dy = new ArrayList<Integer>();
-		for (int i = spread; i < Math.min(spread+1, splitX); i++){
+		for (int i = 0; i < Math.min(spread+1, splitX); i++){
 			int pos = splitX+i;
 			if (pos > 0 && pos < tile.width)
 				dx.add(pos);
@@ -305,7 +281,7 @@ public class SplittableDensityArea implements SplittableArea {
 					dx.add(pos);
 			}
 		}
-		for (int i = spread; i < Math.min(spread+1, splitY); i++){
+		for (int i = 0; i < Math.min(spread+1, splitY); i++){
 			int pos = splitY+i;
 			if (pos > 0 && pos < tile.height)
 				dy.add(pos);
@@ -317,32 +293,12 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 		int currX = 0, currY = 0;
 		String axis;
-		if (next.isEmpty()){
-			axis = (getAspectRatio(tile) >= 1.0) ? "H":"V";
-		}
-		else {
-			assert next.matches("[HV][0-9],[0-9].*");
-			axis = next.substring(0, 1);
-			currX = Integer.valueOf(next.substring(1, 2));
-			currY = Integer.valueOf(next.substring(3, 4));
-			if (next.length() >= 6)
-				next = next.substring(6);
-			else {
-				next = "";
-				if ("H".equals(axis)){
-					axis = "V";
-					currX++;
-				} else {
-					axis = "H";
-					currY++;
-				}
-			}
-		}
-		boolean ok = false;
+		axis = (getAspectRatio(tile) >= 1.0) ? "H":"V";
+		boolean res = false;
 		
 		while(true){
 			Tile[] parts;
-			String status = splitPath+axis+currX+","+currY;			
+				
 			if ("H".equals(axis) || currY >= dy.size()){
 				if (currX >= dx.size()){
 					break;
@@ -357,35 +313,24 @@ public class SplittableDensityArea implements SplittableArea {
 			assert parts[0].count + parts[1].count == tile.count;
 			parts[0].trim();
 			parts[1].trim();
-			boolean r1 = false,r2=false; 
+			
+			boolean resPart1 = false; 
 			int currentAreas = tiles.size();
-			r1 = findSolutions(parts[0],maxNodes, status+"p1",tiles);
-			if (r1){
-				r2 = findSolutions(parts[1],maxNodes, status+"p2",tiles);
-				if (r2){
-					ok = true;
-					if (splitPath.isEmpty()){
-						long rating = simplifyAndRate(tiles, maxNodes);
-						if (rating < bestRating){
-							bestRating = rating;
-							bestResult = new ArrayList<SplittableDensityArea.Tile>();
-							for (Tile t:tiles){
-								bestResult.add(new Tile(t));
-							}
-							System.out.println("Best solution until now has " + bestResult.size() + " tiles and a rating of " + bestRating);
-						}
-						
-					}
-					else{ 
-						if (currX < dx.size() || currY < dy.size()) {
-							if (stack.isEmpty() )
-								stack = status; // we want to come here again
-						}
-						break;
-					}
+			if (cache.contains(parts[0])){
+				resPart1 = false;
+			}
+			else 
+				resPart1 = findSolution(depth+1,parts[0],maxNodes, tiles);
+			if (resPart1 == true){
+				if (cache.contains(parts[1]))
+					res = false;
+				else
+					res = findSolution(depth+1,parts[1],maxNodes, tiles);
+				if (res == true){
+					break;
 				}
 			}
-			if (!ok){
+			if (!res){
 				while(tiles.size() > currentAreas){
 					tiles.remove(tiles.size()-1);
 				}
@@ -393,16 +338,84 @@ public class SplittableDensityArea implements SplittableArea {
 			if (currX >= dx.size() && currY >= dy.size())
 				break;
 			axis = "H".equals(axis) ? "V":"H";
-			if (goBack >= 0 && goBack*6 <= splitPath.length()){
-				break;
-			}
-				
 		}
-		return ok;
+		if (res == false){
+			markBad(tile);
+		}
+		return res;
 	}
 	
 	/**
-	 * 
+	 * find those areas that build rectangles when they are 
+	 * added together. The  
+	 */
+	private long getRating(List<Tile> tiles, long maxNodes){
+		long rating = 0;
+		for (Tile tile: tiles){
+			double aspectRatio = getAspectRatio(tile);
+			if (aspectRatio < 1)
+				aspectRatio = 1.0d/aspectRatio;
+			if (aspectRatio > 1)
+				rating += aspectRatio*100;
+		}
+		return rating;
+	}
+
+	private final static int NOT_OK = -1;
+	private final static int OK_CONTINUE = 0;
+	private final static int OK_RETURN = 1;
+	/**
+	 * Evaluate the quality of the tile
+	 * @param tile the tile
+	 * @param maxNodes 
+	 * @param tiles list of tiles that were split
+	 * @return
+	 */
+	private int check(int depth, Tile tile, long maxNodes, List<Tile> tiles){
+		boolean addThis = false;
+		boolean returnFalse = false;
+		if (tile.count == 0) {
+			return OK_RETURN; 
+		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
+			addThis = true; // can't split further
+		} else if (tile.count < minNodes && depth == 0) {
+			addThis = true; // nothing to do
+		} else if (tile.count < minNodes) {
+			returnFalse  = true;
+		} else if (tile.count <= maxNodes) {
+			double ratio = getAspectRatio(tile);
+			if (ratio < minAspectRatio || ratio > maxAspectRatio) 
+				returnFalse  = true;
+			else
+				addThis = true;
+		} else if (tile.width < 2 && tile.height < 2) {
+			returnFalse  = true;
+		}
+		if (addThis) {
+			tiles.add(new Tile(tile));
+			return OK_RETURN;
+		} else if (returnFalse){
+			markBad(tile);
+			return NOT_OK;
+		}
+		return OK_CONTINUE;
+	}
+	
+	/**
+	 * Store tiles that can't be split into nice parts. 
+	 * @param tile
+	 */
+	private void markBad(Tile tile){
+		cache.add(tile);
+		if (cache.size() % 10000 == 0){
+			System.out.println("stored states " + cache.size());
+		}
+		
+	}
+	/**
+	 * Helper class to store area info with node counters.
+	 * The node counters use the values saved in the initial
+	 * DensityMap.
 	 * @author GerdP
 	 *
 	 */
@@ -485,81 +498,6 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 	}
 	
-	/**
-	 * find those areas that build rectangles when they are 
-	 * added together. The  
-	 */
-	private long simplifyAndRate(List<Tile> tiles, long maxNodes){
-		long rating = 0;
-		List<Tile> combined = null;
-		Long newSmallest = Long.MAX_VALUE;
-		while (true){
-
-			combined = new LinkedList<Tile>();
-			/*
-			for (int i = 0; i < tiles.size(); i++){
-				Tile t1 =  tiles.get(i);
-				if (t1.count < 0)
-					continue;
-				Tile candidate = null;
-				for (int j = 0; j < tiles.size(); j++){
-					if (i == j)
-						continue;
-					Tile t2 =  tiles.get(j);
-					if (t2.count >= 0 && t2.count + t1.count <= maxNodes ){
-						boolean isSimple = false;
-						if (t1.y == t2.y && t1.height == t2.height 
-								&& (t1.x == t2.getMaxX() || t2.x == t1.getMaxX())) 
-							isSimple = true;
-						else if (t1.x == t2.x && t1.width == t2.width 
-								&& (t1.y == t2.getMaxY() || t2.y == t1.getMaxY()))
-							isSimple = true;
-						if (isSimple){
-							if (candidate == null)
-								candidate = t2;
-							else {
-								if (candidate.count < t2.count)
-									candidate = t2;
-							}
-						}
-					}
-				}
-				if (candidate != null){
-					Tile pair = new Tile(t1);
-					pair.add(candidate);
-					combined.add(pair);
-					//System.out.println(t1.x + " " + t1.y + " merged with " + candidate.x + " " + candidate.y);
-					t1.count = -1;
-					candidate.count = -1;
-				}
-			}
-			newSmallest = Long.MAX_VALUE;
-			*/
-			rating = 0;
-			for (int i = tiles.size()-1; i >= 0; i--){
-				Tile tile = tiles.get(i);
-				if (tile.count < 0)
-					tiles.remove(i);
-				else {
-					if (newSmallest > tile.count)
-						newSmallest = tile.count;
-					
-//					rating += tile.width  >> allDensities.getShift();
-//					rating += tile.height >> allDensities.getShift();
-					double ar1 = (double) tile.width / tile.height;
-					if (ar1 < 1)
-						ar1 = 1.0d/ar1;
-					if (ar1 > 1)
-						rating += ar1*100;
-				}
-			}
-			if (combined.isEmpty())
-				break;
-			tiles.addAll(combined);
-			combined = null;
-		}
-		return rating;
-	}
 }
 
 
