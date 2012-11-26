@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import crosby.binary.file.BlockInputStream;
 
+import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 import org.xmlpull.v1.XmlPullParserException;
 
 import uk.me.parabola.splitter.args.ParamParser;
@@ -80,16 +81,15 @@ public class Main {
 	// but the input files do).
 	private int overlapAmount;
 
-	// The max number of nodes that will appear in a single file.
+	// A threshold value that is used when no split-file is given. Splitting is done so that
+	// no tile has more than maxNodes nodes inside the bounding box of the tile.
+	// Nodes added by overlap or keep-complete are not taken into account. 
 	private long maxNodes;
 
-	// The maximum resolution of the map to be produced by mkgmap. This is a value in the range
-	// 0-24. Higher numbers mean higher detail. The resolution determines how the tiles must
+	// This is a value in the range 0-24.
+	// Higher numbers mean higher detail. The resolution determines how the tiles must
 	// be aligned. Eg a resolution of 13 means the tiles need to have their edges aligned to
-	// multiples of 2 ^ (24 - 13) = 2048 map units, and their widths and heights must be a multiple
-	// of 2 * 2 ^ (24 - 13) = 4096 units. The tile widths and height multiples are double the tile
-	// alignment because the center point of the tile is stored, and that must be aligned the
-	// same as the tile edges are.
+	// multiples of 2 ^ (24 - 13) = 2048 map units. 
 	private int resolution;
 
 	// Whether or not to trim tiles of any empty space around their edges.
@@ -101,6 +101,10 @@ public class Main {
 	// Whether or not the source OSM file(s) contain strictly nodes first, then ways, then rels,
 	// or they're all mixed up. Running with mixed enabled takes longer.
 	private boolean mixed;
+	// A polygon file in osmosis polygon format
+	private String polygonFile;
+	private java.awt.geom.Area polygon;
+
 	// The path where the results are written out to.
 	private File fileOutputDir;
 	// A GeoNames file to use for naming the tiles.
@@ -114,8 +118,10 @@ public class Main {
 	// The output type
 	private String outputType;
 	// a list of way or relation ids that should be handled specially
-	private String problemFile; 
-	private boolean generateProblemList;
+	private String problemFile;
+	// Whether or not splitter should keep  
+	private boolean keepComplete;
+	
 	private String problemReport;
 	
 	private LongArrayList problemWays = new LongArrayList();
@@ -215,7 +221,8 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		if (generateProblemList){
+		//System.err.println("stopped here"); System.exit(-1);
+		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 		}
 		writeAreas(areas);
@@ -302,15 +309,26 @@ public class Main {
 			if (!readProblemIds(problemFile))
 				System.exit(-1);
 		}
-		generateProblemList = params.isKeepComplete();
-		if (mixed && (generateProblemList || problemFile != null)){
+		keepComplete = params.isKeepComplete();
+		if (mixed && (keepComplete || problemFile != null)){
 			System.err.println("--mixed=true is not supported in combination with --keep-complete=true or --problem-file.");
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
 			System.exit(-1);
 		}
 		problemReport = params.getProblemReport();
-		if (generateProblemList == false && problemReport != null){
+		if (keepComplete == false && problemReport != null){
 			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
+		}
+		polygonFile = params.getPolygonFile();
+		if (polygonFile != null){
+			File f = new File(polygonFile);
+
+			if (!f.exists()){
+				System.out.println("Error: olygon file doesn't exist: " + polygonFile);  
+				System.exit(-1);
+			}
+			PolygonFileReader polyReader = new PolygonFileReader(f);
+			polygon = polyReader.loadPolygon();
 		}
 	}
 
@@ -347,7 +365,7 @@ public class Main {
 		Area exactArea = pass1Collector.getExactArea();
 		pass1Collector.saveMap(densityOutData.getAbsolutePath());
 		
-		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
+		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution, polygon);
 		if (splittableArea.hasData() == false)
 			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);
@@ -424,10 +442,6 @@ public class Main {
 		LongArrayList problemWaysThisPart = new LongArrayList();
 		LongArrayList problemRelsThisPart = new LongArrayList();
 		for (int pass = 0; pass < numPasses; pass++) {
-
-			/*TODO: if two or passes are needed, all pseudo-writers will be used in the last pass.
-			 * This might be bad if the pseudo-writers cover most of the input area. 
-			 */
 			System.out.println("-----------------------------------");
 			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses + " for partition " + partition);
 			long startThisPass = System.currentTimeMillis();
@@ -994,7 +1008,7 @@ public class Main {
 
 	/**
 	 * Fill uncovered parts of the planet with pseudo-areas.
-	 * TODO: find better algorithm
+	 * TODO: check if better algorithm reduces run time
 	 * We want a small number of pseudo areas because many of them will
 	 * require more memory or more passes, esp. when processing whole planet.
 	 * Also, the total length of all edges should be small.

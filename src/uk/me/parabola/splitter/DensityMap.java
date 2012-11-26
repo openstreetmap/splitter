@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -32,7 +33,7 @@ import java.util.regex.Pattern;
  */
 public class DensityMap {
 	private final int width, height, shift;
-	private final long[][] nodeMap;
+	private final int[][] nodeMap;
 	private Area bounds;
 	private long totalNodeCount;
 	private final boolean trim;
@@ -50,9 +51,35 @@ public class DensityMap {
 		bounds = RoundingUtils.round(area, resolution);
 		height = bounds.getHeight() >> shift;
 		width = bounds.getWidth() >> shift;
-		nodeMap = new long[width][];
+		nodeMap = new int[width][];
 	}
 
+	public void filterWithPolygon(java.awt.geom.Area polygon){
+		if (polygon == null)
+			return;
+		
+		double width1 = 360.0 / width;
+		double height1= 180.0 / height;
+		System.out.println("Applying bounding polygon...");
+		long start = System.currentTimeMillis();
+		Rectangle2D polygonBbox = polygon.getBounds2D();
+		for (int x = 0; x < width; x++){
+			if (nodeMap[x] != null){
+				double minX = Utils.toDegrees(xToLon(x));
+				for (int y = 0; y < height; y++){
+					if (nodeMap[x][y] != 0){
+						double minY = Utils.toDegrees(yToLat(y));
+						if (polygonBbox.intersects(minX,minY,width1,height1) == false)
+							nodeMap[x][y] = 0;
+						else if (polygon.intersects(minX,minY,width1,height1) == false)
+							nodeMap[x][y] = 0;
+					}
+				}
+			}
+		}
+		System.out.println("Polygon filtering took " + (System.currentTimeMillis()-start) + " ms");
+	}
+	
 	public boolean isTrim(){
 		return trim == true;
 	}
@@ -86,7 +113,7 @@ public class DensityMap {
 			y--;
 
 		if (nodeMap[x] == null)
-			nodeMap[x] = new long[height];
+			nodeMap[x] = new int[height];
 		return ++nodeMap[x][y];
 	}
 
@@ -94,7 +121,7 @@ public class DensityMap {
 		return totalNodeCount;
 	}
 
-	public long getNodeCount(int x, int y) {
+	public int getNodeCount(int x, int y) {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
 	}
 
@@ -129,7 +156,7 @@ public class DensityMap {
 			if (startY == 0 && maxY == height) {
 				result.nodeMap[x] = nodeMap[startX + x];
 			} else if (nodeMap[startX + x] != null) {
-				result.nodeMap[x] = new long[maxY];
+				result.nodeMap[x] = new int[maxY];
 				try {
 					System.arraycopy(nodeMap[startX + x], startY, result.nodeMap[x], 0, maxY);
 				} catch (ArrayIndexOutOfBoundsException e) {
@@ -185,7 +212,7 @@ public class DensityMap {
 	}
 
 	private boolean isEmptyX(int x, int start, int end) {
-		long[] array = nodeMap[x];
+		int[] array = nodeMap[x];
 		if (array != null) {
 			for (int y = start; y < end; y++) {
 				if (array[y] != 0)
@@ -296,12 +323,11 @@ public class DensityMap {
 							+ problemLine);
 					return null;
 				}
-				int x,y;
-				long sum;
+				int x,y,sum;
 				try{
 					x = Integer.parseInt(items[0]);
 					y = Integer.parseInt(items[1]);
-					sum = Long.parseLong(items[2]);
+					sum = Integer.parseInt(items[2]);
 				
 					if (x < 0 || x >= width || y < 0 || y>=height){
 						System.out.println("Error: Invalid data in map file, line number " + + problemReader.getLineNumber() + ": "   
@@ -310,7 +336,7 @@ public class DensityMap {
 					}
 					else{
 						if (nodeMap[x] == null)
-							nodeMap[x] = new long[height];
+							nodeMap[x] = new int[height];
 						nodeMap[x][y] = sum;
 						totalNodeCount += sum;
 					}

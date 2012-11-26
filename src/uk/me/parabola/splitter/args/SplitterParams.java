@@ -34,7 +34,9 @@ public interface SplitterParams {
 	@Option(defaultValue = "2000", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
 	int getOverlap();
 
-	@Option(defaultValue = "1600000", description = "The maximum number of nodes permitted in each split area.")
+	@Option(defaultValue = "1600000", description = "A threshold value that is used when no split-file is given. Splitting is done so that "
+			+ "no tile has more than maxNodes nodes inside the bounding box of the tile. "
+			+ "Nodes added by overlap or keep-complete are not taken into account.")
 	int getMaxNodes();
 
 	@Option(defaultValue = "13", description = "The resolution of the overview map to be produced by mkgmap.")
@@ -73,7 +75,8 @@ public interface SplitterParams {
 	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")
 	String getProblemFile();
 
-	@Option(description = "Write complete ways and relations if possible (requires more time and heap memory!)")
+	@Option(description = "Write complete ways and relations if possible (requires more time and more heap memory). This should be used "
+			+ "with --overlap=0")
 	boolean isKeepComplete();
 
 	@Option(description = "Just write program version and build timestamp")
@@ -82,4 +85,6 @@ public interface SplitterParams {
 	@Option(description = "The name of a file to write the generated problem list created with --keep-complete.")
 	String getProblemReport();
 
+	@Option(description = "The name of a file containing a bounding polygon in osmosis polygon file format.")
+	String getPolygonFile();
 }
