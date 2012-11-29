@@ -15,7 +15,6 @@ package uk.me.parabola.splitter;
 
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -260,9 +259,6 @@ public class SplittableDensityArea implements SplittableArea {
 	 * @return true if a solution was found
 	 */
 	private boolean findSolution(int depth, final Tile tile, List<Tile> tiles){
-		if (depth > 100){
-			long dd = 4;
-		}
 		int checkRes = check(depth, tile, tiles);
 		if (checkRes == OK_RETURN)
 			return true;
@@ -355,9 +351,6 @@ public class SplittableDensityArea implements SplittableArea {
 			}
 			if (currX >= dx.size() && currY >= dy.size())
 				break;
-			if (depth == 0){
-				long dd = 4;
-			}
 			axis = (axis == AXIS_HOR) ? AXIS_VERT:AXIS_HOR;
 		}
 		if (res == false){
@@ -457,6 +450,8 @@ public class SplittableDensityArea implements SplittableArea {
 			}
 		}
 		public void trim(){
+			if (filteredDensities.isTrim() == false)
+				return;
 			int minY = -1;
 			for (int j=0;j<height;j++){
 				for (int i=0; i < width; i++){
