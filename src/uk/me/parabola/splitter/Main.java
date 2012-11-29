@@ -221,7 +221,10 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		//System.err.println("stopped here"); System.exit(-1);
+		/*
+		try {Thread.sleep(1000);}catch (InterruptedException e) {}
+		System.err.println("stopped here"); System.exit(-1); // TODO: remove this and sleep above
+		*/
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 		}
@@ -260,7 +263,6 @@ public class Main {
 		}
 
 		mapId = params.getMapid();
-		overlapAmount = params.getOverlap();
 		maxNodes = params.getMaxNodes();
 		description = params.getDescription();
 		geoNamesFile = params.getGeonamesFile();
@@ -315,6 +317,18 @@ public class Main {
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
 			System.exit(-1);
 		}
+		overlapAmount = params.getOverlap();
+		
+		if (keepComplete){
+			if (overlapAmount > 0){
+				System.err.println("Warning: --overlap is used in combination with --keep-complete=true");
+			} else
+				overlapAmount = 0;
+		}
+		else if (overlapAmount < 0){
+			overlapAmount = 2000;
+			System.out.println("keep-complete=false is used, but no overlap was specified. overlap=" + overlapAmount + " is used.");
+		}
 		problemReport = params.getProblemReport();
 		if (keepComplete == false && problemReport != null){
 			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
@@ -324,11 +338,16 @@ public class Main {
 			File f = new File(polygonFile);
 
 			if (!f.exists()){
-				System.out.println("Error: olygon file doesn't exist: " + polygonFile);  
+				System.out.println("Error: polygon file doesn't exist: " + polygonFile);  
 				System.exit(-1);
 			}
 			PolygonFileReader polyReader = new PolygonFileReader(f);
 			polygon = polyReader.loadPolygon();
+			if (checkPolygon(polygon) == false){
+				System.out.println("Error: Bounding polygon is too complex. Please avoid diagonal lines!");
+				System.exit(-1);
+			}
+				
 		}
 	}
 
@@ -349,17 +368,7 @@ public class Main {
 		}
 		else
 			processMap(processor);
-		//MapReader mapReader = processMap(processor);
-
-		//System.out.print("A total of " + Utils.format(mapReader.getNodeCount()) + " nodes, " +
-		//				Utils.format(mapReader.getWayCount()) + " ways and " +
-		//				Utils.format(mapReader.getRelationCount()) + " relations were processed ");
-
 		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
-
-		//System.out.println("Min node ID = " + mapReader.getMinNodeId());
-		//System.out.println("Max node ID = " + mapReader.getMaxNodeId());
-
 		System.out.println("Time: " + new Date());
 
 		Area exactArea = pass1Collector.getExactArea();
@@ -1008,7 +1017,7 @@ public class Main {
 
 	/**
 	 * Fill uncovered parts of the planet with pseudo-areas.
-	 * TODO: check if better algorithm reduces run time
+	 * TODO: check if better algorithm reduces run time in ProblemListProcessor
 	 * We want a small number of pseudo areas because many of them will
 	 * require more memory or more passes, esp. when processing whole planet.
 	 * Also, the total length of all edges should be small.
@@ -1100,6 +1109,37 @@ public class Main {
 				break;
 		}
 		return oldSize != areas.size();
+	}
+
+	/**
+	 * Check if the bounding polygon is usable.
+	 * @param polygon
+	 * @return
+	 */
+	private boolean checkPolygon(java.awt.geom.Area polygonArea) {
+		java.awt.geom.Area mapPolygonArea = Utils.AreaDegreesToMapUnit(polygonArea);
+		List<List<Point>> shapes = Utils.areaToShapes(mapPolygonArea);
+		int shift = 24 - resolution;
+		long rectangleWidth = 1L << shift;
+		for (List<Point> shape: shapes){
+			int estimatedPoints = 0;
+			Point p1 = shape.get(0);
+			for (int i = 1; i < shape.size(); i++){
+				Point p2 = shape.get(i);
+				if (p1.x != p2.x && p1.y != p2.y){
+					// diagonal line
+					int width = Math.abs(p1.x-p2.x);
+					int height =  Math.abs(p1.y-p2.y);
+					estimatedPoints += (Math.min(width, height) / rectangleWidth) * 2;
+				}
+				
+				if (estimatedPoints > 40)
+					return false; // too complex
+					
+				p1 = p2;
+			}
+		}
+		return true;
 	}
 
 }

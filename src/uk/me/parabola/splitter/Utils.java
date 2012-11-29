@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -144,11 +145,6 @@ public class Utils {
 		float[] res = new float[6];
 		PathIterator pit = area.getPathIterator(null);
 		
-		// store float precision coords to check if the direction (cw/ccw)
-		// of a polygon changes due to conversion to int precision 
-		List<Float> floatLat = null;
-		List<Float>	floatLon = null;
-
 		List<Point> points = null;
 
 		int iPrevLat = Integer.MIN_VALUE;
@@ -164,8 +160,6 @@ public class Utils {
 			
 			switch (type) {
 			case PathIterator.SEG_LINETO:
-				floatLat.add(fLat);
-				floatLon.add(fLon);
 
 				if (iPrevLat != iLat || iPrevLong != iLon) 
 					points.add(new Point(iLon,iLat));
@@ -180,30 +174,15 @@ public class Utils {
 						points.add(points.get(0));
 					}
 					if (points.size() > 3){
-						// use float values to verify area size calculations with higher precision
-						if (floatLat.size() > 2) {
-							if (floatLat.get(0).equals(floatLat.get(floatLat.size() - 1)) == false
-									|| floatLon.get(0).equals(floatLon.get(floatLon.size() - 1)) == false){ 
-								floatLat.add(floatLat.get(0));
-								floatLon.add(floatLon.get(0));
-							}
-						}
-
 						outputs.add(points);
 					}
 				}
 				if (type == PathIterator.SEG_MOVETO){
-					floatLat= new ArrayList<Float>();
-					floatLon= new ArrayList<Float>();
-					floatLat.add(fLat);
-					floatLon.add(fLon);
 					points = new ArrayList<Point>();
 					points.add(new Point(iLon,iLat));
 					iPrevLat = iLat;
 					iPrevLong = iLon;
 				} else {
-					floatLat= null;
-					floatLon= null;
 					points = null;
 					iPrevLat = Integer.MIN_VALUE;
 					iPrevLong = Integer.MIN_VALUE;
@@ -226,13 +205,48 @@ public class Utils {
 	 * @param shape
 	 * @return
 	 */
-	static java.awt.geom.Area shapeToArea(List<Point> shape){
+	public static java.awt.geom.Area shapeToArea(List<Point> shape){
 		Polygon polygon = new Polygon();
 		for (Point point : shape) {
 			polygon.addPoint(point.x, point.y);
 		}
 		return new java.awt.geom.Area(polygon);
-
 	}
+	
+	/**
+	 * Convert area with coordinates in degrees to area in MapUnits
+	 * @param area
+	 * @return
+	 */
+	public static java.awt.geom.Area AreaDegreesToMapUnit(java.awt.geom.Area area){
+		double[] res = new double[6];
+		Path2D path = new Path2D.Double();
+		PathIterator pit = area.getPathIterator(null);
+		while (!pit.isDone()) {
+			int type = pit.currentSegment(res);
 
+			double fLat = res[1];
+			double fLon = res[0];
+			int lat = toMapUnit(fLat);
+			int lon = toMapUnit(fLon);
+			
+			switch (type) {
+			case PathIterator.SEG_LINETO:
+				path.lineTo(lon, lat);
+				break;
+			case PathIterator.SEG_MOVETO: 
+				path.moveTo(lon, lat);
+				break;
+			case PathIterator.SEG_CLOSE:
+				path.closePath();
+				break;
+			default:
+				System.out.println("Unsupported path iterator type " + type
+						+ ". This is an mkgmap error.");
+			}
+
+			pit.next();
+		}
+		return new java.awt.geom.Area(path);
+	}
 }

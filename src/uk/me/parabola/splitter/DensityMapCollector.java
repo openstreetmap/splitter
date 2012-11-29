@@ -78,8 +78,7 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 	@Override
 	public SplittableArea getRoundedArea(int resolution, java.awt.geom.Area polygon) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);
-		densityMap.filterWithPolygon(polygon);
-		return new SplittableDensityArea(densityMap.subset(bounds));
+		return new SplittableDensityArea(densityMap, bounds, polygon);
 	}
 
 	@Override

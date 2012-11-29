@@ -31,7 +31,7 @@ public interface SplitterParams {
 	@Option(defaultValue = "255", description = "The maximum number of areas to process in a single pass. More areas require more memory, but less time. Values: 1-2048.")
 	int getMaxAreas();
 
-	@Option(defaultValue = "2000", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
+	@Option(defaultValue = "-1", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
 	int getOverlap();
 
 	@Option(defaultValue = "1600000", description = "A threshold value that is used when no split-file is given. Splitting is done so that "

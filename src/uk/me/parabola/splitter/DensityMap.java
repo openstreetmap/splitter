@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,7 +37,7 @@ public class DensityMap {
 	private final int[][] nodeMap;
 	private Area bounds;
 	private long totalNodeCount;
-	private final boolean trim;
+	private boolean trim;
 
 	/**
 	 * Creates a density map.
@@ -54,30 +55,74 @@ public class DensityMap {
 		nodeMap = new int[width][];
 	}
 
-	public void filterWithPolygon(java.awt.geom.Area polygon){
-		if (polygon == null)
-			return;
+	/**
+	 * Trim to the bounding box of the polygon area
+	 * @param polygonArea area with values in degrees
+	 * @return trimmed map
+	 */
+	public DensityMap trimToPolygon (java.awt.geom.Area polygonArea){
+		if (polygonArea == null)
+			return this;
+		Rectangle2D polygonBbox = polygonArea.getBounds2D();
+		int minY = Math.max(0, latToY(Utils.toMapUnit(polygonBbox.getMinY()))-1);
+		int maxY = Math.min(height, latToY(Utils.toMapUnit(polygonBbox.getMaxY()))+1);
+		int minX = Math.max(0, lonToX(Utils.toMapUnit(polygonBbox.getMinX()))-1);
+		int maxX = Math.min(width, lonToX(Utils.toMapUnit(polygonBbox.getMaxX()))+1);
+		Area bounds = new Area(yToLat(minY),xToLon(minX),yToLat(maxY),xToLon(maxX));
+		return subset(bounds);
+	}
+	
+	/**
+	 * Set those grid elements to zero that do not intersect with the polygon area.
+	 * Make sure that intersecting elements have a count > 0.
+	 * @param polygonArea the polygon area with values in degrees
+	 * @return an area with rectilinear shape with values in map units 
+	 */
+	public java.awt.geom.Area filterWithPolygon(java.awt.geom.Area polygonArea){
+		if (polygonArea == null)
+			return null;
+		java.awt.geom.Area simpleArea = new java.awt.geom.Area();
+		double gridElemWidth = Utils.toDegrees(bounds.getWidth() / width);
+		double gridElemHeight= Utils.toDegrees(bounds.getHeight()/ height);
 		
-		double width1 = 360.0 / width;
-		double height1= 180.0 / height;
-		System.out.println("Applying bounding polygon...");
-		long start = System.currentTimeMillis();
-		Rectangle2D polygonBbox = polygon.getBounds2D();
-		for (int x = 0; x < width; x++){
-			if (nodeMap[x] != null){
-				double minX = Utils.toDegrees(xToLon(x));
-				for (int y = 0; y < height; y++){
-					if (nodeMap[x][y] != 0){
-						double minY = Utils.toDegrees(yToLat(y));
-						if (polygonBbox.intersects(minX,minY,width1,height1) == false)
-							nodeMap[x][y] = 0;
-						else if (polygon.intersects(minX,minY,width1,height1) == false)
-							nodeMap[x][y] = 0;
+		Rectangle2D polygonBbox = polygonArea.getBounds2D();
+		int minY = Math.max(0, latToY(Utils.toMapUnit(polygonBbox.getMinY()))-1);
+		int maxY = Math.min(height, latToY(Utils.toMapUnit(polygonBbox.getMaxY()))+1);
+		
+		for (int x = 0; x < width; x++) {
+			double xDegrees = Utils.toDegrees(xToLon(x));
+			if (xDegrees + gridElemWidth < polygonBbox.getMinX() 
+					|| xDegrees > polygonBbox.getMaxX()
+					|| polygonArea.intersects(xDegrees, polygonBbox.getMinY(), gridElemWidth, polygonBbox.getHeight()) == false){
+				nodeMap[x] = null;
+				continue;
+			}
+			if (nodeMap[x] == null) 
+				nodeMap[x] = new int[height];
+			int firstY = -1;
+			for (int y = 0; y < height; y++) {
+				double yDegress = Utils.toDegrees(yToLat(y));
+				if (y < minY || y > maxY 
+						|| polygonArea.intersects(xDegrees, yDegress, gridElemWidth, gridElemHeight) == false){
+					nodeMap[x][y] = 0;
+					if (firstY >= 0){
+						simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,y-firstY)));
+						firstY = -1; 
 					}
+				} else {
+					// make sure that trimming doesn't produce holes 
+					nodeMap[x][y] = Math.max(1, nodeMap[x][y]);
+					if (firstY < 0)
+						firstY = y; 
 				}
 			}
+			if (firstY >= 0){
+				simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,height-firstY)));
+			}
 		}
-		System.out.println("Polygon filtering took " + (System.currentTimeMillis()-start) + " ms");
+		// we need trimming  when a polygon is used
+		this.trim = true;
+		return simpleArea;
 	}
 	
 	public boolean isTrim(){
@@ -123,6 +168,15 @@ public class DensityMap {
 
 	public int getNodeCount(int x, int y) {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
+	}
+	public long getNodeCount(int x, int y1, int y2) {
+		long sum = 0;
+		if (nodeMap[x] != null){
+			int[] col = nodeMap[x];
+			for (int y = y1; y < y2; y++)
+				sum += col[y];
+		}
+		return sum;
 	}
 
 	public DensityMap subset(final Area subsetBounds) {
@@ -355,5 +409,7 @@ public class DensityMap {
 		}
 		return collectorBounds;
 	}
+
+	
 
 }
