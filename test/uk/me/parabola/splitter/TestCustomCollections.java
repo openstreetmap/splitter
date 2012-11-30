@@ -100,7 +100,7 @@ public class TestCustomCollections {
 			Assert.assertEquals(true, j == i+333 | j == i+555);
 			Assert.assertEquals(map.size(), mapSize);
 		}
-
+				
 		Assert.assertEquals(map.get(idOffset + 123456), Short.MIN_VALUE);
 		map.put(idOffset + 123456, (short) 999);
 		Assert.assertEquals(map.get(idOffset + 123456), 999);
@@ -112,7 +112,40 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset - 123456), 999);
 		map.put(idOffset - 123456, (short) 888);
 		Assert.assertEquals(map.get(idOffset - 123456), 888);
-
+		map.put(idOffset + 3008, (short) 888);
+		map.put(idOffset + 3009, (short) 888);
+		map.put(idOffset + 3010, (short) 876);
+		map.put(idOffset + 3011, (short) 876);
+		map.put(idOffset + 3012, (short) 678);
+		map.put(idOffset + 3013, (short) 678);
+		map.put(idOffset + 3014, (short) 678);
+		map.put(idOffset + 3015, (short) 678);
+		map.put(idOffset + 3016, (short) 678);
+		map.put(idOffset + 3017, (short) 678);
+		map.put(idOffset + 4000, (short) 888);
+		map.put(idOffset + 4001, (short) 888);
+		map.put(idOffset + 4002, (short) 876);
+		map.put(idOffset + 4003, (short) 876);
+		// update the first one
+		map.put(idOffset + 3008, (short) 889);
+		// update the 2nd one
+		map.put(idOffset + 4000, (short) 889);
+		// add a very different key
+		map.put(idOffset + 5000, (short) 889);
+		map.put(idOffset + 5001, (short) 222);
+		Assert.assertEquals(map.get(idOffset + 3008), 889);
+		Assert.assertEquals(map.get(idOffset + 3009), 888);
+		Assert.assertEquals(map.get(idOffset + 3010), 876);
+		Assert.assertEquals(map.get(idOffset + 3011), 876);
+		Assert.assertEquals(map.get(idOffset + 3012), 678);
+		Assert.assertEquals(map.get(idOffset + 3013), 678);
+		Assert.assertEquals(map.get(idOffset + 3014), 678);
+		Assert.assertEquals(map.get(idOffset + 4000), 889);
+		Assert.assertEquals(map.get(idOffset + 4001), 888);
+		Assert.assertEquals(map.get(idOffset + 4002), 876);
+		Assert.assertEquals(map.get(idOffset + 4003), 876);
+		Assert.assertEquals(map.get(idOffset + 5000), 889);
+		Assert.assertEquals(map.get(idOffset + 5001), 222);
 	}
 
 	@Test

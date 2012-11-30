@@ -48,6 +48,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	//private long countQuickTest = 0;
 	//private long countFullTest = 0;
 	private long countCoords = 0;
+	private final int writerOffset;
+	private final int lastWriter;
 	private boolean isFirstPass;
 	private boolean isLastPass;
 	private WriterIndex writerIndex;
@@ -73,6 +75,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.coords = new SparseLong2ShortMapInline();
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.isFirstPass = (writerOffset == 0);
+		this.writerOffset = writerOffset;
+		this.lastWriter = writerOffset + numWritersThisPass-1;
 		this.isLastPass = (writerOffset + numWritersThisPass == writers.length);
 		this.problemWays = problemWays;
 		this.problemRels = problemRels;
@@ -98,6 +102,9 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			writerSet.clear();
 		for (int i = 0; i < writerCandidates.l.size(); i++) {
 			int n = writerCandidates.l.get(i);
+			if (n < writerOffset || n > lastWriter)
+				continue;
+
 			boolean found;
 			if (writerCandidates.testNeeded){
 				OSMWriter w = writers[n];
@@ -130,15 +137,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	@Override
 	public void processWay(Way way) {
+		boolean maybeChanged = false;
 		int oldclIndex = UNASSIGNED;
 		short wayWriterIdx; 
 		//BitSet wayNodeWriterCombis = new BitSet();
 		writerSet.clear();
-		if (!isFirstPass){
-			wayWriterIdx = ways.get(way.getId());
-			if (wayWriterIdx != UNASSIGNED)
-				writerSet.or(writerDictionary.getBitSet(wayWriterIdx));
-		}
 		//for (long id: way.getRefs()){
 		int refs = way.getRefs().size();
 		for (int i = 0; i < refs; i++){
@@ -153,15 +156,22 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				BitSet cl = writerDictionary.getBitSet(clIdx);
 				writerSet.or(cl);
 				oldclIndex = clIdx;
+				maybeChanged = true;
 			}
 		}
+		if (!isFirstPass && maybeChanged || isLastPass){
+			wayWriterIdx = ways.get(way.getId());
+			if (wayWriterIdx != UNASSIGNED)
+				writerSet.or(writerDictionary.getBitSet(wayWriterIdx));
+		}
+		
 		if (isLastPass){
 			if (checkWriters(writerSet)){
 				problemWays.add(way.getId());
 				//System.out.println("gen: w" + way.getId() + " touches " + writerDictionary.getMapIds(writerSet));
 			}
 		}
-		if (writerSet.isEmpty() == false){
+		if (maybeChanged && writerSet.isEmpty() == false){
 			wayWriterIdx = writerDictionary.translate(writerSet);
 			ways.put(way.getId(), wayWriterIdx);
 		}
@@ -230,7 +240,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		ways.stats(1);
 		if (isLastPass){
 			System.out.println("");
-			System.out.println("  Number of stored integers for ways: " + Util.format(dataStorer.getUsedWays().size()));
+			System.out.println("  Number of stored shorts for ways: " + Util.format(dataStorer.getUsedWays().size()));
 			System.out.println("  Number of stored integers for rels: " + Util.format(dataStorer.getUsedRels().size()));
 			System.out.println("  Number of stored combis in big dictionary: " + Util.format(dataStorer.getMultiTileWriterDictionary().size()));
 			System.out.println("  Number of detected problem ways: " + Util.format(problemWays.size()));

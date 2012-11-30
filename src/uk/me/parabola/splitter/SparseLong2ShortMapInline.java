@@ -279,7 +279,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 						}
 						++opos;
 					}
-					if (ipos+1 < chunkLen){
+					if (ipos+1 < startPos + chunkLen){
 						len = store[ipos++];
 						val = store[ipos++];
 					}
