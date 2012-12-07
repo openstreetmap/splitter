@@ -194,8 +194,13 @@ public class Main {
 			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units");
 			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areaList = calculateAreas();
-			if (areaList == null || areaList.getAreas().isEmpty())
+			if (areaList == null || areaList.getAreas().isEmpty()){
+				System.err.println("Failed to calculate areas. See log for details.");
+				System.out.println("Failed to calculate areas.");
+				System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
+				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
 				return;
+			}
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
 			}
@@ -221,10 +226,10 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		/*
+		
 		try {Thread.sleep(1000);}catch (InterruptedException e) {}
 		System.err.println("stopped here"); System.exit(-1); // TODO: remove this and sleep above
-		*/
+		
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 		}
@@ -321,7 +326,10 @@ public class Main {
 		
 		if (keepComplete){
 			if (overlapAmount > 0){
-				System.err.println("Warning: --overlap is used in combination with --keep-complete=true");
+				System.err.println("Warning: --overlap is used in combination with --keep-complete=true ");
+				System.err.println("         The option keep-complete should be used with overlap=0 because it is very unlikely that ");
+				System.err.println("         the overlap will add any important data. It will just cause a lot of additional output which ");
+				System.err.println("         has to be thrown away again in mkgmap.");
 			} else
 				overlapAmount = 0;
 		}
@@ -342,10 +350,10 @@ public class Main {
 				System.exit(-1);
 			}
 			PolygonFileReader polyReader = new PolygonFileReader(f);
-			polygon = polyReader.loadPolygon();
+			java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
+			polygon = Utils.AreaDegreesToMapUnit(polygonInDegrees);
 			if (checkPolygon(polygon) == false){
-				System.out.println("Error: Bounding polygon is too complex. Please avoid diagonal lines!");
-				System.exit(-1);
+				System.out.println("Warning: Bounding polygon is too complex. Splitter will not try to fit all tiles into the polygon!");
 			}
 				
 		}
@@ -357,34 +365,41 @@ public class Main {
 	 */
 	private AreaList calculateAreas() throws IOException, XmlPullParserException {
 
-		MapCollector pass1Collector = new DensityMapCollector(trim, resolution); 
+		MapCollector pass1Collector = new DensityMapCollector(resolution); 
 		MapProcessor processor = pass1Collector;
 		
 		File densityData = new File("densities.txt");
-		File densityOutData = new File(fileOutputDir,"densities-out.txt");
+		File densityOutData = null;
 		if (densityData.exists() && densityData.isFile()){
 			System.err.println("reading density data from " + densityData.getAbsolutePath());
 			pass1Collector.readMap(densityData.getAbsolutePath());
 		}
-		else
+		else {
+			densityOutData = new File(fileOutputDir,"densities-out.txt");
 			processMap(processor);
+		}
 		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
 		System.out.println("Time: " + new Date());
 
 		Area exactArea = pass1Collector.getExactArea();
-		pass1Collector.saveMap(densityOutData.getAbsolutePath());
+		if (densityOutData != null )
+			pass1Collector.saveMap(densityOutData.getAbsolutePath());
 		
-		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution, polygon);
+		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
 		if (splittableArea.hasData() == false)
 			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);
-		System.out.println("Trimmed and rounded map coverage is " + splittableArea.getBounds());
+		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
 		System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
-
-		List<Area> areas = splittableArea.split(maxNodes);
+		splittableArea.setTrim(trim);
+		splittableArea.setMapId(mapId);
+		long startSplit = System.currentTimeMillis();
+		List<Area> areas = splittableArea.split(maxNodes, polygon);
+		if (areas != null && areas.isEmpty() == false)
+			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
 		return new AreaList(areas);
 	}
-
+	
 	private void nameAreas() throws IOException {
 		CityFinder cityFinder;
 		if (geoNamesFile != null) {
@@ -1116,8 +1131,7 @@ public class Main {
 	 * @param polygon
 	 * @return
 	 */
-	private boolean checkPolygon(java.awt.geom.Area polygonArea) {
-		java.awt.geom.Area mapPolygonArea = Utils.AreaDegreesToMapUnit(polygonArea);
+	private boolean checkPolygon(java.awt.geom.Area mapPolygonArea) {
 		List<List<Point>> shapes = Utils.areaToShapes(mapPolygonArea);
 		int shift = 24 - resolution;
 		long rectangleWidth = 1L << shift;

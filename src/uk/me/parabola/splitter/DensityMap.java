@@ -14,7 +14,6 @@
 package uk.me.parabola.splitter;
 
 import java.awt.Rectangle;
-import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -37,15 +36,13 @@ public class DensityMap {
 	private final int[][] nodeMap;
 	private Area bounds;
 	private long totalNodeCount;
-	private boolean trim;
 
 	/**
 	 * Creates a density map.
 	 * @param area the area that the density map covers.
 	 * @param resolution the resolution of the density map. This must be a value between 1 and 24.
 	 */
-	public DensityMap(Area area, boolean trim, int resolution) {
-		this.trim = trim;
+	public DensityMap(Area area, int resolution) {
 		assert resolution >=1 && resolution <= 24;
 		shift = 24 - resolution;
 
@@ -56,62 +53,40 @@ public class DensityMap {
 	}
 
 	/**
-	 * Trim to the bounding box of the polygon area
-	 * @param polygonArea area with values in degrees
-	 * @return trimmed map
-	 */
-	public DensityMap trimToPolygon (java.awt.geom.Area polygonArea){
-		if (polygonArea == null)
-			return this;
-		Rectangle2D polygonBbox = polygonArea.getBounds2D();
-		int minY = Math.max(0, latToY(Utils.toMapUnit(polygonBbox.getMinY()))-1);
-		int maxY = Math.min(height, latToY(Utils.toMapUnit(polygonBbox.getMaxY()))+1);
-		int minX = Math.max(0, lonToX(Utils.toMapUnit(polygonBbox.getMinX()))-1);
-		int maxX = Math.min(width, lonToX(Utils.toMapUnit(polygonBbox.getMaxX()))+1);
-		Area bounds = new Area(yToLat(minY),xToLon(minX),yToLat(maxY),xToLon(maxX));
-		return subset(bounds);
-	}
-	
-	/**
 	 * Set those grid elements to zero that do not intersect with the polygon area.
 	 * Make sure that intersecting elements have a count > 0.
-	 * @param polygonArea the polygon area with values in degrees
-	 * @return an area with rectilinear shape with values in map units 
+	 * @param polygonArea the polygon area 
+	 * @return an area with rectilinear shape that approximates the polygon area 
 	 */
-	public java.awt.geom.Area filterWithPolygon(java.awt.geom.Area polygonArea){
+	public java.awt.geom.Area rasterPolygon(java.awt.geom.Area polygonArea){
 		if (polygonArea == null)
 			return null;
 		java.awt.geom.Area simpleArea = new java.awt.geom.Area();
-		double gridElemWidth = Utils.toDegrees(bounds.getWidth() / width);
-		double gridElemHeight= Utils.toDegrees(bounds.getHeight()/ height);
+		int gridElemWidth = bounds.getWidth() / width;
+		int gridElemHeight= bounds.getHeight()/ height;
 		
-		Rectangle2D polygonBbox = polygonArea.getBounds2D();
-		int minY = Math.max(0, latToY(Utils.toMapUnit(polygonBbox.getMinY()))-1);
-		int maxY = Math.min(height, latToY(Utils.toMapUnit(polygonBbox.getMaxY()))+1);
-		
+		Rectangle polygonBbox = polygonArea.getBounds();
+		int minY = Math.max(0, latToY((int)polygonBbox.getMinY())-1);
+		int maxY = Math.min(height, latToY((int)polygonBbox.getMaxY())+1);
+		assert minY >= 0 && minY <= height;
+		assert maxY >= 0 && maxY <= height;
 		for (int x = 0; x < width; x++) {
-			double xDegrees = Utils.toDegrees(xToLon(x));
-			if (xDegrees + gridElemWidth < polygonBbox.getMinX() 
-					|| xDegrees > polygonBbox.getMaxX()
-					|| polygonArea.intersects(xDegrees, polygonBbox.getMinY(), gridElemWidth, polygonBbox.getHeight()) == false){
-				nodeMap[x] = null;
+			int lon = xToLon(x);
+			if (lon + gridElemWidth < polygonBbox.getMinX() 
+					|| lon > polygonBbox.getMaxX()
+					|| polygonArea.intersects(lon, polygonBbox.getMinY(), gridElemWidth, polygonBbox.getHeight()) == false){
 				continue;
 			}
-			if (nodeMap[x] == null) 
-				nodeMap[x] = new int[height];
 			int firstY = -1;
 			for (int y = 0; y < height; y++) {
-				double yDegress = Utils.toDegrees(yToLat(y));
+				int lat = yToLat(y);
 				if (y < minY || y > maxY 
-						|| polygonArea.intersects(xDegrees, yDegress, gridElemWidth, gridElemHeight) == false){
-					nodeMap[x][y] = 0;
+						|| polygonArea.intersects(lon, lat, gridElemWidth, gridElemHeight) == false){
 					if (firstY >= 0){
 						simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,y-firstY)));
 						firstY = -1; 
 					}
 				} else {
-					// make sure that trimming doesn't produce holes 
-					nodeMap[x][y] = Math.max(1, nodeMap[x][y]);
 					if (firstY < 0)
 						firstY = y; 
 				}
@@ -120,13 +95,7 @@ public class DensityMap {
 				simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,height-firstY)));
 			}
 		}
-		// we need trimming  when a polygon is used
-		this.trim = true;
 		return simpleArea;
-	}
-	
-	public boolean isTrim(){
-		return trim == true;
 	}
 	
 	public int getShift() {
@@ -169,16 +138,22 @@ public class DensityMap {
 	public int getNodeCount(int x, int y) {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
 	}
-	public long getNodeCount(int x, int y1, int y2) {
-		long sum = 0;
-		if (nodeMap[x] != null){
-			int[] col = nodeMap[x];
-			for (int y = y1; y < y2; y++)
-				sum += col[y];
-		}
-		return sum;
-	}
 
+	public int[][] getyxMap(){
+		int[][] yxMap = new int[height][];
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				int count = (nodeMap[x] == null) ? 0:nodeMap[x][y];
+				if (count > 0) {
+					if (yxMap[y] == null)
+						yxMap[y] = new int[width];
+					yxMap[y][x] = count;
+				}
+			}
+		}
+		return yxMap;
+	}
+	
 	public DensityMap subset(final Area subsetBounds) {
 		int minLat = Math.max(bounds.getMinLat(), subsetBounds.getMinLat());
 		int minLon = Math.max(bounds.getMinLong(), subsetBounds.getMinLong());
@@ -187,20 +162,21 @@ public class DensityMap {
 
 		// If the area doesn't intersect with the density map, return an empty map
 		if (minLat > maxLat || minLon > maxLon) {
-			return new DensityMap(Area.EMPTY, trim, 24 - shift);
+			return new DensityMap(Area.EMPTY, 24 - shift);
 		}
 
 		Area subset = new Area(minLat, minLon, maxLat, maxLon);
+		/*
 		if (trim) {
 			subset = trim(subset);
 		}
-
+*/
 		// If there's nothing in the area return an empty map
 		if (subset.getWidth() == 0 || subset.getHeight() == 0) {
-			return new DensityMap(Area.EMPTY, trim, 24 - shift);
+			return new DensityMap(Area.EMPTY, 24 - shift);
 		}
 
-		DensityMap result = new DensityMap(subset, trim, 24 - shift);
+		DensityMap result = new DensityMap(subset, 24 - shift);
 
 		int startX = lonToX(subset.getMinLong());
 		int startY = latToY(subset.getMinLat());
@@ -228,6 +204,7 @@ public class DensityMap {
 	/**
 	 * Sets the trimmed bounds based on any empty edges around the density map
 	 */
+	/*
 	private Area trim(Area area) {
 
 		int minX = lonToX(area.getMinLong());
@@ -264,7 +241,7 @@ public class DensityMap {
 		Area trimmedArea = new Area(yToLat(minY), xToLon(minX), yToLat(maxY), xToLon(maxX));
 		return trimmedArea;
 	}
-
+	 
 	private boolean isEmptyX(int x, int start, int end) {
 		int[] array = nodeMap[x];
 		if (array != null) {
@@ -283,7 +260,7 @@ public class DensityMap {
 		}
 		return true;
 	}
-
+*/
 	private int yToLat(int y) {
 		return (y << shift) + bounds.getMinLat();
 	}
@@ -354,6 +331,7 @@ public class DensityMap {
 				if (items.length != 4){
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
 							+ problemLine);
+					problemReader.close();
 					return null;
 				}
 				details.addToBounds(Integer.parseInt(items[0]), Integer.parseInt(items[1]));
@@ -365,6 +343,7 @@ public class DensityMap {
 				if (items.length != 4){
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
 							+ problemLine);
+					problemReader.close();
 					return null;
 				}
 				collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
@@ -375,6 +354,7 @@ public class DensityMap {
 				if (items.length != 3) {
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
 							+ problemLine);
+					problemReader.close();
 					return null;
 				}
 				int x,y,sum;
@@ -398,6 +378,7 @@ public class DensityMap {
 				catch(NumberFormatException exp){
 					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
 							+ problemLine + exp);
+					problemReader.close();
 					return null;
 				}
 			}
@@ -408,6 +389,15 @@ public class DensityMap {
 			return null;
 		}
 		return collectorBounds;
+	}
+
+	public Area getArea(int x, int y, int width2, int height2) {
+		assert x >= 0;
+		assert y >= 0;
+		assert width2 > 0;
+		assert height2 > 0;
+		Area area = new Area(yToLat(y),xToLon(x),yToLat(y+height2),xToLon(x+width2));
+		return area;
 	}
 
 	

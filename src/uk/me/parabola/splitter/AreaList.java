@@ -74,6 +74,7 @@ public class AreaList {
 						Utils.toDegrees(area.getMaxLat()), Utils.toDegrees(area.getMaxLong()));
 				pw.println();
 			}
+			pw.close();
 
 		} catch (IOException e) {
 			System.err.println("Could not write areas.list file");
@@ -139,6 +140,7 @@ public class AreaList {
 									"  </Placemark>\n", area.getMapId(), name, south, west, north, east);
 			}
 			pw.print("</Document>\n</kml>");
+			pw.close();
 		} catch (IOException e) {
 			System.err.println("Could not write KML file " + filename);
 		} finally {
@@ -190,6 +192,7 @@ public class AreaList {
 				area.setMapId(Integer.parseInt(mapid));
 				areas.add(area);
 			}
+			br.close();
 		} catch (NumberFormatException e) {
 			areas = Collections.emptyList();
 			System.err.println("Bad number in areas list file");

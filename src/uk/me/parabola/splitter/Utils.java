@@ -89,6 +89,7 @@ public class Utils {
 	 * @return A stream that will read the file, positioned at the beginning.
 	 * @throws IOException If the file cannot be opened for any reason.
 	 */
+	@SuppressWarnings("resource")
 	public static Reader openFile(String name, boolean backgroundReader) throws IOException {
 		InputStream is = new BufferedInputStream(new FileInputStream(name), 8192);
 		if (name.endsWith(".gz")) {
@@ -219,6 +220,8 @@ public class Utils {
 	 * @return
 	 */
 	public static java.awt.geom.Area AreaDegreesToMapUnit(java.awt.geom.Area area){
+		if (area == null)
+			return null;
 		double[] res = new double[6];
 		Path2D path = new Path2D.Double();
 		PathIterator pit = area.getPathIterator(null);

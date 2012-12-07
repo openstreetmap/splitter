@@ -21,16 +21,16 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 	private final MapDetails details = new MapDetails();
 	private Area bounds;
 
-	DensityMapCollector(boolean trim, int resolution) {
-		this(null, trim, resolution);
+	DensityMapCollector(int resolution) {
+		this(null, resolution);
 	}
 
-	DensityMapCollector(Area bounds, boolean trim, int resolution) {
+	DensityMapCollector(Area bounds, int resolution) {
 		if (bounds == null) {
 			// If we don't receive any bounds we have to assume the whole planet
 			bounds = new Area(-0x400000, -0x800000, 0x400000, 0x800000);
 		}
-		densityMap = new DensityMap(bounds, trim, resolution);
+		densityMap = new DensityMap(bounds, resolution);
 	}
 
 	@Override
@@ -74,12 +74,11 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 			return details.getBounds();
 		}
 	}
-
 	@Override
-	public SplittableArea getRoundedArea(int resolution, java.awt.geom.Area polygon) {
+	public SplittableArea getRoundedArea(int resolution) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);
-		return new SplittableDensityArea(densityMap, bounds, polygon);
-	}
+		return new SplittableDensityArea(densityMap.subset(bounds));
+	} 
 
 	@Override
 	public void saveMap(String fileName) {

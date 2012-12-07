@@ -28,5 +28,11 @@ public interface SplittableArea {
 	 */
 	List<Area> split(long maxNodes);
 	
+	List<Area> split(long maxNodes, java.awt.geom.Area polygonArea);
+	
 	boolean hasData();
+	
+	void setTrim(boolean trim);
+
+	void setMapId(int mapId);
 }

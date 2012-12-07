@@ -16,7 +16,7 @@ package uk.me.parabola.splitter;
 public interface MapCollector extends MapProcessor {
 	Area getExactArea();
 
-	SplittableArea getRoundedArea(int resolution, java.awt.geom.Area polygon);
+	SplittableArea getRoundedArea(int resolution);
 
 	void saveMap(String fileName);
 	void readMap(String fileName);

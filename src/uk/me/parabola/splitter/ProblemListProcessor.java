@@ -28,9 +28,6 @@ import java.util.BitSet;
  * - a way is incomplete (in at least one tile) if its nodes are written to different combinations of writers
  * - a relation is incomplete (in at least one tile) if its members are written to different combinations of writers
  * 
- * TODO: find out how to handle nodes that are not written to any tile (ways and rels referring to them are problem cases)
- * TODO: find an appropriate data structure to store the needed info even if planet is used as input and split-file is used to
- * specify a few areas.
  */
 class ProblemListProcessor extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
