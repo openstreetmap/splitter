@@ -226,10 +226,10 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		
+		/*
 		try {Thread.sleep(1000);}catch (InterruptedException e) {}
 		System.err.println("stopped here"); System.exit(-1); // TODO: remove this and sleep above
-		
+		*/
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 		}
