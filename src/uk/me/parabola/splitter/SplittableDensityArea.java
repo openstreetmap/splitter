@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map.Entry;
 
 /**
  * Splits a density map into multiple areas, none of which
@@ -40,7 +39,6 @@ public class SplittableDensityArea implements SplittableArea {
 	private double maxAspectRatio = Double.MIN_VALUE;
 	private long minNodes = Long.MAX_VALUE;
 	private final DensityMap allDensities;
-	//private DensityMap filteredDensities;
 	private int spread = 0;
 	private double[] aspectRatioFactor;
 	int minAspectRatioFactorPos = Integer.MAX_VALUE;
@@ -54,11 +52,12 @@ public class SplittableDensityArea implements SplittableArea {
 	private int [][]xyMap;
 	private final int maxTileHeight;
 	private final int maxTileWidth;
-	private boolean trim;
+	private boolean trimShape;
+	private boolean trimTiles;
 	private boolean allowEmptyPart = false;
 	private int startMapId;
 	private int maxNodesInDensityMapGridElement;
-	
+	enum sides {TOP,RIGHT,BOTTOM,LEFT};
 	
 	public SplittableDensityArea(DensityMap densities) {
 		knownTileCounts = new HashMap<Rectangle, Long>();
@@ -67,10 +66,14 @@ public class SplittableDensityArea implements SplittableArea {
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
 		allDensities = densities;
 	}
+	@Override
+	public void setMapId(int mapId) {
+		startMapId = mapId;
+	}
 
 	@Override
 	public void setTrim(boolean trim) {
-		this.trim = trim;
+		this.trimShape = trim;
 	}
 
 	@Override
@@ -90,7 +93,7 @@ public class SplittableDensityArea implements SplittableArea {
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
 		cache = new HashSet<Tile>();
-		prepare();
+		prepare(null);
 		Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight(), allDensities.getNodeCount());
 		
 		Solution fullSolution = new Solution();
@@ -135,17 +138,17 @@ public class SplittableDensityArea implements SplittableArea {
 		if (polygonArea == null)
 			return split(maxNodes);
 		if (polygonArea.isSingular()){
-			prepare();
 			java.awt.geom.Area rasteredArea = allDensities.rasterPolygon(polygonArea);
+			prepare(polygonArea);
 			Tile tile = new Tile(rasteredArea.getBounds().x,rasteredArea.getBounds().y,rasteredArea.getBounds().width,rasteredArea.getBounds().height);
-			// todo: check if rasteredArea has too many vertices
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
 			return solution.getAreas(polygonArea);
 		} else 
 			return splitPolygon(polygonArea);
 	}
 
-	private void prepare(){
+	
+	private void prepare(java.awt.geom.Area polygonArea){
 		aspectRatioFactor = new double[allDensities.getHeight()+1];
 		int minLat = allDensities.getBounds().getMinLat(); 
 		int maxLat = allDensities.getBounds().getMaxLat();
@@ -165,9 +168,20 @@ public class SplittableDensityArea implements SplittableArea {
 		int width = allDensities.getWidth();
 		int height = allDensities.getHeight();
 		xyMap = new int [width][height];
+		if (polygonArea != null)
+			trimTiles = true;
 		for (int x = 0; x < width; x++){
+			int polyXPos = allDensities.getBounds().getMinLong() +  (x << shift);
+			
 			for(int y = 0; y < height; y++){
 				int count = allDensities.getNodeCount(x, y);
+				if (polygonArea != null){
+					int polyYPos = allDensities.getBounds().getMinLat() + (y << shift);
+					if (polygonArea.intersects(polyXPos, polyYPos, 1<<shift, 1<<shift))
+						count = Math.max(1, count);
+					else 
+						count = 0;
+				}
 				if (count > 0){
 					if (count > maxNodesInDensityMapGridElement)
 						maxNodesInDensityMapGridElement = count;
@@ -175,7 +189,7 @@ public class SplittableDensityArea implements SplittableArea {
 				}
 			}
 		}
-		System.out.println("Highest node count in a single tile is " + maxNodesInDensityMapGridElement);
+		System.out.println("Highest node count in a single grid element is " +Utils.format(maxNodesInDensityMapGridElement));
 		yxMap = new int [height][width];
 		for(int y = 0; y < height; y++){
 			for (int x = 0; x < width; x++){
@@ -280,16 +294,17 @@ public class SplittableDensityArea implements SplittableArea {
 			Rectangle r = rasteredPolygonArea.getBounds();
 			Tile part = new Tile(r.x, r.y, r.width, r.height);
 			return solveRectangularArea(part);
-			//return findSolution(0, part);
 		} else {
 			List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
 			List<Point> shape = shapes.get(0);
 			Rectangle pBounds = rasteredPolygonArea.getBounds();
+			
 			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
 				Rectangle r = rasteredPolygonArea.getBounds();
 				Tile part = new Tile(r.x, r.y, r.width, r.height);
 				return solveRectangularArea(part);
 			}
+			
 			int lastPoint = shape.size() - 1;
 			if (shape.get(0).equals(shape.get(lastPoint)))
 				--lastPoint;
@@ -310,16 +325,21 @@ public class SplittableDensityArea implements SplittableArea {
 						r2 = new Rectangle(pBounds.x,cutY,pBounds.width,(int)(pBounds.getMaxY()-cutY));
 					}
 
+					if (r1.width * r1.height> r2.width * r2.height){
+						Rectangle help = r1;
+						r1 = r2;
+						r2 = help;
+					}
 					if (r1.isEmpty() == false && r2.isEmpty() == false){
 						java.awt.geom.Area area = new java.awt.geom.Area(r1);
 						area.intersect(rasteredPolygonArea);
 						
 						part0Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
-						if (part0Sol != null){
+						if (part0Sol != null && part0Sol.isEmpty() == false){
 							area = new java.awt.geom.Area(r2);
 							area.intersect(rasteredPolygonArea);
 							part1Sol = findSolutionWithSinglePolygon(depth, tile, area);
-							if (part1Sol != null)
+							if (part1Sol != null && part1Sol.isEmpty() == false)
 								break;
 						}
 					}
@@ -474,7 +494,10 @@ public class SplittableDensityArea implements SplittableArea {
 					parts[0] = parts[1];
 					parts[1] = help;
 				}
-				
+				if (trimTiles){
+					parts[0].trim();
+					parts[1].trim();
+				}
 				part0Sol = findSolution(depth + 1, parts[0]);
 				if (part0Sol == null)
 					markBad(parts[0]);
@@ -1002,7 +1025,8 @@ public class SplittableDensityArea implements SplittableArea {
 			if (polygonArea != null){
 				System.out.println("Trying to cut the areas so that they fit into the polygon ...");
 			} else {
-				// TODO: maybe trim outer tiles without creating holes or gaps between tiles
+				if (trimShape)
+					trimOuterTiles();
 			}
 			
 			boolean fits  = true;
@@ -1039,89 +1063,134 @@ public class SplittableDensityArea implements SplittableArea {
 
 		}
 
-		/* doesn't work yet
-		final private static int LOWER_LEFT  = 0;
-		final private static int UPPER_LEFT  = 1;
-		final private static int LOWER_RIGHT = 2;
-		final private static int UPPER_RIGHT = 3;
 		
+		/**
+		 * Trim tiles without creating holes or gaps between tiles
+		 */
 		private void trimOuterTiles() {
-			Point corner1 = new Point();
-			Point corner2 = new Point();
 			while (true){
-				boolean trimmed = false;
-				for (int i = 0; i < tiles.size(); i++){
-					Tile t1 = tiles.get(i);
-					for (int currCorner = 0; currCorner < 4; currCorner++){
-						switch (currCorner){
-						case LOWER_LEFT: corner1.x = t1.x; corner1.y = t1.y; break; 
-						case UPPER_LEFT: corner1.x = t1.x; corner1.y = t1.y + t1.height;break; 
-						case LOWER_RIGHT: corner1.x = t1.x + t1.width; corner1.y = t1.y; break; 
-						case UPPER_RIGHT: corner1.x = t1.x + t1.width; corner1.y = t1.y + t1.height; 
+				boolean trimmedAny = false;
+
+				int minX = Integer.MAX_VALUE;
+				int maxX = Integer.MIN_VALUE;
+				int minY = Integer.MAX_VALUE;
+				int maxY = Integer.MIN_VALUE;
+				
+				for (Tile tile : tiles){
+					if (minX > tile.x) minX = tile.x;
+					if (minY > tile.y) minY = tile.y;
+					if (maxX < tile.getMaxX()) maxX = (int) tile.getMaxX();
+					if (maxY < tile.getMaxY()) maxY = (int) tile.getMaxY();
+				}
+				for (sides side:sides.values()){
+					for (int direction = -1; direction <= 1; direction += 2){
+						int trimToPos = -1;
+						switch (side){
+						case LEFT:
+						case BOTTOM: trimToPos = Integer.MAX_VALUE;
+						break;
+						case TOP:
+						case RIGHT: trimToPos = -1;
 						}
-						boolean free = true;
-						for (int j = 0; j < tiles.size(); j++){
-							if (i == j)
-								continue;
-							Tile t2 = tiles.get(j);
-							corner2.x = t2.x + t2.width; corner2.y = t2.y;
-							if (corner1.equals(corner2)){
-								free = false;
-								break;
-							}
-							corner2.x = t2.x + t2.width; corner2.y = t2.y;
-							if (corner1.equals(corner2)){
-								free = false;
-								break;
-							}
-							corner2.x = t2.x; corner2.y = t2.y + t2.height;
-							if (corner1.equals(corner2)){
-								free = false;
-								break;
-							}
-							corner2.x = t2.x + t2.width; corner2.y = t2.y + t2.height;
-							if (corner1.equals(corner2)){
-								free = false;
-								break;
-							}
-							
-						}
-						if (free){
-							Tile old = (Tile) t1.clone();
-							// found a free corner, try to trim tile at this corner
-							if (currCorner == LOWER_LEFT || currCorner == UPPER_LEFT){
-								while (t1.getColSum(0) == 0){
-									t1.x ++;
-									t1.width--;
+						while (true){
+							Tile candidate = null;
+							boolean trimmed = false;
+							for (Tile tile : tiles){
+								if (tile.count == 0)
+									continue;
+								switch (side){
+								case LEFT: 
+									if (minX == tile.x){
+										if (candidate == null)
+											candidate = tile;
+										else if (direction < 0 && candidate.y > tile.y)
+											candidate = tile;
+										else if (direction > 0 && candidate.getMaxY() < tile.getMaxY())
+											candidate = tile;
+									}
+									break;
+								case RIGHT: 
+									if (maxX == tile.getMaxX()){
+										if (candidate == null)
+											candidate = tile;
+										else if (direction < 0 && candidate.y > tile.y)
+											candidate = tile;
+										else if (direction > 0 && candidate.getMaxY() < tile.getMaxY())
+											candidate = tile;
+									}
+									break;
+								case BOTTOM: 
+									if (minY == tile.y){
+										if (candidate == null)
+											candidate = tile;
+										else if (direction < 0 && candidate.x > tile.x)
+											candidate = tile;
+										else if (direction > 0 && candidate.getMaxX() < tile.getMaxX())
+											candidate = tile;
+									}
+									break;
+								case TOP: 
+									if (maxY == tile.getMaxY()){
+										if (candidate == null)
+											candidate = tile;
+										else if (direction < 0 && candidate.x > tile.x)
+											candidate = tile;
+										else if (direction > 0 && candidate.getMaxX() < tile.getMaxX())
+											candidate = tile;
+									}
+									break;
 								}
 							}
-							if (currCorner == LOWER_RIGHT || currCorner == LOWER_RIGHT){
-								while (t1.getColSum(t1.width-1) == 0){
-									t1.width--;
+							if (candidate == null)
+								break;
+							Rectangle before = new Rectangle(candidate);
+							switch (side){
+							case LEFT:  
+								while (candidate.x < trimToPos && candidate.getColSum(0) == 0){
+									candidate.x ++;
+									candidate.width--;
 								}
-							}	
-							if (currCorner == LOWER_LEFT || currCorner == LOWER_RIGHT){
-								while (t1.getRowSum(0) == 0){
-									t1.y ++;
-									t1.height--;
+								if (candidate.x < trimToPos)
+									trimToPos = candidate.x;
+								break;
+							case RIGHT:
+								while ((candidate.getMaxX() > trimToPos) && candidate.getColSum(candidate.width-1) == 0){
+									candidate.width--;
 								}
-							}	
-							if (currCorner == UPPER_LEFT || currCorner == UPPER_RIGHT){
-								while (t1.getRowSum(t1.height-1) == 0){
-									t1.height--;
+								if (candidate.getMaxX() > trimToPos)
+									trimToPos = (int) candidate.getMaxX();
+								break;
+							case BOTTOM:
+								while (candidate.y < trimToPos && candidate.getRowSum(0) == 0){
+									candidate.y ++;
+									candidate.height--;
 								}
-							}	
-							if (t1.equals(old) == false)
+								if (candidate.y < trimToPos)
+									trimToPos = candidate.y;
+								break;
+							case TOP:
+								while (candidate.getMaxY() > trimToPos && candidate.getRowSum(candidate.height-1) == 0){
+									candidate.height--;
+								}
+								if (candidate.getMaxX() > trimToPos)
+									trimToPos = (int) candidate.getMaxY();
+								break;
+							}
+							if (before.equals(candidate) == false){
 								trimmed = true;
+								trimmedAny = true;
+							}
+							if (!trimmed)
+								break;
 						}
 					}
 				}
-				if (!trimmed)
+				if (!trimmedAny)
 					return;
-					
 			}
 		}
-		*/
+	
+		
 		/**
 		 * A solution is considered to be nice when aspect 
 		 * ratios are not extreme and every tile is filled
@@ -1150,10 +1219,6 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 	}
 
-	@Override
-	public void setMapId(int mapId) {
-		startMapId = mapId;
-	}
 }
 
 

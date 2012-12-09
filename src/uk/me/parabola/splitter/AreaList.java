@@ -12,6 +12,7 @@
  */
 package uk.me.parabola.splitter;
 
+import java.awt.Point;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -221,6 +222,43 @@ public class AreaList {
 		System.out.println("Areas read from file");
 		for (Area area : areas) {
 			System.out.println(area.getMapId() + " " + area.toString());
+		}
+	}
+
+	/**
+	 * Write out a poly file containing the bounding polygon for the areas 
+	 * that we calculated. 
+	 *
+	 * @param filename The poly filename to write to.
+	 */
+	public void writePoly(String filename) throws IOException {
+		java.awt.geom.Area polygonArea = new java.awt.geom.Area();
+		for (Area area : areas) {
+			polygonArea.add(new java.awt.geom.Area(Utils.area2Rectangle(area, 0)));
+		}
+		List<List<Point>> shapes = Utils.areaToShapes(polygonArea);
+		
+		Writer w = null;
+		try {
+			w = new FileWriter(filename);
+			PrintWriter pw = new PrintWriter(w);
+			pw.println("area");
+			for (int i = 0; i < shapes.size(); i++){
+				pw.println(i+1);
+				List<Point> shape = shapes.get(i);
+				
+				for (Point point: shape){
+					pw.println(String.format("  %e  %e",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y)));
+				}
+				pw.println("END");
+			}
+			pw.println("END");
+			pw.close();
+		} catch (IOException e) {
+			System.err.println("Could not write polygon file " + filename);
+		} finally {
+			if (w != null)
+				w.close();
 		}
 	}
 }

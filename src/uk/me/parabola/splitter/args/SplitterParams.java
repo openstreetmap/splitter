@@ -87,4 +87,8 @@ public interface SplitterParams {
 
 	@Option(description = "The name of a file containing a bounding polygon in osmosis polygon file format.")
 	String getPolygonFile();
+
+	@Option(defaultValue = "dist", description = "Debugging: stop after the program phase. Can be split, gen-problem-list, or handle-problem-list")
+	String getStopAfter();
+	
 }

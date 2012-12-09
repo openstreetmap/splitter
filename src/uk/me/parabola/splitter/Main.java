@@ -132,7 +132,9 @@ public class Main {
 	// for faster access on blocks in pbf files
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
 	// for faster access on blocks in o5m files
-	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>(); 
+	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>();
+
+	private String stopAfter; 
 	
 	public static void main(String[] args) {
 
@@ -191,7 +193,7 @@ public class Main {
 		if (areaList == null) {
 			int alignment = 1 << (24 - resolution);
 			System.out.println("Map is being split for resolution " + resolution + ':');
-			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units");
+			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units (" + Utils.toDegrees(alignment) + " degrees)");
 			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areaList = calculateAreas();
 			if (areaList == null || areaList.getAreas().isEmpty()){
@@ -211,6 +213,7 @@ public class Main {
 		}
 
 		List<Area> areas = areaList.getAreas();
+		areaList.writePoly(new File(fileOutputDir, "areas.poly").getPath());
 		System.out.println(areas.size() + " areas:");
 		for (Area area : areas) {
 			System.out.print("Area " + area.getMapId() + " covers " + area.toHexString());
@@ -226,12 +229,18 @@ public class Main {
 			System.out.println("Writing KML file to " + kmlOutputFile);
 			areaList.writeKml(kmlOutputFile);
 		}
-		/*
-		try {Thread.sleep(1000);}catch (InterruptedException e) {}
-		System.err.println("stopped here"); System.exit(-1); // TODO: remove this and sleep above
-		*/
+		if ("split".equals(stopAfter)){
+			try {Thread.sleep(1000);}catch (InterruptedException e) {}
+			System.err.println("stopped after " + stopAfter); 
+			System.exit(0);
+		}
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
+			if ("gen-problem-list".equals(stopAfter)){
+				try {Thread.sleep(1000);}catch (InterruptedException e) {}
+				System.err.println("stopped after " + stopAfter); 
+				System.exit(0);
+			}
 		}
 		writeAreas(areas);
 		writeArgsFile(areas);
@@ -353,9 +362,14 @@ public class Main {
 			java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
 			polygon = Utils.AreaDegreesToMapUnit(polygonInDegrees);
 			if (checkPolygon(polygon) == false){
-				System.out.println("Warning: Bounding polygon is too complex. Splitter will not try to fit all tiles into the polygon!");
+				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 			}
 				
+		}
+		stopAfter = params.getStopAfter();
+		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){
+			System.err.println("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
+			System.exit(-1);
 		}
 	}
 
@@ -394,6 +408,7 @@ public class Main {
 		splittableArea.setTrim(trim);
 		splittableArea.setMapId(mapId);
 		long startSplit = System.currentTimeMillis();
+		
 		List<Area> areas = splittableArea.split(maxNodes, polygon);
 		if (areas != null && areas.isEmpty() == false)
 			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
@@ -567,6 +582,12 @@ public class Main {
 
 			System.out.println("-----------------------------------");
 		}
+		if ("handle-problem-list".equals(stopAfter)){
+			try {Thread.sleep(1000);}catch (InterruptedException e) {}
+			System.err.println("stopped after " + stopAfter); 
+			System.exit(0);
+		}
+
 		//System.err.println("stopped before write");System.exit(-1);
 		
 		// the final split passes
