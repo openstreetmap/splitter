@@ -23,7 +23,6 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -44,7 +43,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 
 	public void initForWrite() {
 
-		String filename = new Formatter().format(Locale.ROOT, "%08d.osm.gz", mapId).toString();
+		String filename = String.format(Locale.ROOT, "%08d.osm.gz", mapId);
 		try {
 			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
 			OutputStream zos = new GZIPOutputStream(fos);

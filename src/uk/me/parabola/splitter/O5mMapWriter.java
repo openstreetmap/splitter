@@ -22,7 +22,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Formatter;
 import java.util.Iterator;
 import java.util.Locale;
 import uk.me.parabola.splitter.Relation.Member;
@@ -122,7 +121,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		ioBuf = new byte[8192];
 		resetVars();
 
-		String filename = new Formatter().format(Locale.ROOT, "%08d.o5m", mapId).toString();
+		String filename = String.format(Locale.ROOT, "%08d.o5m", mapId);
 		try {
 			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
 			BufferedOutputStream stream = new BufferedOutputStream(fos);

@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -437,8 +436,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 
   public void initForWrite()
   {
-    String filename = new Formatter()
-        .format(Locale.ROOT, "%08d.osm.pbf", mapId).toString();
+    String filename = String.format(Locale.ROOT, "%08d.osm.pbf", mapId);
     try {
       output = new BlockOutputStream(new FileOutputStream(new File(outputDir,
           filename)));
