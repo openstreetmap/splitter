@@ -495,6 +495,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 		serializer.switchTypes();
 		serializer.processBatch();
 		serializer.close();
+		serializer = null;
     }
     catch(IOException e) {
       System.out.println("Could not write end of file: " + e);

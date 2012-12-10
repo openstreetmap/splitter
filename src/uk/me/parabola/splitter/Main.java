@@ -538,7 +538,6 @@ public class Main {
 	 * @param areas Area list determined on the first pass.
 	 */
 	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
-		//OSMWriter[] allWriters = new OSMWriter[areas.size()];
 		OSMWriter[] allWriters = new OSMWriter[areas.size()];
 		for (int j = 0; j < allWriters.length; j++) {
 			Area area = areas.get(j);

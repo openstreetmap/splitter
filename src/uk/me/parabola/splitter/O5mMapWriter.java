@@ -162,6 +162,13 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		try {
 			dos.write(EOD_FLAG);
 			dos.close();
+			stw__hashtab = null;
+			stw__tabprev = null;
+			stw__tabnext = null;
+			stw__tabhash = null;
+			lastRef = null;
+			ioBuf = null;
+			stw__tab = null;
 		} catch (IOException e) {
 			System.out.println("Could not write end of file: " + e);
 		}

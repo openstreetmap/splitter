@@ -75,6 +75,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 			writeString("</osm>\n");
 			flush();
 			writer.close();
+			writer = null;
 		} catch (IOException e) {
 			System.out.println("Could not write end of file: " + e);
 		}

@@ -31,8 +31,14 @@ public interface OSMWriter {
 	
 	public int getMapId();
 	
+	/**
+	 * open output file, allocate buffers etc.
+	 */
 	public abstract void initForWrite();
 
+	/**
+	 * close output file, free resources
+	 */
 	public abstract void finishWrite();
 
 	public boolean nodeBelongsToThisArea(Node node);

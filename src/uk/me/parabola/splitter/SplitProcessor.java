@@ -42,7 +42,6 @@ class SplitProcessor extends AbstractMapProcessor {
 	private long countWays = 0;
 	private final int writerOffset;
 	private final int lastWriter;
-	private final boolean isLastPass;
 	private WriterIndex writerIndex;
 	private final int maxThreads;
 	private final short unassigned = Short.MIN_VALUE;
@@ -72,7 +71,6 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.countWays = ways.size();
 		this.writerOffset = writerOffset;
 		this.lastWriter = writerOffset + numWritersThisPass-1;
-		this.isLastPass = (writerOffset + numWritersThisPass == writers.length);
 		this.maxThreads = maxThreads;
 		this.toProcess = new ArrayBlockingQueue<InputQueueInfo>(numWritersThisPass);
 		this.writerInputQueues = new InputQueueInfo[numWritersThisPass];
@@ -217,18 +215,18 @@ class SplitProcessor extends AbstractMapProcessor {
 	public boolean endMap() {
 		System.out.println("Statistics for coords map:");
 		coords.stats(1);
-		if (isLastPass){
-			System.out.println("");
-			System.out.println("Final statistics for ways map:");
-			ways.stats(1);
-			long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
-			long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
-			long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
-			long usedMem = totalMem - freeMem;
-			System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
-			
-			System.out.println("Full Node tests:  " + Utils.format(countFullTest));
-			System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		}
+		System.out.println("");
+		System.out.println("Statistics for ways map:");
+		ways.stats(1);
+		long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+		long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
+		long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
+		long usedMem = totalMem - freeMem;
+		System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+		System.out.println("Full Node tests:  " + Utils.format(countFullTest));
+		System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		
+		coords = null;
+		ways = null;
 
 		for (int i = 0; i < writerInputQueues.length; i++) {
 			try {
