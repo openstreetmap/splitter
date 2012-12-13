@@ -2,6 +2,7 @@ package uk.me.parabola.splitter;
 
 import it.unimi.dsi.bits.Fast;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -96,11 +97,15 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	private long expanded = 0;
 	private long uncompressedLen = 0;
 	private long compressedLen = 0;
+	private int storedLengthOfCurrentChunk = 0;
+	private int currentChunkIdInStore = 0;
 
 	private HashMap<Long,int[]> topMap; 
 	private short[][][] chunkStore; 
 	private long[][][] maskStore; 
 	private int[] freePosInSore;
+	// maps chunks that can be reused  
+	private HashMap<Integer,ArrayList<Integer>> reusableChunks; 
 	
 	/**
 	 * A map that stores pairs of (OSM) IDs and short values identifying the
@@ -184,7 +189,6 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			chunkToSave = tmpWork;
 		compressedLen += opos;
 		putChunk(currentChunkId, chunkToSave, opos, mask);
-		++countChunkLen[opos];
 	}
 
 	@Override
@@ -233,8 +237,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 */
 	private void fillCurrentChunk(long key) {
 		Arrays.fill(currentChunk, unassigned);
+		storedLengthOfCurrentChunk = 0;
+		currentChunkIdInStore = 0;
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = (int[]) topMap.get(topID);
+		int[] largeVector = topMap.get(topID);
 		if (largeVector == null)
 			return;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
@@ -242,6 +248,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		int idx = largeVector[chunkid];
 		if (idx == 0)
 			return;
+		currentChunkIdInStore = idx;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 		int chunkLen = x +  1;
@@ -252,6 +259,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		long elementmask = 0;
 
 		++expanded;
+		storedLengthOfCurrentChunk = x;
 		int startPos = z * chunkLen + 1;
 		boolean isCompressed = (chunkLen == ONE_VALUE_CHUNK_SIZE || store[startPos] == unassigned); 
 		if (isCompressed){
@@ -308,7 +316,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			 return currentChunk[chunkoffset];
 		
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = (int[]) topMap.get(topID);
+		int[] largeVector = topMap.get(topID);
 		if (largeVector == null)
 			return unassigned;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
@@ -361,6 +369,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		maskStore = new long[CHUNK_SIZE+1][][];
 		freePosInSore = new int[CHUNK_SIZE+1];
 		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
+		reusableChunks = new HashMap<Integer, ArrayList<Integer>>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -392,7 +401,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 */
 	private void putChunk (long key, short[] chunk, int len, long mask) {
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = (int[]) topMap.get(topID);
+		int[] largeVector = topMap.get(topID);
 		if (largeVector == null){
 			largeVector = new int[LARGE_VECTOR_SIZE];
 			topMap.put(topID, largeVector);
@@ -400,28 +409,52 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 		int x = len - 1;
+		if (storedLengthOfCurrentChunk > 0){
+			// this is a rewrite, add the previously used chunk to the reusable list 
+			ArrayList<Integer> reusableChunk = reusableChunks.get(storedLengthOfCurrentChunk);
+			if (reusableChunk == null){
+				reusableChunk = new ArrayList<Integer>();
+				reusableChunks.put(storedLengthOfCurrentChunk, reusableChunk);
+			}
+			reusableChunk.add(currentChunkIdInStore);
+		}
 		if (chunkStore[x] == null){
 			chunkStore[x] = new short[2][];
 			maskStore[x] = new long[2][];
 		}
-		int y = ++freePosInSore[x] / CHUNK_STORE_ELEMS;
-		if (y >= chunkStore[x].length){
-			// resize
-			int newElems = Math.min(y*2,1<<CHUNK_STORE_BITS_FOR_Y);
-			short[][] tmp = new short[newElems][]; 
-			System.arraycopy(chunkStore[x], 0, tmp, 0, y);
-			chunkStore[x] = tmp;
-			long[][] tmpMask = new long[newElems][]; 
-			System.arraycopy(maskStore[x], 0, tmpMask, 0, y);
-			maskStore[x] = tmpMask;
+		ArrayList<Integer> reusableChunk = reusableChunks.get(x); 
+		Integer reusedIdx = null; 
+		int y,z;
+		short []store;
+		if (reusableChunk != null && reusableChunk.isEmpty() == false){
+			reusedIdx = reusableChunk.remove(reusableChunk.size()-1);
 		}
-		if (chunkStore[x][y] == null){
-			chunkStore[x][y] = new short[len * (CHUNK_STORE_ELEMS)+2];
-			maskStore[x][y] = new long[CHUNK_STORE_ELEMS];
+		if (reusedIdx != null){
+			y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
+			z = (reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
+			store = chunkStore[x][y];
+		} else {
+			y = ++freePosInSore[x] / CHUNK_STORE_ELEMS;
+			if (y >= chunkStore[x].length){
+				// resize
+				int newElems = Math.min(y*2,1<<CHUNK_STORE_BITS_FOR_Y);
+				short[][] tmp = new short[newElems][]; 
+				System.arraycopy(chunkStore[x], 0, tmp, 0, y);
+				chunkStore[x] = tmp;
+				long[][] tmpMask = new long[newElems][]; 
+				System.arraycopy(maskStore[x], 0, tmpMask, 0, y);
+				maskStore[x] = tmpMask;
+			}
+			if (chunkStore[x][y] == null){
+				chunkStore[x][y] = new short[len * (CHUNK_STORE_ELEMS)+2];
+				maskStore[x][y] = new long[CHUNK_STORE_ELEMS];
+			}
+			store = chunkStore[x][y];
+			z = store[0]++;
+			++countChunkLen[len];
 		}
-		short []store = chunkStore[x][y];
-		int z = store[0]++;
 		maskStore[x][y][z] = mask;
+
 		if (len > 1)
 			System.arraycopy(chunk, 0, store, z*len+1, len);
 		else 
