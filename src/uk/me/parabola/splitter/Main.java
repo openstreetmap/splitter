@@ -134,7 +134,7 @@ public class Main {
 	// for faster access on blocks in o5m files
 	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>();
 
-	private String stopAfter; 
+	private String stopAfter;
 	
 	public static void main(String[] args) {
 
@@ -208,12 +208,11 @@ public class Main {
 			}
 			nameAreas();
 			areaList.write(new File(fileOutputDir, "areas.list").getPath());
+			areaList.writePoly(new File(fileOutputDir, "areas.poly").getPath());
 		} else {
 			nameAreas();
 		}
-
 		List<Area> areas = areaList.getAreas();
-		areaList.writePoly(new File(fileOutputDir, "areas.poly").getPath());
 		System.out.println(areas.size() + " areas:");
 		for (Area area : areas) {
 			System.out.print("Area " + area.getMapId() + " covers " + area.toHexString());
@@ -299,9 +298,9 @@ public class Main {
 		fileOutputDir = new File(outputDir == null? DEFAULT_DIR: outputDir);
 
 		maxAreasPerPass = params.getMaxAreas();
-		if (maxAreasPerPass < 1 || maxAreasPerPass > 2048) {
-			System.err.println("The --max-areas parameter must be a value between 1 and 2048. Resetting to 2048.");
-			maxAreasPerPass = 2048;
+		if (maxAreasPerPass < 1 || maxAreasPerPass > 4096) {
+			System.err.println("The --max-areas parameter must be a value between 1 and 4096. Resetting to 4096.");
+			maxAreasPerPass = 4096;
 		}
 		kmlOutputFile = params.getWriteKml();
 
@@ -464,6 +463,11 @@ public class Main {
 		*/
 		int numPasses = getAreasPerPass(workAreas.size());
 		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
+		if (numPasses > 1) {
+			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
+		} else {
+			System.out.println("Processing " + areas.size() + " areas in a single pass");
+		}
 
 		OSMWriter [] writers = new OSMWriter[workAreas.size()];
 		ArrayList<Area> allAreas = new ArrayList<Area>();
@@ -519,6 +523,7 @@ public class Main {
 				distinctAreas = getNonOverlappingAreas(remainingAreas, false);
 			else 
 				remainingAreas.clear();
+			System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
 			genProblemLists(distinctAreas, partition);
 			remainingAreas.removeAll(distinctAreas);
 		} 
@@ -587,8 +592,6 @@ public class Main {
 			System.exit(0);
 		}
 
-		//System.err.println("stopped before write");System.exit(-1);
-		
 		// the final split passes
 		dataStorer.switchToSeqAccess(fileOutputDir);
 		System.out.println("Distributing data " + new Date());

@@ -237,6 +237,8 @@ public class AreaList {
 			polygonArea.add(new java.awt.geom.Area(Utils.area2Rectangle(area, 0)));
 		}
 		List<List<Point>> shapes = Utils.areaToShapes(polygonArea);
+		// start with outer polygons
+		Collections.reverse(shapes);
 		
 		Writer w = null;
 		try {
@@ -244,11 +246,25 @@ public class AreaList {
 			PrintWriter pw = new PrintWriter(w);
 			pw.println("area");
 			for (int i = 0; i < shapes.size(); i++){
-				pw.println(i+1);
 				List<Point> shape = shapes.get(i);
-				
-				for (Point point: shape){
+				if (Utils.clockwise(shape))
+					pw.println(i+1);
+				else 
+					pw.println("!" + (i+1));
+				Point point = null,lastPoint = null;
+				for (int j = 0; j < shape.size(); j++){
+					if (j > 0)
+						lastPoint = point;
+					point = shape.get(j);
+					if (j > 0 && j+1 < shape.size()){
+						Point nextPoint = shape.get(j+1); 
+						if (point.x == nextPoint.x && point.x == lastPoint.x)
+							continue;
+						if (point.y == nextPoint.y && point.y == lastPoint.y)
+							continue;
+					}
 					pw.println(String.format("  %e  %e",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y)));
+					
 				}
 				pw.println("END");
 			}

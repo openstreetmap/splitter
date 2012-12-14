@@ -34,6 +34,7 @@ import java.util.zip.ZipInputStream;
 
 import org.apache.tools.bzip2.CBZip2InputStream;
 
+
 /**
  * Some miscellaneous functions that are used within the .img code.
  *
@@ -133,7 +134,7 @@ public class Utils {
 	 * Convert area into a list of polygons each represented by a list
 	 * of points. It is possible that the area contains multiple discontinuous
 	 * polygons, so you may append more than one shape to the output list.<br/>
-	 * <b>Attention:</b> The outline of the polygon is has clockwise order whereas
+	 * <b>Attention:</b> The outline of the polygon has clockwise order whereas
 	 * holes in the polygon have counterclockwise order. 
 	 * 
 	 * Taken from Java2DConverter by WanMil in mkgmap
@@ -252,4 +253,28 @@ public class Utils {
 		}
 		return new java.awt.geom.Area(path);
 	}
+	
+	// returns true if the way is a closed polygon with a clockwise
+	// direction
+	public static boolean clockwise(List<Point> points) {
+
+		if(points.size() < 3 || !points.get(0).equals(points.get(points.size() - 1)))
+			return false;
+
+		long area = 0;
+		Point p1 = points.get(0);
+		for(int i = 1; i < points.size(); ++i) {
+			Point p2 = points.get(i);
+			area += ((long)p1.x * p2.y- 
+					 (long)p2.x * p1.y);
+			p1 = p2;
+		}
+
+		// this test looks to be inverted but gives the expected result!
+		// empty linear areas are defined as clockwise 
+		return area <= 0;
+	}
+
+	
 }
+

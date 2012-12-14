@@ -48,6 +48,7 @@ public class WriterGrid implements WriterIndex{
 	public Area getBounds(){
 		return bounds;
 	}
+
 	public WriterGridResult get (final Node n){
 		return grid.get(n.getMapLat(),n.getMapLon());
 	}
@@ -56,10 +57,6 @@ public class WriterGrid implements WriterIndex{
 		return grid.get(lat, lon);
 	}
 
-	public WriterGridResult getWithOuter(final Node n){
-		return grid.get(n.getMapLat(),n.getMapLon());
-	}
-	
 	private class Grid {
 		private final static int TOP_GRID_DIM_LON = 512; 
 		private final static int TOP_GRID_DIM_LAT = 512;

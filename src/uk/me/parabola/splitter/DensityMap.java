@@ -53,8 +53,6 @@ public class DensityMap {
 	}
 
 	/**
-	 * Set those grid elements to zero that do not intersect with the polygon area.
-	 * Make sure that intersecting elements have a count > 0.
 	 * @param polygonArea the polygon area 
 	 * @return an area with rectilinear shape that approximates the polygon area 
 	 */
@@ -62,12 +60,15 @@ public class DensityMap {
 		if (polygonArea == null)
 			return null;
 		java.awt.geom.Area simpleArea = new java.awt.geom.Area();
+		if (polygonArea.intersects(Utils.area2Rectangle(bounds, 0)) == false)
+			return simpleArea;
 		int gridElemWidth = bounds.getWidth() / width;
 		int gridElemHeight= bounds.getHeight()/ height;
-		
 		Rectangle polygonBbox = polygonArea.getBounds();
-		int minY = Math.max(0, latToY((int)polygonBbox.getMinY())-1);
-		int maxY = Math.min(height, latToY((int)polygonBbox.getMaxY())+1);
+		int minLat = Math.max((int)polygonBbox.getMinY(), bounds.getMinLat());
+		int maxLat = Math.min((int)polygonBbox.getMaxY(), bounds.getMaxLat());
+		int minY = latToY(minLat);
+		int maxY = latToY(maxLat);
 		assert minY >= 0 && minY <= height;
 		assert maxY >= 0 && maxY <= height;
 		for (int x = 0; x < width; x++) {

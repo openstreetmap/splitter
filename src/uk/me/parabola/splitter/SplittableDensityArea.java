@@ -148,6 +148,10 @@ public class SplittableDensityArea implements SplittableArea {
 	}
 
 	
+	/** 
+	 * Filter the density data, calculate once complex trigonometric results 
+	 * @param polygonArea
+	 */
 	private void prepare(java.awt.geom.Area polygonArea){
 		aspectRatioFactor = new double[allDensities.getHeight()+1];
 		int minLat = allDensities.getBounds().getMinLat(); 
@@ -198,6 +202,14 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 	}
 
+	/**
+	 * Try to find empty areas. This will fail if the empty area is enclosed by a
+	 * non-empty area.
+	 * @param tile the tile that might contain an empty area
+	 * @param splitHoriz true: search horizontal, else vertical
+	 * @return a list containing one or more tiles, cut from the original tile, or 
+	 * just the original tile
+	 */
 	private ArrayList<Tile> checkForEmptyClusters(final Tile tile, boolean splitHoriz) {
 		java.awt.geom.Area area = new java.awt.geom.Area(tile);
 		int firstEmpty = -1;
@@ -260,11 +272,18 @@ public class SplittableDensityArea implements SplittableArea {
 		return clusters;
 	}
 
+	/**
+	 * Split, handling a polygon that may contain multiple distinct areas.
+	 * @param polygonArea
+	 * @return a list of areas that cover the polygon
+	 */
 	private List<Area> splitPolygon(final java.awt.geom.Area polygonArea) {
 		List<Area> result = new ArrayList<Area>();
 		List<List<Point>> shapes = Utils.areaToShapes(polygonArea);
 		for (int i = 0; i < shapes.size(); i++){
 			List<Point> shape = shapes.get(i);
+			if (Utils.clockwise(shape) == false)
+				continue;
 			java.awt.geom.Area shapeArea = Utils.shapeToArea(shape);
 			Rectangle rShape = shapeArea.getBounds();
 			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES)
@@ -280,14 +299,19 @@ public class SplittableDensityArea implements SplittableArea {
 			List<Area> partResult = splittableArea.split(maxNodes, shapeArea);
 			if (partResult != null)
 				result.addAll(partResult);
-			else {
-				//TODO
-			}
-			
 		}
 		return result;
 	}
 	
+
+	/**
+	 * Split the given tile using the given (singular) polygon area. The routine splits the polygon into parts
+	 * and calls itself recursively for each part that is not rectangular.
+	 * @param depth recursion depth
+	 * @param tile the tile to split
+	 * @param rasteredPolygonArea an area describing a rectilinear shape
+	 * @return a solution or null if splitting failed
+	 */
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
 		if (rasteredPolygonArea.isRectangular()){
@@ -353,11 +377,10 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 	}
 	/**
-	 * Try to split the tile into nice parts recursively 
+	 * Try to split the tile into nice parts recursively. 
 	 * @param depth the recursion depth
 	 * @param tile the tile to be split
-	 * @param maxNodes max number of nodes that should be in one tile
-	 * @return true if a solution was found
+	 * @return a solution instance or null 
 	 */
 	private Solution findSolution(int depth, final Tile tile){
 		boolean addAndReturn = false;
@@ -437,7 +460,6 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 		int currX = 0, currY = 0;
 		int splitX  =-1, splitY = -1;
-		int usedAxis = -1;
 		while(numTests-- > 0){
 			Tile[] parts;
 			if (offsets.isEmpty() == false){
@@ -446,7 +468,6 @@ public class SplittableDensityArea implements SplittableArea {
 					if (currX >= offsets.size()){
 						break;
 					}
-					usedAxis = AXIS_HOR;
 					offset = offsets.get(currX++);
 					int pos = splitX + offset;
 					if (splitX > 0 && (pos >= tile.width || pos <= 0))
@@ -457,7 +478,6 @@ public class SplittableDensityArea implements SplittableArea {
 						splitX = parts[1].x;
 					}
 				} else {
-					usedAxis = AXIS_VERT;
 					offset = offsets.get(currY++);
 					int pos = splitY + offset;
 					if (splitY > 0 && (pos >= tile.height || pos <= 0))
@@ -473,10 +493,8 @@ public class SplittableDensityArea implements SplittableArea {
 				if (axis == AXIS_HOR || currY >= splitYPositions.size()){
 					if (currX >= splitXPositions.size())
 						break;
-					usedAxis = AXIS_HOR;
 					parts = tile.splitHoriz(splitXPositions.get(currX++), colSums);
 				} else {
-					usedAxis = AXIS_VERT;
 					parts = tile.splitVert(splitYPositions.get(currY++), rowSums);
 				}
 			}
@@ -484,10 +502,6 @@ public class SplittableDensityArea implements SplittableArea {
 				continue;
 			Solution part0Sol = null, part1Sol = null; 
 			if (cache.contains(parts[0]) == false && cache.contains(parts[1]) == false){
-				/*
-				if (depth < 4)
-					System.out.println(depth + ((usedAxis == AXIS_HOR ? ("H:" + parts[1].x):("V:"+parts[1].y))));
-				*/
 				if (parts[0].count > parts[1].count){
 					// first try the less populated part
 					Tile help = parts[0];
@@ -495,8 +509,8 @@ public class SplittableDensityArea implements SplittableArea {
 					parts[1] = help;
 				}
 				if (trimTiles){
-					parts[0].trim();
-					parts[1].trim();
+					parts[0] = parts[0].trim();
+					parts[1] = parts[1].trim();
 				}
 				part0Sol = findSolution(depth + 1, parts[0]);
 				if (part0Sol == null)
@@ -516,7 +530,7 @@ public class SplittableDensityArea implements SplittableArea {
 	}
 	
 	/**
-	 * Store tiles that can't be split into nice parts. 
+	 * Store tiles that can't be split into nice parts in the cache. 
 	 * @param tile
 	 */
 	private void markBad(Tile tile){
@@ -526,6 +540,13 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 	}
 	
+	/**
+	 * Get a first solution and search for better ones until
+	 * either a nice solution is found or no improvement was
+	 * found.
+	 * @param startTile the tile to split
+	 * @return a solution (maybe be empty)
+	 */
 	private Solution solveRectangularArea(Tile startTile){
 		// start values for optimization process (they make sure that we find a solution)
 		spread = 0;
@@ -598,8 +619,7 @@ public class SplittableDensityArea implements SplittableArea {
 
 	/**
 	 * Helper class to store area info with node counters.
-	 * The node counters use the values saved in the initial
-	 * DensityMap.
+	 * The node counters use the values saved in the xyMap / yxMap.
 	 * @author GerdP
 	 *
 	 */
@@ -607,6 +627,13 @@ public class SplittableDensityArea implements SplittableArea {
 	class Tile extends Rectangle{
 		final long count;
 		
+		/**
+		 * create a tile with unknown number of nodes
+		 * @param x
+		 * @param y
+		 * @param width
+		 * @param height
+		 */
 		public Tile(int x,int y, int width, int height) {
 			super(x,y,width,height);
 			Long knownCount = knownTileCounts.get(this);
@@ -618,6 +645,14 @@ public class SplittableDensityArea implements SplittableArea {
 				count = knownCount;
 		}
 
+		/**
+		 * create a tile with a known number of nodes
+		 * @param x
+		 * @param y
+		 * @param width
+		 * @param height
+		 * @param count
+		 */
 		private Tile(int x,int y, int width, int height, long count) {
 			this.x = x;
 			this.y = y;
@@ -627,8 +662,11 @@ public class SplittableDensityArea implements SplittableArea {
 			knownTileCounts.put(this, this.count);
 		}
 
+		/**
+		 * calculate the numnber of nodes in this tile
+		 * @return
+		 */
 		private long calcCount(){
-			//System.out.println("co: x=" + x + ",y=" + y + ",w=" + width + ",h=" + height);
 			long sum = 0;
 			for (int i=0;i<height;i++){
 				sum += getRowSum(i);
@@ -664,7 +702,7 @@ public class SplittableDensityArea implements SplittableArea {
 			return sum;
 		}
 		/**
-		 * 
+		 * Calculate the sum of all grid elements within a column.
 		 * @param col the column within the tile
 		 * @return
 		 */
@@ -682,9 +720,12 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 
 		/**
-		 * Split the tile horizontal so that both parts have almost
-		 * the same number of nodes 
-		 * @param colSums 
+		 * Find the horizontal middle of the tile (using the node counts).
+		 * Add the offset and split at this position.   
+		 * If the tile is large, the real middle is used to avoid
+		 * time consuming calculations.
+		 * @param offset the desired offset
+		 * @param colSums an array of column sums, used as a cache
 		 * @return array with two parts or null in error cases
 		 */
 		public Tile[] splitHorizWithOffset(final int offset, long[] colSums) {
@@ -744,10 +785,13 @@ public class SplittableDensityArea implements SplittableArea {
 			return result;
 		}
 		/**
-		 * Get the actual split tiles
-		 * @param rowSums 
-		 * @param splitY the vertical split line
-		 * @return array with two parts
+		 * Find the vertical middle of the tile (using the node counts).
+		 * Add the offset and split at this position.   
+		 * If the tile is large, the real middle is used to avoid
+		 * time consuming calculations.
+		 * @param offset the desired offset
+		 * @param rowSums an array of row sums, used as a cache
+		 * @return array with two parts or null in error cases
 		 */
 		public Tile[] splitVertWithOffset(int offset, long[] rowSums) {
 			if (count == 0 || height < 2)
@@ -812,9 +856,9 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 
 		/**
-		 * Get the actual split tiles
+		 * Split at a desired horizontal position.
 		 * @param splitX the horizontal split line
-		 * @param rowSums 
+		 * @param colSums an array of column sums, used as a cache
 		 * @return array with two parts
 		 */
 		public Tile[] splitHoriz(int splitX, long[] colSums) {
@@ -846,8 +890,9 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 
 		/**
-		 * Get the actual split tiles
+		 * Split at a desired vertical position.
 		 * @param splitY the vertical split line
+		 * @param rowSums an array of row sums, used as a cache
 		 * @return array with two parts
 		 */
 		public Tile[] splitVert(int splitY, long[] rowSums) {
@@ -897,6 +942,11 @@ public class SplittableDensityArea implements SplittableArea {
 			return ratio;
 		}
 		
+		/**
+		 * Calculate the trimmed tile so that it has no empty outer rows or columns.
+		 * Does not change the tile itself.
+		 * @return the trimmed version of the tile.
+		 */
 		public Tile trim() {
 			int minX = -1;
 			for (int i = 0; i < width; i++) {
