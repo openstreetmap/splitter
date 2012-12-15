@@ -186,9 +186,6 @@ public class Main {
 					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because " + passes
 							+ " passes are required to write out the areas. Increase --max-areas to match the number of areas (" + areaCount + ')');
 				}
-				if (keepComplete){
-					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because with keep-complete."); 
-				}
 				if (problemRels.isEmpty() == false || problemWays.isEmpty() != false){
 					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because with problem-file."); 
 				}
@@ -313,18 +310,6 @@ public class Main {
 		maxThreads = params.getMaxThreads().getCount();
 		filenames = parser.getAdditionalParams();
 		
-		String splitFile = params.getSplitFile();
-		if (splitFile != null) {
-			try {
-				areaList = new AreaList();
-				areaList.read(splitFile);
-				areaList.dump();
-			} catch (IOException e) {
-				areaList = null;
-				System.err.println("Could not read area list file");
-				e.printStackTrace();
-			}
-		}
 		problemFile = params.getProblemFile();
 		if (problemFile != null){
 			if (!readProblemIds(problemFile))
@@ -340,7 +325,11 @@ public class Main {
 		
 		if (keepComplete){
 			if (filenames.size() > 1){
-				System.err.println("--keep-complete is supported for multiple input files. Please execute splitter once for each file.");
+				System.err.println("--keep-complete is not supported for multiple input files. Please execute splitter once for each file.");
+				System.exit(-1);
+			}
+			if (filenames.isEmpty()){
+				System.err.println("stdin cannot be used with --keep-complete because multiple read passes are needed.");
 				System.exit(-1);
 			}
 			if (overlapAmount > 0){
@@ -359,6 +348,19 @@ public class Main {
 		if (keepComplete == false && problemReport != null){
 			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
 		}
+		String splitFile = params.getSplitFile();
+		if (splitFile != null) {
+			try {
+				areaList = new AreaList();
+				areaList.read(splitFile);
+				areaList.dump();
+			} catch (IOException e) {
+				areaList = null;
+				System.err.println("Could not read area list file");
+				e.printStackTrace();
+			}
+		}
+		
 		polygonFile = params.getPolygonFile();
 		if (polygonFile != null) {
 			if (splitFile != null){
