@@ -94,7 +94,7 @@ public class Main {
 
 	// Whether or not to trim tiles of any empty space around their edges.
 	private boolean trim;
-	// This gets set if no osm file is supplied as a parameter and the cache is empty.
+	// This gets set if no osm file is supplied as a parameter.
 	private boolean useStdIn;
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
@@ -178,13 +178,19 @@ public class Main {
 
 		if (filenames.isEmpty()) {
 			if (areaList == null) {
-				throw new IllegalArgumentException("No .osm files were supplied so at least one of --cache or --split-file must be specified");
+				throw new IllegalArgumentException("No .osm files were supplied so --split-file must be specified");
 			} else {
 				int areaCount = areaList.getAreas().size();
 				int passes = getAreasPerPass(areaCount);
 				if (passes > 1) {
-					throw new IllegalArgumentException("No .osm files or --cache parameter were supplied, but stdin cannot be used because " + passes
-							+ " passes are required to write out the areas. Either provide --cache or increase --max-areas to match the number of areas (" + areaCount + ')');
+					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because " + passes
+							+ " passes are required to write out the areas. Increase --max-areas to match the number of areas (" + areaCount + ')');
+				}
+				if (keepComplete){
+					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because with keep-complete."); 
+				}
+				if (problemRels.isEmpty() == false || problemWays.isEmpty() != false){
+					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because with problem-file."); 
 				}
 				useStdIn = true;
 			}
@@ -333,6 +339,10 @@ public class Main {
 		overlapAmount = params.getOverlap();
 		
 		if (keepComplete){
+			if (filenames.size() > 1){
+				System.err.println("--keep-complete is supported for multiple input files. Please execute splitter once for each file.");
+				System.exit(-1);
+			}
 			if (overlapAmount > 0){
 				System.err.println("Warning: --overlap is used in combination with --keep-complete=true ");
 				System.err.println("         The option keep-complete should be used with overlap=0 because it is very unlikely that ");
@@ -343,27 +353,30 @@ public class Main {
 		}
 		else if (overlapAmount < 0){
 			overlapAmount = 2000;
-			System.out.println("keep-complete=false is used, but no overlap was specified. overlap=" + overlapAmount + " is used.");
+			System.out.println("Setting default overlap=2000 because keep-complete=false is in use.");
 		}
 		problemReport = params.getProblemReport();
 		if (keepComplete == false && problemReport != null){
 			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
 		}
 		polygonFile = params.getPolygonFile();
-		if (polygonFile != null){
-			File f = new File(polygonFile);
+		if (polygonFile != null) {
+			if (splitFile != null){
+				System.out.println("Warning: parameter polygon-file is ignored because split-file is used.");
+			} else {
+				File f = new File(polygonFile);
 
-			if (!f.exists()){
-				System.out.println("Error: polygon file doesn't exist: " + polygonFile);  
-				System.exit(-1);
+				if (!f.exists()){
+					System.out.println("Error: polygon file doesn't exist: " + polygonFile);  
+					System.exit(-1);
+				}
+				PolygonFileReader polyReader = new PolygonFileReader(f);
+				java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
+				polygon = Utils.AreaDegreesToMapUnit(polygonInDegrees);
+				if (checkPolygon(polygon) == false){
+					System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
+				}
 			}
-			PolygonFileReader polyReader = new PolygonFileReader(f);
-			java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
-			polygon = Utils.AreaDegreesToMapUnit(polygonInDegrees);
-			if (checkPolygon(polygon) == false){
-				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-			}
-				
 		}
 		stopAfter = params.getStopAfter();
 		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){

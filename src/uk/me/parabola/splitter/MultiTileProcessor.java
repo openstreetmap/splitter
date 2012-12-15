@@ -468,7 +468,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 		long id = node.getId();
 		if (lastCoordId >= id){
-			throw new IllegalArgumentException ("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
+			System.err.println("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
+			System.err.println("This is not supported with keep-complete=true or --problem-list"); 
+			System.exit(-1);
 		}
 		int nodePos = -1;
 		try{

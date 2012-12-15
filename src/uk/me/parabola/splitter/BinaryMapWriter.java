@@ -456,7 +456,6 @@ public class BinaryMapWriter extends AbstractOSMWriter {
         .newBuilder();
 
     Osmformat.HeaderBBox.Builder bbox = Osmformat.HeaderBBox.newBuilder();
-    System.out.println(bounds);
     bbox.setLeft(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLong())));
     bbox.setBottom(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLat())));
     bbox.setRight(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLong())));
