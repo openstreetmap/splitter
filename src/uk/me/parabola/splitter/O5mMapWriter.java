@@ -45,9 +45,9 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private static final int EOD_FLAG = 0xfe;
 	private static final int RESET_FLAG = 0xff;
 
-	private static final int STW__TAB_MAX = 15000;
-	private static final int STW_HASH_TAB_MAX = 150001;  // (preferably a prime number)
-	private static final int STW_TAB_STR_MAX = 250;
+	private static final int STW__TAB_MAX = 15000;	// this is defined in the o5m format
+	private static final int STW_HASH_TAB_MAX = 30011;  // (preferably a prime number)
+	private static final int STW_TAB_STR_MAX = 250;// this is defined in the o5m format
 	
 	private static final String[] REL_REF_TYPES = {"0","1","2"};
 	
@@ -71,21 +71,23 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	boolean isFirstRel = true;
 	
 	// index of last entered element in string table
-	int stw__tabi= 0; 
+	short stw__tabi= 0; 
 	
 	  // has table; elements point to matching strings in stw__tab[];
 	  // -1: no matching element;
-	private int [] stw__hashtab;
+	private short[] stw__hashtab;
 	  // for to chaining of string table rows which match
 	  // the same hash value; matching rows are chained in a loop;
 	  // if there is only one row matching, it will point to itself;
-	private int [] stw__tabprev;
-	private int [] stw__tabnext;
+	private short[] stw__tabprev;
+	private short[] stw__tabnext;
 	  // has value of this element as a link back to the hash table;
 	  // a -1 element indicates that the string table entry is not used; 	
-	private int [] stw__tabhash;
+	private short[] stw__tabhash;
 	
-	private byte[] ioBuf;
+	private byte[] numberConversionBuf;
+	
+	//private long countCollisions;
 	
 	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra) {
 		super(bounds, outputDir, mapId, extra);
@@ -105,27 +107,27 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		stw__tab = new StringPair[STW__TAB_MAX];
 		stw_reset();
 	}
+	
 	public void initForWrite() {
 		  // has table; elements point to matching strings in stw__tab[];
 		  // -1: no matching element;
-		stw__hashtab = new int[STW_HASH_TAB_MAX];
+		stw__hashtab = new short[STW_HASH_TAB_MAX];
 		  // for to chaining of string table rows which match
 		  // the same hash value; matching rows are chained in a loop;
 		  // if there is only one row matching, it will point to itself;
-		stw__tabprev = new int [STW__TAB_MAX];
-		stw__tabnext = new int [STW__TAB_MAX];
+		stw__tabprev = new short[STW__TAB_MAX];
+		stw__tabnext = new short[STW__TAB_MAX];
 		  // has value of this element as a link back to the hash table;
 		  // a -1 element indicates that the string table entry is not used; 	
-		stw__tabhash = new int [STW__TAB_MAX];
+		stw__tabhash = new short[STW__TAB_MAX];
 		lastRef = new long[3];
-		ioBuf = new byte[8192];
+		numberConversionBuf = new byte[60];
 		resetVars();
 
 		String filename = String.format(Locale.ROOT, "%08d.o5m", mapId);
 		try {
 			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
-			BufferedOutputStream stream = new BufferedOutputStream(fos);
-			dos = new DataOutputStream(stream);
+			dos = new DataOutputStream(new BufferedOutputStream(fos));
 			dos.write(RESET_FLAG);
 			writeHeader();
 			writeBBox();
@@ -167,8 +169,9 @@ public class O5mMapWriter extends AbstractOSMWriter{
 			stw__tabnext = null;
 			stw__tabhash = null;
 			lastRef = null;
-			ioBuf = null;
+			numberConversionBuf = null;
 			stw__tab = null;
+			//System.out.println(mapId + " collisions=" + Utils.format(countCollisions));
 		} catch (IOException e) {
 			System.out.println("Could not write end of file: " + e);
 		}
@@ -265,16 +268,16 @@ public class O5mMapWriter extends AbstractOSMWriter{
 
 	
 	private void stw_write(String s1, String s2, OutputStream stream) throws IOException {
-		int h;
+		int hash;
 		int ref;
 		stringPair = new StringPair(s1,s2);
 		//  try to find a matching string (pair) in string table
 		{
 			int i;  // index in stw__tab[] 
 			ref = -1;  // ref invalid (default)
-			h = stw_hash();
-		    if (h >= 0){
-		    	i = stw__hashtab[h]; 
+			hash = stw_hash();
+		    if (hash >= 0){
+		    	i = stw__hashtab[hash]; 
 		    	if(i >= 0)  // string (pair) presumably stored already
 		        	ref = stw__getref(i);
 		    }  // end   string (pair) short enough for the string table
@@ -294,7 +297,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 					stream.write(0x00); 
 				}
 		    	
-				if(h < 0){  // string (pair) too long,
+				if(hash < 0){  // string (pair) too long,
 					// cannot be stored in string table
 					return;
 				}
@@ -327,19 +330,20 @@ public class O5mMapWriter extends AbstractOSMWriter{
 			int i;
 
 			stw__tab[stw__tabi] = stringPair;
-			i = stw__hashtab[h];
+			i = stw__hashtab[hash];
 			if(i < 0)  // no reference in hash table until now
 				stw__tabprev[stw__tabi] = stw__tabnext[stw__tabi] = stw__tabi;
 			// self-link the new element;
 			else {  // there is already a reference in hash table
 				// in-chain the new element
-				stw__tabnext[stw__tabi] = i;
+				stw__tabnext[stw__tabi] = (short) i;
 				stw__tabprev[stw__tabi] = stw__tabprev[i];
 				stw__tabnext[stw__tabprev[stw__tabi]] = stw__tabi;
 				stw__tabprev[i] = stw__tabi;
+				//countCollisions++;
 			}
-			stw__hashtab[h] = stw__tabi; // link the new element to hash table
-			stw__tabhash[stw__tabi] = h; // backlink to hash table element
+			stw__hashtab[hash] = stw__tabi; // link the new element to hash table
+			stw__tabhash[stw__tabi] = (short) hash; // backlink to hash table element
 			// new element now in use; set index to oldest element
 			if (++stw__tabi >= STW__TAB_MAX) { // index overflow
 				stw__tabi= 0;  // restart index
@@ -381,14 +385,14 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		// be restarted;
 
 		stw__tabi = 0;
-		Arrays.fill(stw__tabhash, -1);
-		Arrays.fill(stw__hashtab, -1);
+		Arrays.fill(stw__tabhash, (short)-1);
+		Arrays.fill(stw__hashtab, (short)-1);
 	}  
 		 	
 	/**
 	 * get hash value of a string pair
-	 * @return  hash value in the range 0..(STRING_TABLE_HASH-1) 
-	 * or -1 if the strings are longer than MAX_STRING_PAIR_SIZE bytes in total
+	 * @return  hash value in the range 0..(STW__TAB_MAX-1) 
+	 * or -1 if the strings are longer than STW_TAB_STR_MAX bytes in total
 	 * @throws IOException 
 	 */
 	private int stw_hash() throws IOException{
@@ -411,12 +415,12 @@ public class O5mMapWriter extends AbstractOSMWriter{
 			return 1;
 		}
 		do{
-			ioBuf[cntBytes++] = (byte)(part | 0x80);
+			numberConversionBuf[cntBytes++] = (byte)(part | 0x80);
 			num >>= 7;
 			part = num & 0x7f;
 		} while(part != num);
-		ioBuf[cntBytes++] = (byte)(part);
-		stream.write(ioBuf,0,cntBytes);
+		numberConversionBuf[cntBytes++] = (byte)(part);
+		stream.write(numberConversionBuf,0,cntBytes);
 		return cntBytes;
 	}
 	
@@ -440,12 +444,12 @@ public class O5mMapWriter extends AbstractOSMWriter{
 			return 1;
 		}
 		do {
-			ioBuf[cntBytes++] = (byte)(part | 0x80);
+			numberConversionBuf[cntBytes++] = (byte)(part | 0x80);
 		    u >>= 7;
 		    part = (int)(u & 0x7f);
 		} while(part !=u);
-		ioBuf[cntBytes++] = (byte)(part);
-		stream.write(ioBuf,0,cntBytes);
+		numberConversionBuf[cntBytes++] = (byte)(part);
+		stream.write(numberConversionBuf,0,cntBytes);
 		return cntBytes;
 	}
 	
@@ -454,14 +458,15 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		String s1,s2;
 		
 		StringPair(String s1,String s2){
-			this.s1 = new String(s1);
-			if (s2 != null)
-				this.s2 = new String(s2);
+			this.s1 = s1;
+			this.s2 = s2;
 		}
+		
 		public int hashCode(){
 			int hash = s1.hashCode();
-			if (s2 != null)
-				hash |= s2.hashCode();
+			if (s2 != null){
+				hash ^= s2.hashCode();
+			}
 			return hash;
 		}
 	}

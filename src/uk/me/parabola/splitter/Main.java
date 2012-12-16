@@ -31,6 +31,7 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -673,7 +674,7 @@ public class Main {
 					ShortArrayList blockTypes = blockTypeMap.get(filename);
 					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
 					BlockInputStream blockinput = (new BlockInputStream(
-							new FileInputStream(file), binParser));
+							new BufferedInputStream(new FileInputStream(file),4*1024*1024), binParser));
 					try {
 						blockinput.process();
 					} finally {

@@ -102,7 +102,7 @@ public class O5mMapParser implements MapReader{
 	 */
 	O5mMapParser(MapProcessor processor, InputStream stream, long[] skipArray) {
 		this.processor = processor;
-		this.fis = new BufferedInputStream(stream);
+		this.fis = new BufferedInputStream(stream, 4*1024*1024);
 		is = fis;
 		this.skipArray = skipArray;
 		this.skipTags = processor.skipTags();
