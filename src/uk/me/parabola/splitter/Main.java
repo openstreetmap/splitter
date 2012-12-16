@@ -674,7 +674,7 @@ public class Main {
 					ShortArrayList blockTypes = blockTypeMap.get(filename);
 					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
 					BlockInputStream blockinput = (new BlockInputStream(
-							new BufferedInputStream(new FileInputStream(file),4*1024*1024), binParser));
+							new FileInputStream(file), binParser));
 					try {
 						blockinput.process();
 					} finally {
