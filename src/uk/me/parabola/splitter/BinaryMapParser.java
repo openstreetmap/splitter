@@ -2,6 +2,10 @@ package uk.me.parabola.splitter;
 
 import crosby.binary.BinaryParser;
 import crosby.binary.Osmformat;
+import crosby.binary.file.FileBlockPosition;
+
+
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.util.List;
 
@@ -10,19 +14,74 @@ public class BinaryMapParser extends BinaryParser {
 	private static final int NODE_STATUS_UPDATE_THRESHOLD = 10000000;
 	private static final int WAY_STATUS_UPDATE_THRESHOLD = 1000000;
 	private static final int RELATION_STATUS_UPDATE_THRESHOLD = 100000;
-
-
+	private static final short TYPE_DENSE = 0x1; 
+	private static final short TYPE_NODES = 0x2; 
+	private static final short TYPE_WAYS = 0x4; 
+	private static final short TYPE_RELS = 0x8; 
+	private final ShortArrayList blockTypes = new ShortArrayList();
+	private final ShortArrayList knownBlockTypes;
+	
+	private short blockType = -1;
+	private int blockCount = -1;
 	private long nodeCount;
 	private long wayCount;
 	private long relationCount;	
-
-	BinaryMapParser(MapProcessor processor) {
+	private boolean skipTags;
+	private boolean skipNodes;
+	private boolean skipWays;
+	private boolean skipRels;
+	private boolean isStartNodeOnly;
+	short wantedTypeMask = 0;
+	
+	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes) {
 		this.processor = processor;
+		this.knownBlockTypes = knownBlockTypes;
+		this.skipTags = processor.skipTags();
+		this.skipNodes = processor.skipNodes();
+		this.skipWays = processor.skipWays();
+		this.skipRels = processor.skipRels();
+		this.isStartNodeOnly = processor.isStartNodeOnly();
+		
+		if (skipNodes == false){
+			wantedTypeMask |= TYPE_DENSE;
+			wantedTypeMask |= TYPE_NODES;
+		}
+		if (skipWays == false)
+			wantedTypeMask |= TYPE_WAYS;
+		if (skipRels == false)
+			wantedTypeMask |= TYPE_RELS;
 	}
 	MapProcessor processor;
 
+	public ShortArrayList getBlockList(){
+		return blockTypes;
+	}
+	
+	@Override
+    public boolean skipBlock(FileBlockPosition block) {
+		blockCount++;
+		if (knownBlockTypes != null){
+			blockType = knownBlockTypes.get(blockCount);
+			if (blockType != 0 && (blockType & wantedTypeMask) == 0)
+				return true;
+		}
+		else if (blockType != -1){
+			//System.out.println("previous block contained " + blockType );
+			blockTypes.add(blockType);
+		}
+		blockType = 0;
+        // System.out.println("Seeing block of type: "+block.getType());
+        if (block.getType().equals("OSMData"))
+            return false;
+        if (block.getType().equals("OSMHeader"))
+            return false;
+        System.out.println("Skipped block of type: " + block.getType());
+        return true;
+    }
+	
 	@Override
 	public void complete() {
+		blockTypes.add(blockType);
 		// End of map is sent when all input files are processed.
 		// So do nothing.
 	}
@@ -30,10 +89,12 @@ public class BinaryMapParser extends BinaryParser {
 	// Per-block state for parsing, set when processing the header of a block;
 	@Override
 	protected void parseDense(Osmformat.DenseNodes nodes) {
+		blockType |= TYPE_DENSE;
+		if (skipNodes)
+			return;
 		long last_id = 0, last_lat = 0, last_lon = 0;
 		int j = 0;
 		int maxi = nodes.getIdCount();
-		boolean isStartNodeOnly = processor.isStartNodeOnly();
 		Node tmp = new Node();
 		for (int i=0 ; i < maxi; i++) {
 			long lat = nodes.getLat(i)+last_lat; last_lat = lat;
@@ -45,7 +106,7 @@ public class BinaryMapParser extends BinaryParser {
 				tmp = new Node();
 			tmp.set(id, latf, lonf);
 
-			if (!isStartNodeOnly) {
+			if (!isStartNodeOnly && !skipTags) {
 				if (nodes.getKeysValsCount() > 0) {
 					while (nodes.getKeysVals(j) != 0) {
 						int keyid = nodes.getKeysVals(j++);
@@ -63,7 +124,11 @@ public class BinaryMapParser extends BinaryParser {
 
 	@Override
 	protected void parseNodes(List<Osmformat.Node> nodes) {
-		if (nodes.size() == 0) return;
+		if (nodes.size() == 0) 
+			return;
+		blockType |= TYPE_NODES;
+		if (skipNodes) 
+			return;
 		for (Osmformat.Node i : nodes) {
 			Node tmp = new Node();
 			for (int j=0 ; j < i.getKeysCount(); j++)
@@ -81,41 +146,29 @@ public class BinaryMapParser extends BinaryParser {
 
 	@Override
 	protected void parseWays(List<Osmformat.Way> ways) {
-
 		long numways = ways.size();
 		if (numways == 0) 
 			return;
-		if (processor.isStartNodeOnly()) {
-			// we just count the ways, so no need to iterate through the list
-			if (wayCount > 0) {
-				long x = (numways + wayCount) % WAY_STATUS_UPDATE_THRESHOLD;
-				// get and report the id that hits the threshold value 
-				if (x < numways) {
-					x = numways - x;
-					Osmformat.Way w = ways.get((int)(x - 1));
-					System.out.println(Utils.format(wayCount+x) + " ways processed... id=" + w.getId());
-				}
-			}
-			wayCount += numways;
-		}
-		else {
-			for (Osmformat.Way i : ways) {
-				Way tmp = new Way();
+		blockType |= TYPE_WAYS;
+		if (skipWays) 
+			return;
+		for (Osmformat.Way i : ways) {
+			Way tmp = new Way();
+			if (skipTags == false){
 				for (int j=0 ; j < i.getKeysCount(); j++)
 					tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
-
-				long last_id=0;
-				for (long j : i.getRefsList()) {
-					tmp.addRef(j+last_id);
-					last_id = j+last_id;
-				}
-
-				long id = i.getId();
-				tmp.set(id);
-
-				processor.processWay(tmp);
-				countWay(i.getId());
 			}
+			long last_id=0;
+			for (long j : i.getRefsList()) {
+				tmp.addRef(j+last_id);
+				last_id = j+last_id;
+			}
+
+			long id = i.getId();
+			tmp.set(id);
+
+			processor.processWay(tmp);
+			countWay(i.getId());
 		}
 	}
 
@@ -123,12 +176,17 @@ public class BinaryMapParser extends BinaryParser {
 
 	@Override
 	protected void parseRelations(List<Osmformat.Relation> rels) {
-		if (rels.size() == 0) return;
+		if (rels.size() == 0) 
+			return;
+		blockType |= TYPE_RELS;
+		if (skipRels)
+			return;
 		for (Osmformat.Relation i : rels) {
 			Relation tmp = new Relation();
-			for (int j=0 ; j < i.getKeysCount(); j++)
-				tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
-
+			if (skipTags == false){
+				for (int j=0 ; j < i.getKeysCount(); j++)
+					tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
+			}
 			long id = i.getId();
 			tmp.set(id);
 

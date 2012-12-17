@@ -14,33 +14,42 @@ package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
 
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 /**
  * Splits a map into multiple areas.
  */
-class SplitProcessor implements MapProcessor {
-	private final static int DICT_START = -1 * (Short.MIN_VALUE + 1);
-	private final short unassigned = Short.MIN_VALUE;
-	private SparseLong2ShortMapFunction coords;
-	private SparseLong2ShortMapFunction ways;
-	private final Grid grid;
-
+class SplitProcessor extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
+
+	private SparseLong2ShortMapFunction coords;
+	private SparseLong2ShortMapFunction ways; 	
+	private final WriterDictionaryShort writerDictionary;
+	private final DataStorer dataStorer;
+	private final Long2IntClosedMapFunction nodeWriterMap;
+	private final Long2IntClosedMapFunction wayWriterMap;
+	private final Long2IntClosedMapFunction relWriterMap;
+
+	//	for statistics
+	private long countQuickTest = 0;
+	private long countFullTest = 0;
+	private long countCoords = 0;
+	private long countWays = 0;
+	private final int writerOffset;
+	private final int lastWriter;
+	private WriterIndex writerIndex;
+	private final int maxThreads;
+	private final short unassigned = Short.MIN_VALUE;
+
 	private final InputQueueInfo[] writerInputQueues;
 	private final BlockingQueue<InputQueueInfo> toProcess;
 	private final ArrayList<Thread> workerThreads;
 	private final InputQueueInfo STOP_MSG = new InputQueueInfo(null);
-	private final WriterDictionary writerDictionary;
 
 
 	// private int currentNodeAreaSet;
@@ -48,33 +57,35 @@ class SplitProcessor implements MapProcessor {
 	private BitSet currentRelAreaSet;
 	private BitSet usedWriters;
 	
-	private final int maxThreads;
-
-	//	for statistics
-	//private long countQuickTest = 0;
-	//private long countFullTest = 0;
-	private long countCoords = 0;
-	private long countWays = 0;
 	
-	SplitProcessor(OSMWriter[] writers, int maxThreads) {
-		this.writers = writers;
-		usedWriters = new BitSet();
-		writerDictionary = new WriterDictionary();
-		this.grid = new Grid();
+	SplitProcessor(DataStorer dataStorer,
+			int writerOffset, int numWritersThisPass, int maxThreads){
+		this.dataStorer = dataStorer;
+		this.writerDictionary = dataStorer.getWriterDictionary();
+		this.writers = writerDictionary.getWriters();
 		this.coords = new SparseLong2ShortMapInline();
 		this.ways   = new SparseLong2ShortMapInline();
 		this.coords.defaultReturnValue(unassigned);
-		this.ways.defaultReturnValue(unassigned);
+		this.ways.defaultReturnValue(unassigned); 		
+		this.writerIndex = dataStorer.getGrid();
+		this.countWays = ways.size();
+		this.writerOffset = writerOffset;
+		this.lastWriter = writerOffset + numWritersThisPass-1;
 		this.maxThreads = maxThreads;
-		this.toProcess = new ArrayBlockingQueue<InputQueueInfo>(writers.length);
-		this.writerInputQueues = new InputQueueInfo[writers.length];
+		this.toProcess = new ArrayBlockingQueue<InputQueueInfo>(numWritersThisPass);
+		this.writerInputQueues = new InputQueueInfo[numWritersThisPass];
 		for (int i = 0; i < writerInputQueues.length; i++) {
-			writerInputQueues[i] = new InputQueueInfo(this.writers[i]);
+			writerInputQueues[i] = new InputQueueInfo(this.writers[i + writerOffset]);
+			writers[i + writerOffset].initForWrite(); 
 		}
+		nodeWriterMap = dataStorer.getWriterMap(DataStorer.NODE_TYPE);
+		wayWriterMap = dataStorer.getWriterMap(DataStorer.WAY_TYPE);
+		relWriterMap = dataStorer.getWriterMap(DataStorer.REL_TYPE);
 		currentWayAreaSet = new BitSet(writers.length);
 		currentRelAreaSet = new BitSet(writers.length);
+		usedWriters = new BitSet(); 
 
-		int noOfWorkerThreads = this.maxThreads - 1;
+		int noOfWorkerThreads = Math.min(this.maxThreads - 1, numWritersThisPass);
 		workerThreads = new ArrayList<Thread>(noOfWorkerThreads);
 		for (int i = 0; i < noOfWorkerThreads; i++) {
 			Thread worker = new Thread(new OSMWriterWorker());
@@ -82,16 +93,9 @@ class SplitProcessor implements MapProcessor {
 			workerThreads.add(worker);
 			worker.start();
 		}
-	}
-
-	@Override
-	public boolean isStartNodeOnly() {
-		return false;
-	}
-
-	@Override
-	public void boundTag(Area bounds) {
-	}
+		
+	} 
+	
 
 	@Override
 	public void processNode(Node n) {
@@ -104,15 +108,39 @@ class SplitProcessor implements MapProcessor {
 
 	@Override
 	public void processWay(Way w) {
-		short oldclIndex = unassigned;
-		for (long id : w.getRefs()) {
-			// Get the list of areas that the way is in. 
-			short clIdx = coords.get(id);
-			if (clIdx != unassigned){
-				if (oldclIndex != clIdx){ 
-					BitSet cl = writerDictionary.getBitSet(clIdx);
-					currentWayAreaSet.or(cl);
-					oldclIndex = clIdx;
+		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): WriterDictionaryInt.UNASSIGNED;
+		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
+			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+			// set only active writer bits
+			for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
+				currentWayAreaSet.set(i);
+			}
+			//System.out.println("added or completed way: " +  w.getId());
+		}
+		else{
+			short oldclIndex = unassigned;
+			//for (long id : w.getRefs()) {
+			int refs = w.getRefs().size();
+			for (int i = 0; i < refs; i++){
+				long id = w.getRefs().getLong(i);
+				// Get the list of areas that the way is in. 
+				short clIdx = coords.get(id);
+				if (clIdx != unassigned){
+					if (oldclIndex != clIdx){ 
+						BitSet cl = writerDictionary.getBitSet(clIdx);
+						currentWayAreaSet.or(cl);
+						oldclIndex = clIdx;
+					}
+				}
+			}
+			if (!currentWayAreaSet.isEmpty()){
+				// store these areas in ways map
+				short idx = writerDictionary.translate(currentWayAreaSet);
+				ways.put(w.getId(), idx);
+				++countWays;
+				if (countWays % 1000000 == 0){
+					System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+					ways.stats(0);
 				}
 			}
 		}
@@ -121,65 +149,85 @@ class SplitProcessor implements MapProcessor {
 			currentWayAreaSet.clear();
 		} catch (IOException e) {
 			throw new RuntimeException("failed to write way " + w.getId(), e);
+
 		}
 	}
 
 	@Override
-	public void processRelation(Relation r) {
-		short oldclIndex = unassigned;
-		short oldwlIndex = unassigned;
-		try {
-			for (Member mem : r.getMembers()) {
-				// String role = mem.getRole();
-				long id = mem.getRef();
-				if (mem.getType().equals("node")) {
-					short clIdx = coords.get(id);
-
-					if (clIdx != unassigned){
-						if (oldclIndex != clIdx){ 
-							BitSet wl = writerDictionary.getBitSet(clIdx);
-							currentRelAreaSet.or(wl);
-						}
-						oldclIndex = clIdx;
-
-					}
-
-				} else if (mem.getType().equals("way")) {
-					short wlIdx = ways.get(id);
-
-					if (wlIdx != unassigned){
-						if (oldwlIndex != wlIdx){ 
-							BitSet wl = writerDictionary.getBitSet(wlIdx);
-							currentRelAreaSet.or(wl);
+	public void processRelation(Relation rel) {
+		int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
+		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
+			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+			try {
+				// set only active writer bits
+				for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
+					currentRelAreaSet.set(i);
+				}
+				writeRelation(rel);
+				//System.out.println("added rel: " +  r.getId());
+				currentRelAreaSet.clear();
+			} catch (IOException e) {
+				throw new RuntimeException("failed to write relation " + rel.getId(),
+						e);
 			}
-						oldwlIndex = wlIdx;
+		}
+		else{
+			short oldclIndex = unassigned;
+			short oldwlIndex = unassigned;
+			try {
+				for (Member mem : rel.getMembers()) {
+					// String role = mem.getRole();
+					long id = mem.getRef();
+					if (mem.getType().equals("node")) {
+						short clIdx = coords.get(id);
+
+						if (clIdx != unassigned){
+							if (oldclIndex != clIdx){ 
+								BitSet wl = writerDictionary.getBitSet(clIdx);
+								currentRelAreaSet.or(wl);
+							}
+							oldclIndex = clIdx;
+
+						}
+
+					} else if (mem.getType().equals("way")) {
+						short wlIdx = ways.get(id);
+
+						if (wlIdx != unassigned){
+							if (oldwlIndex != wlIdx){ 
+								BitSet wl = writerDictionary.getBitSet(wlIdx);
+								currentRelAreaSet.or(wl);
+							}
+							oldwlIndex = wlIdx;
+						}
 					}
 				}
-			}
 
-			writeRelation(r);
-			currentRelAreaSet.clear();
-		} catch (IOException e) {
-			throw new RuntimeException("failed to write relation " + r.getId(),
-					e);
+				writeRelation(rel);
+				currentRelAreaSet.clear();
+			} catch (IOException e) {
+				throw new RuntimeException("failed to write relation " + rel.getId(),
+						e);
+			}
 		}
 	}
-
 	@Override
-	public void endMap() {
-		System.out.println("***********************************************************");
-		System.out.println("Final statistics");
-		System.out.println("***********************************************************");
-		System.out.println("Needed dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
-		System.out.println("coords occupancy");
-		System.out.println("MAP occupancy: " + Utils.format(countCoords));
+	public boolean endMap() {
+		System.out.println("Statistics for coords map:");
 		coords.stats(1);
-		System.out.println("ways occupancy");
-		System.out.println("MAP occupancy: " + Utils.format(countWays));
-		ways.stats(1);
 		System.out.println("");
-		//System.out.println("Full Node tests:  " + Util.format(countFullTest));
-		//System.out.println("Quick Node tests: " + Util.format(countQuickTest));
+		System.out.println("Statistics for ways map:");
+		ways.stats(1);
+		long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+		long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
+		long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
+		long usedMem = totalMem - freeMem;
+		System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+		System.out.println("Full Node tests:  " + Utils.format(countFullTest));
+		System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		
+		coords = null;
+		ways = null;
+
 		for (int i = 0; i < writerInputQueues.length; i++) {
 			try {
 				writerInputQueues[i].stop();
@@ -205,56 +253,77 @@ class SplitProcessor implements MapProcessor {
 						+ workerThread.getName(), e);
 			}
 		}
-		for (OSMWriter writer : writers) {
-			writer.finishWrite();
+		for (int i=writerOffset; i<= lastWriter; i++) {
+			writers[i].finishWrite();
 		}
+		return true; 		
 	}
 
 	private void writeNode(Node currentNode) throws IOException {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
-		
-		GridResult writerCandidates = grid.get(currentNode);
-		if (writerCandidates == null) {
+		WriterGridResult writerCandidates = writerIndex.get(currentNode);
+		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): WriterDictionaryInt.UNASSIGNED;
+
+		boolean isSpecialNode = (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED);
+		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}
-		if (writerCandidates.l.size() > 1)
+		if (isSpecialNode || writerCandidates.l.size() > 1)
 			usedWriters.clear();
-		for (int i = 0; i < writerCandidates.l.size(); i++) {
-			int n = writerCandidates.l.get(i);
-			OSMWriter w = writers[n];
-			boolean found;
-			if (writerCandidates.testNeeded){
-				found = w.nodeBelongsToThisArea(currentNode);
-				//++countFullTest;
-			}
-			else{ 
-				found = true;
-				//++countQuickTest;
-			}
-			if (found) {
-				usedWriters.set(n);
-				++countWriters;
-				lastUsedWriter = (short) n;
-				if (maxThreads > 1) {
-					addToWorkingQueue(n, currentNode);
-				} else {
-					w.write(currentNode);
+		if (writerCandidates != null){
+			for (int i = 0; i < writerCandidates.l.size(); i++) {
+				int n = writerCandidates.l.get(i);
+				if (n < writerOffset || n > lastWriter)
+					continue;
+				OSMWriter w = writers[n];
+				boolean found;
+				if (writerCandidates.testNeeded){
+					found = w.nodeBelongsToThisArea(currentNode);
+					++countFullTest;
+				}
+				else{ 
+					found = true;
+					++countQuickTest;
+				}
+				if (found) {
+					usedWriters.set(n);
+					++countWriters;
+					lastUsedWriter = (short) n;
+					if (maxThreads > 1) {
+						addToWorkingQueue(n, currentNode);
+					} else {
+						w.write(currentNode);
+					}
 				}
 			}
 		}
+		if (isSpecialNode){
+			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
+			BitSet nodeWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+			for(int i=nodeWriters.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=nodeWriters.nextSetBit(i+1)){
+				if (usedWriters.get(i) )
+					continue;
+				if (maxThreads > 1) {
+					addToWorkingQueue(i, currentNode);
+				} else {
+					writers[i].write(currentNode);
+				}
+			}
+		}
+		
 		if (countWriters > 0){
 			short writersID;
 			if (countWriters > 1)
 				writersID = writerDictionary.translate(usedWriters);
 			else  
-				writersID = (short) (lastUsedWriter  - DICT_START); // no need to do lookup in the dictionary 
+				writersID = (short) (lastUsedWriter  - WriterDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
-			if (countCoords % 1000000 == 0){
+			if (countCoords % 10000000 == 0){
 				System.out.println("MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
-	}
+			}
 		}
 	}
 
@@ -274,16 +343,7 @@ class SplitProcessor implements MapProcessor {
 						writers[n].write(currentWay);
 					}
 				}
-			short idx;
-			// store these areas in ways map
-			idx = writerDictionary.translate(currentWayAreaSet);
-			ways.put(currentWay.getId(), idx);
-			++countWays;
-			if (countWays % 1000000 == 0){
-				System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
-				ways.stats(0);
-		}
-	}
+			}
 	}
 
 	private boolean seenRel;
@@ -305,7 +365,7 @@ class SplitProcessor implements MapProcessor {
 
 	private void addToWorkingQueue(int writerNumber, Element element) {
 		try {
-			writerInputQueues[writerNumber].put(element);
+			writerInputQueues[writerNumber-writerOffset].put(element);
 		} catch (InterruptedException e) {
 			// throw new RuntimeException("Failed to write node " +
 			// element.getId() + " to worker thread " + writerNumber, e);
@@ -402,172 +462,4 @@ class SplitProcessor implements MapProcessor {
 					+ " has finished");
 		}
 	}
-
-	private class GridResult{
-		ShortArrayList l;
-		boolean testNeeded;
-	
-	}
-	
-	private class Grid{
-		private final static int gridDimLon = 512; 
-		private final static int gridDimLat = 512; 
-		private int gridDivLon, gridDivLat;
-		private int gridMinLat, gridMinLon; 
-		// bounds of the complete grid
-		private Area bounds;
-		private short [][] grid;
-		private boolean [][] gridTest;
-		final GridResult r;
-
-		Grid(){
-			r = new GridResult();
-			long start = System.currentTimeMillis();
-			makeWriterGrid();
-			System.out.println("Grid was created in " + (System.currentTimeMillis() - start) + " ms");
-		}
-
-		void makeWriterGrid() {
-			int gridStepLon, gridStepLat;
-			int minLat = Integer.MAX_VALUE, maxLat = Integer.MIN_VALUE;
-			int minLon = Integer.MAX_VALUE, maxLon = Integer.MIN_VALUE;
-
-			for (OSMWriter w : writers) {
-				if (w.getExtendedBounds().getMinLat() < minLat)
-					minLat = w.getExtendedBounds().getMinLat();
-				if (w.getExtendedBounds().getMinLong() < minLon)
-					minLon = w.getExtendedBounds().getMinLong();
-				if (w.getExtendedBounds().getMaxLat() > maxLat)
-					maxLat = w.getExtendedBounds().getMaxLat();
-				if (w.getExtendedBounds().getMaxLong() > maxLon)
-					maxLon = w.getExtendedBounds().getMaxLong();
-			}
-
-			// save these results for later use
-			gridMinLon = minLon;
-			gridMinLat = minLat;
-			bounds = new Area(minLat, minLon, maxLat, maxLon);
-
-			int diffLon = maxLon - minLon;
-			int diffLat = maxLat - minLat;
-			gridDivLon = Math.round((diffLon / gridDimLon + 0.5f) );
-			gridDivLat = Math.round((diffLat / gridDimLat + 0.5f));
-
-			gridStepLon = Math.round(((diffLon) / gridDimLon) + 0.5f);
-			gridStepLat = Math.round(((diffLat) / gridDimLat) + 0.5f);
-			assert gridStepLon * gridDimLon >= diffLon : "gridStepLon is too small";
-			assert gridStepLat * gridDimLat >= diffLat : "gridStepLat is too small";
-			grid = new short[gridDimLon + 1][gridDimLat + 1];
-			gridTest = new boolean[gridDimLon + 1][gridDimLat + 1];
-
-			int maxWriterSearch = 0;
-			BitSet writerSet = new BitSet(); 
-
-			// start identifying the writer areas that intersect each grid tile
-			for (int lon = 0; lon <= gridDimLon; lon++) {
-				int testMinLon = gridMinLon + gridStepLon * lon;
-				for (int lat = 0; lat <= gridDimLon; lat++) {
-					int testMinLat = gridMinLat + gridStepLat * lat;
-					writerSet.clear();
-					int len = 0;
-					
-					for (int j = 0; j < writers.length; j++) {
-						OSMWriter w = writers[j];
-						// find grid areas that intersect with the writers' area
-						int tminLat = Math.max(testMinLat, w.extendedBounds.getMinLat());
-						int tminLon = Math.max(testMinLon, w.extendedBounds.getMinLong());
-						int tmaxLat = Math.min(testMinLat + gridStepLat,w.extendedBounds.getMaxLat());
-						int tmaxLon = Math.min(testMinLon + gridStepLon,w.extendedBounds.getMaxLong());
-						if (tminLat <= tmaxLat && tminLon <= tmaxLon) {
-							// yes, they intersect
-							len++;
-							writerSet.set(j);
-							if (!w.extendedBounds.contains(testMinLat, testMinLon)|| !w.extendedBounds.contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
-								// grid area is completely within writer area 
-								gridTest[lon][lat] = true;
-							}
-						}
-					}
-					maxWriterSearch = Math.max(maxWriterSearch, len);
-					if (len >  0)
-						grid[lon][lat] = writerDictionary.translate(writerSet);
-					else 
-						grid[lon][lat] = unassigned;
-				}
-			}
-
-			System.out.println("Grid [" + gridDimLon + "][" + gridDimLat + "] for grid area " + bounds + 
-					" requires max. " + maxWriterSearch + " checks for each node.");
-		}
-
-		public GridResult get(final Node n){
-			int nMapLon = n.getMapLon();
-			int nMapLat = n.getMapLat();
-			if (!bounds.contains(nMapLat, nMapLon)) 
-				return null;
-			int gridLonIdx = (nMapLon - gridMinLon ) / gridDivLon; 
-			int gridLatIdx = (nMapLat - gridMinLat ) / gridDivLat;
-
-			// get list of writer candidates from grid
-			short idx = grid[gridLonIdx][gridLatIdx];
-			if (idx == unassigned) return null;
-			r.testNeeded = gridTest[gridLonIdx][gridLatIdx];
-			r.l = writerDictionary.getList(idx);
-			return r; 		
-		}
-	}
-	
-	private class WriterDictionary{
-		
-		private final ObjectArrayList<BitSet> sets; 
-		private final ObjectArrayList<ShortArrayList> arrays; 
-		HashMap<BitSet, Short> index;
-		WriterDictionary (){
-			sets = new ObjectArrayList<BitSet>();
-			arrays = new ObjectArrayList<ShortArrayList>();
-			index = new HashMap<BitSet, Short>();
-			init();
-		}
-		private void init(){
-			BitSet b = new BitSet();
-			for (int i=0; i < writers.length; i++){
-				b.set(i);
-				translate(b);
-				b.clear();
-			}
-
-		}
-		public short translate(final BitSet writerSet){
-			Short combiIndex = index.get(writerSet);
-			if (combiIndex == null){
-				BitSet bnew = new BitSet();
-				
-				bnew.or(writerSet);
-				ShortArrayList a = new ShortArrayList();
-				for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i + 1)) {
-					a.add((short) i);
-				}
-				combiIndex = (short) (sets.size() - DICT_START);
-				if (combiIndex == Short.MAX_VALUE){
-					throw new RuntimeException("writerDictionary is full. Decrease --max-areas value");
-				}
-				sets.add(bnew);
-				arrays.add(a);
-				index.put(bnew, combiIndex);
-			}
-			return combiIndex;
-		}
-		
-		public BitSet getBitSet (final short idx){
-			return sets.get(idx + DICT_START);
-		}
-		public ShortArrayList getList (final short idx){
-			return arrays.get(idx + DICT_START);
-		}
-		public int size(){
-			return sets.size();
-		}
-		
-	}
-	
 }

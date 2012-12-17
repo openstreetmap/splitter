@@ -28,13 +28,15 @@ public interface SplitterParams {
 	@Option(description = "A default description to give to each area.")
 	String getDescription();
 
-	@Option(defaultValue = "255", description = "The maximum number of areas to process in a single pass. More areas require more memory, but less time. Values: 1-2048.")
+	@Option(defaultValue = "512", description = "The maximum number of areas to process in a single pass. More areas require more memory, but less time. Values: 1-4096.")
 	int getMaxAreas();
 
-	@Option(defaultValue = "2000", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
+	@Option(defaultValue = "-1", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
 	int getOverlap();
 
-	@Option(defaultValue = "1600000", description = "The maximum number of nodes permitted in each split area.")
+	@Option(defaultValue = "1600000", description = "A threshold value that is used when no split-file is given. Splitting is done so that "
+			+ "no tile has more than maxNodes nodes inside the bounding box of the tile. "
+			+ "Nodes added by overlap or keep-complete are not taken into account.")
 	int getMaxNodes();
 
 	@Option(defaultValue = "13", description = "The resolution of the overview map to be produced by mkgmap.")
@@ -58,9 +60,6 @@ public interface SplitterParams {
 	@Option(description = "The name of a kml file to write out the areas to. This is in addition to areas.list (which is always written out).")
 	String getWriteKml();
 
-	@Option(description = "Enables the old area subdivision algorithm in case of compatibility problems. This requires lots of memory! Deprecated, will be removed in a future version.")
-	boolean isLegacyMode();
-
 	@Option(defaultValue = "120", description = "Displays the amount of memory used by the JVM every --status-freq seconds. Set =0 to disable.")
 	int getStatusFreq();
 
@@ -70,6 +69,26 @@ public interface SplitterParams {
 	@Option(defaultValue = "auto", description = "The maximum number of threads used by splitter.")
 	ThreadCount getMaxThreads();
 	
-	@Option(defaultValue = "pbf", description = "The output type, either pbf or xml.")
+	@Option(defaultValue = "pbf", description = "The output type, either pbf, o5m, or xml.")
 	String getOutput();
+
+	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")
+	String getProblemFile();
+
+	@Option(description = "Write complete ways and relations if possible (requires more time and more heap memory). This should be used "
+			+ "with --overlap=0")
+	boolean isKeepComplete();
+
+//	@Option(description = "Just write program version and build timestamp")
+//	boolean getVersion();
+
+	@Option(description = "The name of a file to write the generated problem list created with --keep-complete.")
+	String getProblemReport();
+
+	@Option(description = "The name of a file containing a bounding polygon in osmosis polygon file format.")
+	String getPolygonFile();
+
+	@Option(defaultValue = "dist", description = "Debugging: stop after the program phase. Can be split, gen-problem-list, or handle-problem-list")
+	String getStopAfter();
+	
 }

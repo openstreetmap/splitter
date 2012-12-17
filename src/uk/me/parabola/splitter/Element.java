@@ -20,7 +20,7 @@ import java.util.Iterator;
  * @author Steve Ratcliffe
  */
 public class Element {
-	private ArrayList<Tag> tags; 
+	protected ArrayList<Tag> tags; 
 	private long id;
 
 	
@@ -49,6 +49,9 @@ public class Element {
 		}
 		public String getValue() {
 			return value;
+		}
+		public String toString (){
+			return key + "=" + value;
 		}
 		final public String key,value;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009.
+ * Copyright (c) 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -10,18 +10,18 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
+
 package uk.me.parabola.splitter;
 
-import org.xml.sax.SAXException;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 /**
- * Thrown at the end on pass 1, where we are only interested in the nodes.
- * As soon as a way is seen this is thrown to indicate that we are done.
- * 
- * @author Steve Ratcliffe
+ * A helper class to combine the results of the {@link WriterGrid} 
+ * @author GerdP
+ *
  */
-public class EndOfNodesException extends SAXException {
-	public EndOfNodesException() {
-		super("End of nodes");
-	}
+public class WriterGridResult{
+	ShortArrayList l;	// list of indexes to the writer dictionary
+	boolean testNeeded; // true: the list must be checked with the nodeBelongsToThisArea() method 
 }
+

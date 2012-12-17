@@ -13,6 +13,16 @@
 
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.LineNumberReader;
+import java.util.regex.Pattern;
+
 /**
  * Builds up a map of node densities across the total area being split.
  * Density information is held at the maximum desired map resolution.
@@ -25,16 +35,14 @@ public class DensityMap {
 	private final int width, height, shift;
 	private final int[][] nodeMap;
 	private Area bounds;
-	private int totalNodeCount;
-	private boolean trim;
+	private long totalNodeCount;
 
 	/**
 	 * Creates a density map.
 	 * @param area the area that the density map covers.
 	 * @param resolution the resolution of the density map. This must be a value between 1 and 24.
 	 */
-	public DensityMap(Area area, boolean trim, int resolution) {
-		this.trim = trim;
+	public DensityMap(Area area, int resolution) {
 		assert resolution >=1 && resolution <= 24;
 		shift = 24 - resolution;
 
@@ -44,6 +52,53 @@ public class DensityMap {
 		nodeMap = new int[width][];
 	}
 
+	/**
+	 * @param polygonArea the polygon area 
+	 * @return an area with rectilinear shape that approximates the polygon area 
+	 */
+	public java.awt.geom.Area rasterPolygon(java.awt.geom.Area polygonArea){
+		if (polygonArea == null)
+			return null;
+		java.awt.geom.Area simpleArea = new java.awt.geom.Area();
+		if (polygonArea.intersects(Utils.area2Rectangle(bounds, 0)) == false)
+			return simpleArea;
+		int gridElemWidth = bounds.getWidth() / width;
+		int gridElemHeight= bounds.getHeight()/ height;
+		Rectangle polygonBbox = polygonArea.getBounds();
+		int minLat = Math.max((int)polygonBbox.getMinY(), bounds.getMinLat());
+		int maxLat = Math.min((int)polygonBbox.getMaxY(), bounds.getMaxLat());
+		int minY = latToY(minLat);
+		int maxY = latToY(maxLat);
+		assert minY >= 0 && minY <= height;
+		assert maxY >= 0 && maxY <= height;
+		for (int x = 0; x < width; x++) {
+			int lon = xToLon(x);
+			if (lon + gridElemWidth < polygonBbox.getMinX() 
+					|| lon > polygonBbox.getMaxX()
+					|| polygonArea.intersects(lon, polygonBbox.getMinY(), gridElemWidth, polygonBbox.getHeight()) == false){
+				continue;
+			}
+			int firstY = -1;
+			for (int y = 0; y < height; y++) {
+				int lat = yToLat(y);
+				if (y < minY || y > maxY 
+						|| polygonArea.intersects(lon, lat, gridElemWidth, gridElemHeight) == false){
+					if (firstY >= 0){
+						simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,y-firstY)));
+						firstY = -1; 
+					}
+				} else {
+					if (firstY < 0)
+						firstY = y; 
+				}
+			}
+			if (firstY >= 0){
+				simpleArea.add(new java.awt.geom.Area(new Rectangle(x,firstY,1,height-firstY)));
+			}
+		}
+		return simpleArea;
+	}
+	
 	public int getShift() {
 		return shift;
 	}
@@ -60,7 +115,7 @@ public class DensityMap {
 		return height;
 	}
 
-	public int addNode(int lat, int lon) {
+	public long addNode(int lat, int lon) {
 		if (!bounds.contains(lat, lon))
 			return 0;
 
@@ -77,7 +132,7 @@ public class DensityMap {
 		return ++nodeMap[x][y];
 	}
 
-	public int getNodeCount() {
+	public long getNodeCount() {
 		return totalNodeCount;
 	}
 
@@ -85,28 +140,44 @@ public class DensityMap {
 		return nodeMap[x] != null ? nodeMap[x][y] : 0;
 	}
 
-	public DensityMap subset(Area subset) {
-		int minLat = Math.max(bounds.getMinLat(), subset.getMinLat());
-		int minLon = Math.max(bounds.getMinLong(), subset.getMinLong());
-		int maxLat = Math.min(bounds.getMaxLat(), subset.getMaxLat());
-		int maxLon = Math.min(bounds.getMaxLong(), subset.getMaxLong());
+	public int[][] getyxMap(){
+		int[][] yxMap = new int[height][];
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				int count = (nodeMap[x] == null) ? 0:nodeMap[x][y];
+				if (count > 0) {
+					if (yxMap[y] == null)
+						yxMap[y] = new int[width];
+					yxMap[y][x] = count;
+				}
+			}
+		}
+		return yxMap;
+	}
+	
+	public DensityMap subset(final Area subsetBounds) {
+		int minLat = Math.max(bounds.getMinLat(), subsetBounds.getMinLat());
+		int minLon = Math.max(bounds.getMinLong(), subsetBounds.getMinLong());
+		int maxLat = Math.min(bounds.getMaxLat(), subsetBounds.getMaxLat());
+		int maxLon = Math.min(bounds.getMaxLong(), subsetBounds.getMaxLong());
 
 		// If the area doesn't intersect with the density map, return an empty map
 		if (minLat > maxLat || minLon > maxLon) {
-			return new DensityMap(Area.EMPTY, trim, 24 - shift);
+			return new DensityMap(Area.EMPTY, 24 - shift);
 		}
 
-		subset = new Area(minLat, minLon, maxLat, maxLon);
+		Area subset = new Area(minLat, minLon, maxLat, maxLon);
+		/*
 		if (trim) {
 			subset = trim(subset);
 		}
-
+*/
 		// If there's nothing in the area return an empty map
 		if (subset.getWidth() == 0 || subset.getHeight() == 0) {
-			return new DensityMap(Area.EMPTY, trim, 24 - shift);
+			return new DensityMap(Area.EMPTY, 24 - shift);
 		}
 
-		DensityMap result = new DensityMap(subset, trim, 24 - shift);
+		DensityMap result = new DensityMap(subset, 24 - shift);
 
 		int startX = lonToX(subset.getMinLong());
 		int startY = latToY(subset.getMinLat());
@@ -134,6 +205,7 @@ public class DensityMap {
 	/**
 	 * Sets the trimmed bounds based on any empty edges around the density map
 	 */
+	/*
 	private Area trim(Area area) {
 
 		int minX = lonToX(area.getMinLong());
@@ -163,21 +235,14 @@ public class DensityMap {
 			maxY--;
 		}
 
+		assert yToLat(minY) % (1<<shift) == 0;
+		assert yToLat(maxY) % (1<<shift) == 0;
+		assert xToLon(minX) % (1<<shift) == 0;
+		assert xToLon(maxX) % (1<<shift) == 0;
 		Area trimmedArea = new Area(yToLat(minY), xToLon(minX), yToLat(maxY), xToLon(maxX));
-		Area rounded = RoundingUtils.round(trimmedArea, 24 - shift);
-
-		// Make sure the rounding hasn't pushed the area outside its original boundaries
-		int latAdjust = Math.max(0, rounded.getMaxLat() - area.getMaxLat());
-		int lonAdjust = Math.max(0, rounded.getMaxLong() - area.getMaxLong());
-		if (latAdjust > 0 || lonAdjust > 0) {
-			rounded = new Area(rounded.getMinLat() - latAdjust,
-							rounded.getMinLong() - lonAdjust,
-							rounded.getMaxLat() - latAdjust,
-							rounded.getMaxLong() - lonAdjust);
-		}
-		return rounded;
+		return trimmedArea;
 	}
-
+	 
 	private boolean isEmptyX(int x, int start, int end) {
 		int[] array = nodeMap[x];
 		if (array != null) {
@@ -196,7 +261,7 @@ public class DensityMap {
 		}
 		return true;
 	}
-
+*/
 	private int yToLat(int y) {
 		return (y << shift) + bounds.getMinLat();
 	}
@@ -212,4 +277,130 @@ public class DensityMap {
 	private int lonToX(int lon) {
 		return lon - bounds.getMinLong() >>> shift;
 	}
+
+	/**
+	 * For debugging, to be removed. 
+	 * @param fileName
+	 * @param detailBounds
+	 * @param collectorBounds
+	 */
+	public void saveMap(String fileName, Area detailBounds, Area collectorBounds) {
+		try {
+			FileWriter f = new FileWriter(new File(fileName));
+			f.write(detailBounds.getMinLat() + "," + detailBounds.getMinLong() + "," + detailBounds.getMaxLat() + "," + detailBounds.getMaxLong() + '\n');
+			f.write(collectorBounds.getMinLat() + "," + collectorBounds.getMinLong() + "," + collectorBounds.getMaxLat() + "," + collectorBounds.getMaxLong() + '\n');
+			//f.write(bounds.getMinLat() + "," + bounds.getMinLong() + "," + bounds.getMaxLat() + "," + bounds.getMaxLong() + '\n');
+			for (int x=0; x<width; x++){
+				if (nodeMap[x] != null){
+					for (int y=0; y<height; y++){
+						if (nodeMap[x][y] != 0)
+							f.write(x+ "," + y + "," + nodeMap[x][y] + '\n');
+					}
+				}
+			}
+			f.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * For debugging, to be removed.
+	 * @param fileName
+	 * @param details
+	 * @return
+	 */
+	public Area readMap(String fileName, MapDetails details) {
+		File mapFile = new File(fileName);
+		Area collectorBounds = null;
+		if (!mapFile.exists()) {
+			System.out.println("Error: map file doesn't exist: " + mapFile);  
+			return null;
+		}
+		try {
+			InputStream fileStream = new FileInputStream(mapFile);
+			LineNumberReader problemReader = new LineNumberReader(
+					new InputStreamReader(fileStream));
+			Pattern csvSplitter = Pattern.compile(Pattern.quote(","));
+			
+			String problemLine;
+			String[] items;
+			problemLine = problemReader.readLine();
+			if (problemLine != null){
+				items = csvSplitter.split(problemLine);
+				if (items.length != 4){
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					problemReader.close();
+					return null;
+				}
+				details.addToBounds(Integer.parseInt(items[0]), Integer.parseInt(items[1]));
+				details.addToBounds(Integer.parseInt(items[2]),Integer.parseInt(items[3]));
+			}
+			problemLine = problemReader.readLine();
+			if (problemLine != null){
+				items = csvSplitter.split(problemLine);
+				if (items.length != 4){
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					problemReader.close();
+					return null;
+				}
+				collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
+						Integer.parseInt(items[2]),Integer.parseInt(items[3]));
+			}
+			while ((problemLine = problemReader.readLine()) != null) {
+				items = csvSplitter.split(problemLine);
+				if (items.length != 3) {
+					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+							+ problemLine);
+					problemReader.close();
+					return null;
+				}
+				int x,y,sum;
+				try{
+					x = Integer.parseInt(items[0]);
+					y = Integer.parseInt(items[1]);
+					sum = Integer.parseInt(items[2]);
+				
+					if (x < 0 || x >= width || y < 0 || y>=height){
+						System.out.println("Error: Invalid data in map file, line number " + + problemReader.getLineNumber() + ": "   
+								+ problemLine);
+
+					}
+					else{
+						if (nodeMap[x] == null)
+							nodeMap[x] = new int[height];
+						nodeMap[x][y] = sum;
+						totalNodeCount += sum;
+					}
+				}
+				catch(NumberFormatException exp){
+					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
+							+ problemLine + exp);
+					problemReader.close();
+					return null;
+				}
+			}
+			problemReader.close();
+		} catch (IOException exp) {
+			System.out.println("Error: Cannot read problem file " + mapFile +  
+					exp);
+			return null;
+		}
+		return collectorBounds;
+	}
+
+	public Area getArea(int x, int y, int width2, int height2) {
+		assert x >= 0;
+		assert y >= 0;
+		assert width2 > 0;
+		assert height2 > 0;
+		Area area = new Area(yToLat(y),xToLon(x),yToLat(y+height2),xToLon(x+width2));
+		return area;
+	}
+
+	
+
 }

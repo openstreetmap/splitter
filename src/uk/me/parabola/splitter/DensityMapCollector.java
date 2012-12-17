@@ -16,26 +16,37 @@ package uk.me.parabola.splitter;
 /**
  * Builds up a density map.
  */
-class DensityMapCollector implements MapCollector {
-
+class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 	private final DensityMap densityMap;
 	private final MapDetails details = new MapDetails();
 	private Area bounds;
 
-	DensityMapCollector(boolean trim, int resolution) {
-		this(null, trim, resolution);
+	DensityMapCollector(int resolution) {
+		this(null, resolution);
 	}
 
-	DensityMapCollector(Area bounds, boolean trim, int resolution) {
+	DensityMapCollector(Area bounds, int resolution) {
 		if (bounds == null) {
 			// If we don't receive any bounds we have to assume the whole planet
 			bounds = new Area(-0x400000, -0x800000, 0x400000, 0x800000);
 		}
-		densityMap = new DensityMap(bounds, trim, resolution);
+		densityMap = new DensityMap(bounds, resolution);
 	}
 
 	@Override
 	public boolean isStartNodeOnly() {
+		return true;
+	}
+	@Override
+	public boolean skipTags() {
+		return true;
+	}
+	@Override
+	public boolean skipWays() {
+		return true;
+	}
+	@Override
+	public boolean skipRels() {
 		return true;
 	}
 
@@ -56,15 +67,6 @@ class DensityMapCollector implements MapCollector {
 	}
 
 	@Override
-	public void processWay(Way w) {}
-
-	@Override
-	public void processRelation(Relation r) {}
-
-	@Override
-	public void endMap() {}
-
-	@Override
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
@@ -72,10 +74,19 @@ class DensityMapCollector implements MapCollector {
 			return details.getBounds();
 		}
 	}
-
 	@Override
 	public SplittableArea getRoundedArea(int resolution) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);
 		return new SplittableDensityArea(densityMap.subset(bounds));
+	} 
+
+	@Override
+	public void saveMap(String fileName) {
+		if (bounds != null && details != null && details.getBounds() != null)
+			densityMap.saveMap(fileName, details.getBounds(), bounds);
+	}
+	@Override
+	public void readMap(String fileName) {
+		bounds = densityMap.readMap(fileName, details);
 	}
 }

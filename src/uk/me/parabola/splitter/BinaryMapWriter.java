@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -31,7 +30,7 @@ import crosby.binary.Osmformat.Relation.MemberType;
 import crosby.binary.file.BlockOutputStream;
 import crosby.binary.file.FileBlock;
 
-public class BinaryMapWriter extends OSMWriter {
+public class BinaryMapWriter extends AbstractOSMWriter {
 
   private PBFSerializer serializer;
 
@@ -431,18 +430,13 @@ public class BinaryMapWriter extends OSMWriter {
     }
   }
 
-  public BinaryMapWriter(Area bounds, File outputDir)
-  {
-    super(bounds, outputDir);
+  public BinaryMapWriter(Area bounds, File outputDir, int mapId, int extra) {
+    super(bounds, outputDir, mapId, extra);
   }
 
-  public void initForWrite(int mapId, int extra)
+  public void initForWrite()
   {
-    extendedBounds = new Area(bounds.getMinLat() - extra, bounds.getMinLong()
-        - extra, bounds.getMaxLat() + extra, bounds.getMaxLong() + extra);
-
-    String filename = new Formatter()
-        .format(Locale.ROOT, "%08d.osm.pbf", mapId).toString();
+    String filename = String.format(Locale.ROOT, "%08d.osm.pbf", mapId);
     try {
       output = new BlockOutputStream(new FileOutputStream(new File(outputDir,
           filename)));
@@ -462,7 +456,6 @@ public class BinaryMapWriter extends OSMWriter {
         .newBuilder();
 
     Osmformat.HeaderBBox.Builder bbox = Osmformat.HeaderBBox.newBuilder();
-    System.out.println(bounds);
     bbox.setLeft(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLong())));
     bbox.setBottom(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLat())));
     bbox.setRight(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLong())));
@@ -501,15 +494,11 @@ public class BinaryMapWriter extends OSMWriter {
 		serializer.switchTypes();
 		serializer.processBatch();
 		serializer.close();
+		serializer = null;
     }
     catch(IOException e) {
       System.out.println("Could not write end of file: " + e);
     }
-  }
-
-  public boolean nodeBelongsToThisArea(Node node)
-  {
-    return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
   }
 
   public void write(Node node)

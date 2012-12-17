@@ -23,13 +23,12 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.util.Formatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.zip.GZIPOutputStream;
 
-public class OSMXMLWriter extends OSMWriter {
+public class OSMXMLWriter extends AbstractOSMWriter{
 	private final DecimalFormat numberFormat = new DecimalFormat(
 			"0.#######;-0.#######",
 			new DecimalFormatSymbols(Locale.US)
@@ -38,17 +37,13 @@ public class OSMXMLWriter extends OSMWriter {
 	private Writer writer;
 	
 
-	public OSMXMLWriter(Area bounds, File outputDir) {
-	  super(bounds, outputDir);
+	public OSMXMLWriter(Area bounds, File outputDir, int mapId, int extra) {
+		super(bounds, outputDir, mapId, extra);
 	}
 
-	public void initForWrite(int mapId, int extra) {
-		extendedBounds = new Area(bounds.getMinLat() - extra,
-						bounds.getMinLong() - extra,
-						bounds.getMaxLat() + extra,
-						bounds.getMaxLong() + extra);
+	public void initForWrite() {
 
-		String filename = new Formatter().format(Locale.ROOT, "%08d.osm.gz", mapId).toString();
+		String filename = String.format(Locale.ROOT, "%08d.osm.gz", mapId);
 		try {
 			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
 			OutputStream zos = new GZIPOutputStream(fos);
@@ -80,15 +75,12 @@ public class OSMXMLWriter extends OSMWriter {
 			writeString("</osm>\n");
 			flush();
 			writer.close();
+			writer = null;
 		} catch (IOException e) {
 			System.out.println("Could not write end of file: " + e);
 		}
 	}
 
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
-	
 	public void write(Node node) throws IOException {
 		writeString("<node id='");
 		writeLong(node.getId());

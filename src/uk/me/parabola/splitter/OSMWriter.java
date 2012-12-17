@@ -13,36 +13,46 @@
 
 package uk.me.parabola.splitter;
 
-import java.io.File;
+import java.awt.Rectangle;
 import java.io.IOException;
 
-public abstract class OSMWriter {
+public interface OSMWriter {
+	/** 
+	 * @return the bounds of the area (excluding the overlap)
+	 */
+	public Area getBounds();
 	
-	protected final Area bounds;
-	protected Area extendedBounds;
-	protected File outputDir;
+	/**
+	 * @return the bounds of the area (including the overlap)
+	 */
+	public Area getExtendedBounds();
 	
-
-	public OSMWriter(Area bounds, File outputDir) {
-		this.bounds = bounds;
-		this.outputDir = outputDir;
-	}
-
-	public Area getExtendedBounds() {
-		return extendedBounds;
-	}
+	public Rectangle getBBox();
 	
-	public abstract void initForWrite(int mapId, int extra);
+	public int getMapId();
+	
+	/**
+	 * open output file, allocate buffers etc.
+	 */
+	public abstract void initForWrite();
 
+	/**
+	 * close output file, free resources
+	 */
 	public abstract void finishWrite();
 
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
+	public boolean nodeBelongsToThisArea(Node node);
+
+	public boolean coordsBelongToThisArea(int mapLat, int mapLon);
 	
 	public abstract void write(Node node) throws IOException;
 
 	public abstract void write(Way way) throws IOException;
 
 	public abstract void write(Relation rel) throws IOException;
+
+	/**
+	 * @return true if the area was added for the problem list generator
+	 */
+	public boolean areaIsPseudo();
 }
