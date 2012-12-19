@@ -103,7 +103,7 @@ public class SplittableDensityArea implements SplittableArea {
 			return startSolution.getAreas(null);
 
 		System.out.println("Split was not yet succesfull. Trying to remove large empty areas...");
-		List<Tile> startTiles = checkForEmptyClusters(startTile, true);
+		List<Tile> startTiles = checkForEmptyClusters(0, startTile, true);
 		if (startTiles.size() == 1){
 			Tile tile = startTiles.get(0);
 			if (tile.equals(startTile)){
@@ -205,12 +205,13 @@ public class SplittableDensityArea implements SplittableArea {
 	/**
 	 * Try to find empty areas. This will fail if the empty area is enclosed by a
 	 * non-empty area.
+	 * @param depth recursion depth
 	 * @param tile the tile that might contain an empty area
 	 * @param splitHoriz true: search horizontal, else vertical
 	 * @return a list containing one or more tiles, cut from the original tile, or 
 	 * just the original tile
 	 */
-	private ArrayList<Tile> checkForEmptyClusters(final Tile tile, boolean splitHoriz) {
+	private ArrayList<Tile> checkForEmptyClusters(int depth, final Tile tile, boolean splitHoriz) {
 		java.awt.geom.Area area = new java.awt.geom.Area(tile);
 		int firstEmpty = -1;
 		int countEmpty = 0;
@@ -257,16 +258,21 @@ public class SplittableDensityArea implements SplittableArea {
 			}
 		}
 		ArrayList<Tile> clusters = new ArrayList<Tile>();
-		if (area.isSingular()){
-			clusters.add(tile);
+		if (depth == 0 && area.isSingular()){
+			// try also the other split axis 
+			clusters.addAll(checkForEmptyClusters(depth + 1, tile.trim(), !splitHoriz ));
 		} else {
-			List<List<Point>> shapes = Utils.areaToShapes(area);
-			for (List<Point> shape: shapes){
-				java.awt.geom.Area part = Utils.shapeToArea(shape);
-				Rectangle r = part.getBounds();
-				Tile t = new Tile(r.x,r.y,r.width,r.height);
-				if (t.count > 0)
-					clusters.addAll(checkForEmptyClusters(t.trim(), !splitHoriz ));
+			if (area.isSingular()){
+				clusters.add(tile.trim());
+			} else {
+				List<List<Point>> shapes = Utils.areaToShapes(area);
+				for (List<Point> shape: shapes){
+					java.awt.geom.Area part = Utils.shapeToArea(shape);
+					Rectangle r = part.getBounds();
+					Tile t = new Tile(r.x,r.y,r.width,r.height);
+					if (t.count > 0)
+						clusters.addAll(checkForEmptyClusters(depth + 1, t.trim(), !splitHoriz ));
+				}
 			}
 		}
 		return clusters;
@@ -981,10 +987,6 @@ public class SplittableDensityArea implements SplittableArea {
 
 			assert minX <= maxX;
 			assert minY <= maxY;
-			super.x = minX;
-			super.y = minY;
-			super.width = maxX - minX + 1;
-			super.height = maxY - minY + 1;
 			return new Tile(minX, minY, maxX - minX + 1, maxY - minY + 1, count);
 		} 		
 		
