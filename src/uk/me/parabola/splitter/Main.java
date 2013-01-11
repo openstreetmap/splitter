@@ -31,7 +31,6 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -78,9 +77,8 @@ public class Main {
 	// The starting map ID.
 	private int mapId;
 
-	// The amount in map units that tiles overlap (note that the final img's will not overlap
-	// but the input files do).
-	private int overlapAmount;
+	// The amount in map units that tiles overlap. The default is overwritten depending on user settings.
+	private int overlapAmount = -1;
 
 	// A threshold value that is used when no split-file is given. Splitting is done so that
 	// no tile has more than maxNodes nodes inside the bounding box of the tile.
@@ -134,8 +132,12 @@ public class Main {
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
 	// for faster access on blocks in o5m files
 	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>();
+	private boolean useFileAccessOptimizer = true;
 
 	private String stopAfter;
+
+	private String precompSeaDir;
+
 	
 	public static void main(String[] args) {
 
@@ -278,11 +280,30 @@ public class Main {
 			Object value = entry.getValue();
 			System.out.println(name + '=' + (value == null ? "" : value));
 		}
-
+		filenames = parser.getAdditionalParams();
+		if (filenames.isEmpty()){
+			System.out.println("No file name(s) given, will try to read from stdin." );
+		} else {
+			boolean filesOK = true;
+			for (String fileName: filenames){
+				if (testAndReportFname(fileName, "input file") == false){
+					filesOK = false;
+				}
+			}
+			if (!filesOK){
+				System.out.println("Make sure that option parameters start with -- " );
+				System.exit(-1);
+			}
+		}
 		mapId = params.getMapid();
 		maxNodes = params.getMaxNodes();
 		description = params.getDescription();
 		geoNamesFile = params.getGeonamesFile();
+		if (geoNamesFile != null){
+			if (testAndReportFname(geoNamesFile, "geonames-file") == false){
+				System.exit(-1);
+			}
+		}
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
 		outputType = params.getOutput();
@@ -309,20 +330,36 @@ public class Main {
 		kmlOutputFile = params.getWriteKml();
 
 		maxThreads = params.getMaxThreads().getCount();
-		filenames = parser.getAdditionalParams();
 		
 		problemFile = params.getProblemFile();
 		if (problemFile != null){
 			if (!readProblemIds(problemFile))
 				System.exit(-1);
 		}
+		String splitFile = params.getSplitFile();
+		if (splitFile != null) {
+			if (testAndReportFname(splitFile, "split-file") == false){
+				System.exit(-1);
+			}
+		}
+		
 		keepComplete = params.isKeepComplete();
 		if (mixed && (keepComplete || problemFile != null)){
 			System.err.println("--mixed=true is not supported in combination with --keep-complete=true or --problem-file.");
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
 			System.exit(-1);
 		}
-		overlapAmount = params.getOverlap();
+		
+		String overlap = params.getOverlap();
+		if ("auto".equals(overlap) == false){
+			try{
+				overlapAmount = Integer.valueOf(overlap);
+			} 
+			catch (NumberFormatException e){
+				System.err.println("Error: --overlap=" + overlap + " is not is not a valid option.");
+				System.exit(-1);
+			}
+		}
 		
 		if (keepComplete){
 			if (filenames.size() > 1){
@@ -349,7 +386,7 @@ public class Main {
 		if (keepComplete == false && problemReport != null){
 			System.out.println("Parameter --problem-report is ignored, because parameter --keep-complete is not set");
 		}
-		String splitFile = params.getSplitFile();
+		
 		if (splitFile != null) {
 			try {
 				areaList = new AreaList();
@@ -386,6 +423,15 @@ public class Main {
 			System.err.println("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
 			System.exit(-1);
 		}
+		
+		precompSeaDir = params.getPrecompSea();
+		if (precompSeaDir != null){
+			File dir = new File (precompSeaDir);
+			if (dir.exists() == false || dir.canRead() == false){
+				System.out.println("Error: precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
+				System.exit(-1);
+			}
+		}
 	}
 
 	/**
@@ -394,7 +440,7 @@ public class Main {
 	 */
 	private AreaList calculateAreas() throws IOException, XmlPullParserException {
 
-		MapCollector pass1Collector = new DensityMapCollector(resolution); 
+		DensityMapCollector pass1Collector = new DensityMapCollector(resolution); 
 		MapProcessor processor = pass1Collector;
 		
 		File densityData = new File("densities.txt");
@@ -409,10 +455,27 @@ public class Main {
 		}
 		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
 		System.out.println("Time: " + new Date());
-
-		Area exactArea = pass1Collector.getExactArea();
 		if (densityOutData != null )
 			pass1Collector.saveMap(densityOutData.getAbsolutePath());
+
+		Area exactArea = pass1Collector.getExactArea();
+		if (precompSeaDir != null){
+			System.out.println("Counting nodes of precompiled sea data ...");
+			long startSea = System.currentTimeMillis();
+			useFileAccessOptimizer  = false;
+			DensityMapCollector seaCollector = new DensityMapCollector(resolution);
+			MapProcessor seaProcessor = seaCollector;
+			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
+			List<String> saveFilenames = filenames;
+			filenames = precompSeaReader.getPrecompFileNames();
+			precompSeaReader = null;
+			processMap(seaProcessor);
+			pass1Collector.mergeSeaData(seaCollector, trim);
+			filenames = saveFilenames;
+			useFileAccessOptimizer = true;
+			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
+			
+		}
 		
 		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
 		if (splittableArea.hasData() == false)
@@ -510,7 +573,10 @@ public class Main {
 					dataStorer, writerOffset, numWritersThisPass,
 					problemWaysThisPart, problemRelsThisPart);
 			
-			processMap(processor); 
+			boolean done = false;
+			while (!done){
+				done = processMap(processor);
+			}
 			System.out.println("Problem-list-generator pass " + (pass+1) + " for partition " + partition+ " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
 		//writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
@@ -560,13 +626,50 @@ public class Main {
 	 */
 	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
 		OSMWriter[] allWriters = new OSMWriter[areas.size()];
+		Map<String, byte[]> wellKnownTagKeys = null;
+		Map<String, byte[]> wellKnownTagVals = null;
+		if ("o5m".equals(outputType)){
+			wellKnownTagKeys = new HashMap<String, byte[]>();
+			wellKnownTagVals = new HashMap<String, byte[]>();
+			
+			String[] tagKeys = { "1", "1outer", "1inner", // relation specific  
+					// 52 most often used keys (taken from taginfo 2012-12-19)
+					"source", "building",
+					"highway", "name", "addr:housenumber", "addr:street",
+					"tiger:cfcc", "tiger:county", "tiger:source", "tiger:tlid",
+					"tiger:reviewed", "addr:city", "tiger:separated",
+					"tiger:upload_uuid", "natural", "addr:country",
+					"addr:postcode", "attribution", "waterway", "wall",
+					"tiger:name_base", "landuse", "tiger:name_type", "surface",
+					"amenity", "oneway", "power", "yh:WIDTH", "tiger:zip_left",
+					"3dshapes:ggmodelk", "yh:STRUCTURE", "yh:TYPE", "note",
+					"yh:TOTYUMONO", "yh:WIDTH_RANK", "ref", "tiger:zip_right",
+					"access", "source_ref", "is_in", "note:ja", "lanes",
+					"KSJ2:curve_id", "place", "layer", "maxspeed", "tracktype",
+					"osak:identifier", "KSJ2:long", "KSJ2:lat",
+					"KSJ2:coordinate" };
+
+			for (String s:tagKeys){
+				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
+			}
+			
+			String[] tagVals = { "yes", "no", "residential", "water", "tower",
+					"footway", "Bing", "PGS", "private", "stream", "service",
+					"house", "unclassified", "track", "traffic_signals","restaurant","entrance"};
+			
+			for (String s:tagVals){
+				wellKnownTagVals.put(s, s.getBytes("UTF-8"));
+			}
+			
+		}
+		
 		for (int j = 0; j < allWriters.length; j++) {
 			Area area = areas.get(j);
 			OSMWriter w;
 			if ("pbf".equals(outputType)) 
 				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
 			else if ("o5m".equals(outputType))
-				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount, wellKnownTagKeys,wellKnownTagVals);
 			else if ("simulate".equals(outputType))
 				w = new PseudoOSMWriter(area, area.getMapId(), false, overlapAmount);
 			else 
@@ -589,15 +692,21 @@ public class Main {
 			problemRels = null;
 			problemWays = null;
 			
-			int pass = 0;
 			boolean done = false;
+			long startThisPhase = System.currentTimeMillis();
+			int prevPhase = -1; 
 			while(!done){
-				long startThisPass = System.currentTimeMillis();
-				++pass;
-				System.out.println("-----------------------------------");
-				System.out.println("Starting multi-tile analyses pass " + pass);
+				int phase = multiProcessor.getPhase();
+				if (prevPhase != phase){
+					startThisPhase = System.currentTimeMillis();
+					System.out.println("-----------------------------------");
+					System.out.println("Executing multi-tile analyses phase " + phase);
+				}
 				done = processMap(multiProcessor);
-				System.out.println("Multi-tile analyses pass " + pass + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
+				prevPhase = phase;
+				if (done || (phase != multiProcessor.getPhase())){
+					System.out.println("Multi-tile analyses phase " + phase + " took " + (System.currentTimeMillis() - startThisPhase) + " ms");
+				}
 			}
 
 			System.out.println("-----------------------------------");
@@ -630,7 +739,7 @@ public class Main {
 
 			processMap(processor); 
 		}
-		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms"); 
+		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms");
 		dataStorer.finish();
 		
 	}
@@ -663,7 +772,7 @@ public class Main {
 					long[] skipArray = skipArrayMap.get(filename);
 					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
 					o5mParser.parse();
-					if (skipArray == null){
+					if (skipArray == null && useFileAccessOptimizer){
 						skipArray = o5mParser.getSkipArray();
 						skipArrayMap.put(filename, skipArray);
 					}
@@ -679,7 +788,7 @@ public class Main {
 						blockinput.process();
 					} finally {
 						blockinput.close();
-						if (blockTypes == null){
+						if (blockTypes == null && useFileAccessOptimizer){
 							// remember this file 
 							blockTypes = binParser.getBlockList();
 							blockTypeMap.put(filename, blockTypes);
@@ -696,11 +805,11 @@ public class Main {
 					}
 				}
 			} catch (FileNotFoundException e) {
-				System.out.printf("ERROR: file %s was not found\n", filename);
+				System.out.printf("ERROR: file %s was not found%n", filename);
 			} catch (XmlPullParserException e) {
-				System.out.printf("ERROR: file %s is not a valid OSM XML file\n", filename);
+				System.out.printf("ERROR: file %s is not a valid OSM XML file%n", filename);
 			} catch (IllegalArgumentException e) {
-				System.out.printf("ERROR: file %s contains unexpected data\n", filename);
+				System.out.printf("ERROR: file %s contains unexpected data%n", filename);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -738,17 +847,19 @@ public class Main {
 		w.println("# for each one.");
 		for (Area a : areas) {
 			w.println();
-			w.format("mapname: %08d\n", a.getMapId());
+			w.format("mapname: %08d%n", a.getMapId());
 			if (a.getName() == null)
 				w.println("# description: OSM Map");
 			else
 				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
+			String ext;
 			if("pbf".equals(outputType))
-				  w.format("input-file: %08d.osm.pbf\n", a.getMapId());
+				ext = ".osm.pbf";
 			else if("o5m".equals(outputType))
-				  w.format("input-file: %08d.o5m\n", a.getMapId());
+				ext = ".o5m";
 			else
-			  w.format("input-file: %08d.osm.gz\n", a.getMapId());
+				ext = ".osm.gz";
+			w.format("input-file: %08d%s%n", a.getMapId(), ext);
 		}
 
 		w.println();
@@ -1195,4 +1306,15 @@ public class Main {
 		return true;
 	}
 
+	static boolean testAndReportFname(String fileName, String type){
+		File f = new File(fileName);
+		if (f.exists() == false || f.isFile() == false || f.canRead() == false){
+			String msg = "Error: " + type + " doesn't exist or is not a readable file: " + fileName;
+			System.out.println(msg);
+			System.err.println(msg);
+			return false;
+		}
+		return true;
+	}
+	
 }

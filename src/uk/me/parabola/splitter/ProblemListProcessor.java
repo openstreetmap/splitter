@@ -19,6 +19,7 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.awt.Rectangle;
 import java.util.BitSet;
+import java.util.Iterator;
 
 /**
  * Find ways and relations that will be incomplete.
@@ -30,6 +31,9 @@ import java.util.BitSet;
  * 
  */
 class ProblemListProcessor extends AbstractMapProcessor {
+	private final static int PHASE1_NODES_AND_WAYS = 1;
+	private final static int PHASE2_RELS_ONLY = 2;
+
 	private final OSMWriter[] writers;
 
 	private SparseLong2ShortMapFunction coords;
@@ -41,6 +45,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private LongArrayList problemRels;
 	private BitSet writerSet;
 	
+	private int phase = PHASE1_NODES_AND_WAYS;
 	//	for statistics
 	//private long countQuickTest = 0;
 	//private long countFullTest = 0;
@@ -83,11 +88,40 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	@Override
 	public boolean skipTags() {
-		return true;
+		if (phase == PHASE1_NODES_AND_WAYS)
+			return true;
+		else
+			return false;
 	}
 
 	@Override
+	public boolean skipNodes() {
+		if (phase == PHASE2_RELS_ONLY)
+			return true;
+		return false;
+	}
+	@Override
+	public boolean skipWays() {
+		if (phase == PHASE2_RELS_ONLY)
+			return true;
+		return false;
+	}
+	@Override
+	public boolean skipRels() {
+		if (phase == PHASE2_RELS_ONLY)
+			return false;
+		return true;
+	}
+		
+	@Override
+	public int getPhase(){
+		return phase;
+	}
+	
+	@Override
 	public void processNode(Node node) {
+		if (phase == PHASE2_RELS_ONLY)
+			return;
 		int countWriters = 0;
 		short lastUsedWriter = UNASSIGNED;
 		short writerIdx = UNASSIGNED;
@@ -98,7 +132,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (writerCandidates.l.size() > 1)
 			writerSet.clear();
 		for (int i = 0; i < writerCandidates.l.size(); i++) {
-			int n = writerCandidates.l.get(i);
+			int n = writerCandidates.l.getShort(i);
 			if (n < writerOffset || n > lastWriter)
 				continue;
 
@@ -134,6 +168,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	@Override
 	public void processWay(Way way) {
+		if (phase == PHASE2_RELS_ONLY)
+			return;
 		boolean maybeChanged = false;
 		int oldclIndex = UNASSIGNED;
 		short wayWriterIdx; 
@@ -174,9 +210,27 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		}
 	}
 	
+	private final static String[] WANTED_RELS = {"restriction", "multipolygon" ,"through_route"};
 	@Override
 	public void processRelation(Relation rel) {
 		//BitSet writerSet = new BitSet();
+		boolean useThis = false;
+		Iterator<Element.Tag> tags = rel.tagsIterator();
+		while(tags.hasNext()) {
+			Element.Tag t = tags.next();
+			if ("type".equals(t.key)) {
+				for (String wanted: WANTED_RELS){
+					if (wanted.equals((t.value))){
+						useThis = true;
+						break;
+					}
+				}
+			}
+			if (useThis)
+				break;
+		}
+		if (!useThis)
+			return;
 		writerSet.clear();
 		Integer relWriterIdx;
 		if (!isFirstPass){
@@ -231,6 +285,10 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	@Override
 	public boolean endMap() {
+		if (phase == PHASE1_NODES_AND_WAYS){
+			phase++;
+			return false;
+		}
 		System.out.println("Statistics for coords map:");
 		coords.stats(1);
 		System.out.println("Statistics for ways map:");
@@ -242,11 +300,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			System.out.println("  Number of stored combis in big dictionary: " + Util.format(dataStorer.getMultiTileWriterDictionary().size()));
 			System.out.println("  Number of detected problem ways: " + Util.format(problemWays.size()));
 			System.out.println("  Number of detected problem rels: " + Util.format(problemRels.size()));
-			long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
-			long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
-			long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
-			long usedMem = totalMem - freeMem;
-			System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+			Utils.printMem();
 			System.out.println("");
 			dataStorer.getUsedWays().clear();
 			dataStorer.getUsedRels().clear();

@@ -211,9 +211,6 @@ public class OSMXMLWriter extends AbstractOSMWriter{
         writeString(Double.toString(value));
 	}
 	/** Write a double truncated to OSM's 7 digits of precision
-	 *
-	 *  TODO: Optimize. Responsible for >30% of the runtime after other using binary 
-	 *  format and improved hash table.
 	 */
 	private void writeDouble(double value) throws IOException {
 		checkFlush(22);
@@ -232,20 +229,10 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		writeString(s.toString());
 		}
 	}
-	
-	private void writeInt(int value) throws IOException {
-		checkFlush(11);
-		index += Convert.intToString(value, charBuf, index);
-	}
-
-	
+		
 	private void writeLong(long value) throws IOException {
-		if (value < Integer.MAX_VALUE) writeInt ((int) value);
-		else {
-			checkFlush(20);
-			StringBuilder s = new StringBuilder(Long.toString(value));
-			writeString(s.toString());
-		}
+		checkFlush(20);
+		writeString(Long.toString(value));
 	}
 	
 

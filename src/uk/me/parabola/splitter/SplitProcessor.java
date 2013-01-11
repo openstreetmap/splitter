@@ -95,7 +95,6 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		
 	} 
-	
 
 	@Override
 	public void processNode(Node n) {
@@ -108,6 +107,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processWay(Way w) {
+		currentWayAreaSet.clear();
 		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): WriterDictionaryInt.UNASSIGNED;
 		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
@@ -133,30 +133,30 @@ class SplitProcessor extends AbstractMapProcessor {
 					}
 				}
 			}
-			if (!currentWayAreaSet.isEmpty()){
-				// store these areas in ways map
-				short idx = writerDictionary.translate(currentWayAreaSet);
-				ways.put(w.getId(), idx);
-				++countWays;
-				if (countWays % 1000000 == 0){
-					System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
-					ways.stats(0);
-				}
+		}
+		if (!currentWayAreaSet.isEmpty()){
+			// store these areas in ways map
+			short idx = writerDictionary.translate(currentWayAreaSet);
+			ways.put(w.getId(), idx);
+			++countWays;
+			if (countWays % 1000000 == 0){
+				System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				ways.stats(0);
 			}
 		}
 		try {
 			writeWay(w);
-			currentWayAreaSet.clear();
 		} catch (IOException e) {
 			throw new RuntimeException("failed to write way " + w.getId(), e);
-
 		}
 	}
 
 	@Override
 	public void processRelation(Relation rel) {
+		currentRelAreaSet.clear();
 		int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
 		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
+			
 			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 			try {
 				// set only active writer bits
@@ -165,7 +165,6 @@ class SplitProcessor extends AbstractMapProcessor {
 				}
 				writeRelation(rel);
 				//System.out.println("added rel: " +  r.getId());
-				currentRelAreaSet.clear();
 			} catch (IOException e) {
 				throw new RuntimeException("failed to write relation " + rel.getId(),
 						e);
@@ -204,7 +203,6 @@ class SplitProcessor extends AbstractMapProcessor {
 				}
 
 				writeRelation(rel);
-				currentRelAreaSet.clear();
 			} catch (IOException e) {
 				throw new RuntimeException("failed to write relation " + rel.getId(),
 						e);
@@ -218,11 +216,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		System.out.println("");
 		System.out.println("Statistics for ways map:");
 		ways.stats(1);
-		long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
-		long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
-		long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
-		long usedMem = totalMem - freeMem;
-		System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+		Utils.printMem();
 		System.out.println("Full Node tests:  " + Utils.format(countFullTest));
 		System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		
 		coords = null;
@@ -273,7 +267,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			usedWriters.clear();
 		if (writerCandidates != null){
 			for (int i = 0; i < writerCandidates.l.size(); i++) {
-				int n = writerCandidates.l.get(i);
+				int n = writerCandidates.l.getShort(i);
 				if (n < writerOffset || n > lastWriter)
 					continue;
 				OSMWriter w = writers[n];
@@ -462,4 +456,5 @@ class SplitProcessor extends AbstractMapProcessor {
 					+ " has finished");
 		}
 	}
+
 }

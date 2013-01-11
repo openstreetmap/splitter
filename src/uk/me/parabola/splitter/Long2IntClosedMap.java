@@ -12,6 +12,9 @@
  */
  package uk.me.parabola.splitter;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -22,23 +25,30 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
-
 /**
- * Stores long/short pairs. 
+ * Stores long/int pairs. 
  * Requires less heap space compared to a HashMap while updates are allowed, and almost no
  * heap when sequential access is used. This is NOT a general purpose class.
  * 
  * @author GerdP 
  */
 class Long2IntClosedMap implements Long2IntClosedMapFunction{
+	private static final long LOW_ID_MASK = 0x3fffffffL; // 30 bits
+	private static final long TOP_ID_MASK = ~LOW_ID_MASK;
+	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);  
+	
 	private File tmpFile;
 	private final String name;
-	private long [] keys;
+	private LongArrayList index;	// stores the higher 34 bits of the key which doesn't change frequently
+	private IntArrayList bounds;
+	// stores the lower 30 bits of the long value
+	private int [] keys;
 	private int [] vals;
 	private final int maxSize;
 	private final int unassigned; 
 	private int size;
-	private long currentKey;
+	private long currentKey = Long.MIN_VALUE;
+	private long oldTopId = Long.MIN_VALUE;
 	private int currentVal;
 	private DataInputStream dis;
 	
@@ -46,8 +56,10 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	public Long2IntClosedMap(String name, int maxSize, int unassigned) {
 		this.name = name;
 		this.maxSize = maxSize;
-		keys = new long[maxSize];
+		index = new LongArrayList();
+		bounds = new IntArrayList();
 		vals = new int[maxSize];
+		keys = new int[maxSize];
 		this.unassigned = unassigned;
 	}
 
@@ -56,12 +68,19 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		if (keys == null){
 			throw new IllegalArgumentException(name + ": Add on read-only map requested");
 		}
-		if (size > 0 && keys[size-1] > key)
-			throw new IllegalArgumentException("New " + name + " id " + key + " is not higher than last id " + keys[size-1]);
+		if (size > 0 && currentKey >= key)
+			throw new IllegalArgumentException("New " + name + " id " + key + " is not higher than last id " + currentKey);
 		if (size+1 > maxSize)
 			throw new IllegalArgumentException(name + " Map is full.");
-		keys[size] = key;
+		long topId = key >> TOP_ID_SHIFT;
+		if (topId != oldTopId){
+			index.add(topId);
+			bounds.add(size);
+			oldTopId = topId;
+		}
+		keys[size] = (int)(key & LOW_ID_MASK);
 		vals[size] = val;
+		currentKey = key;
 		size++;
 		return size-1;
 	}
@@ -74,14 +93,22 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		BufferedOutputStream stream = new BufferedOutputStream(fos);
 		DataOutputStream dos = new DataOutputStream(stream);
 		long lastKey = Long.MIN_VALUE;
-		for (int i = 0; i <  size; i++){
-			long key = keys[i];
-			int val = vals[i];
-			assert i == 0  | lastKey < key;
-			lastKey = key;
-			if (val != unassigned){
-				dos.writeLong(key);
-				dos.writeInt(val);
+		for (int indexPos = 0; indexPos < index.size(); indexPos++){
+			long topId = index.getLong(indexPos);
+			int lowerBound = bounds.getInt(indexPos);
+			int upperBound = size;
+			if (indexPos+1 < index.size())
+				upperBound = bounds.getInt(indexPos+1);
+			long topVal = topId << TOP_ID_SHIFT;
+			for (int i = lowerBound; i <  upperBound; i++){
+				long key = topVal | (keys[i] & LOW_ID_MASK);
+				int val = vals[i];
+				assert i == 0  || lastKey < key;
+				lastKey = key;
+				if (val != unassigned){
+					dos.writeLong(key);
+					dos.writeInt(val);
+				}
 			}
 		}
 		// write sentinel
@@ -90,6 +117,9 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		dos.close();
 		keys = null;
 		vals = null;
+		index = null;
+		bounds = null;
+		currentKey = Long.MIN_VALUE;
 		System.out.println("Wrote " + size + " " + name + " pairs to " + tmpFile.getAbsolutePath());
 	}
 
@@ -116,8 +146,16 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		if (keys == null){
 			throw new IllegalArgumentException("random access on sequential-only map requested");
 		}
-		
-		int pos = Arrays.binarySearch(keys,0,size, key);
+		long topId = key >> TOP_ID_SHIFT;
+		int indexPos = Arrays.binarySearch(index.toLongArray(),0,index.size(),topId);
+		if (indexPos < 0)
+			return -1;
+		int lowerBound = bounds.getInt(indexPos);
+		int upperBound = size;
+		if (bounds.size() > indexPos+1)
+			upperBound = bounds.getInt(indexPos+1);
+		int lowId = (int)(key & LOW_ID_MASK);
+		int pos = Arrays.binarySearch(keys,lowerBound,upperBound, lowId);
 		return pos;
 	}
 

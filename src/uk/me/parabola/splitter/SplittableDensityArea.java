@@ -13,6 +13,8 @@
 
 package uk.me.parabola.splitter;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -57,7 +59,7 @@ public class SplittableDensityArea implements SplittableArea {
 	private boolean allowEmptyPart = false;
 	private int startMapId;
 	private int maxNodesInDensityMapGridElement;
-	enum sides {TOP,RIGHT,BOTTOM,LEFT};
+	enum sides {TOP,RIGHT,BOTTOM,LEFT}
 	
 	public SplittableDensityArea(DensityMap densities) {
 		knownTileCounts = new HashMap<Rectangle, Long>();
@@ -139,12 +141,22 @@ public class SplittableDensityArea implements SplittableArea {
 			return split(maxNodes);
 		if (polygonArea.isSingular()){
 			java.awt.geom.Area rasteredArea = allDensities.rasterPolygon(polygonArea);
+			if (rasteredArea.isEmpty()){
+				System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
+				return Collections.emptyList();
+			}
 			prepare(polygonArea);
 			Tile tile = new Tile(rasteredArea.getBounds().x,rasteredArea.getBounds().y,rasteredArea.getBounds().width,rasteredArea.getBounds().height);
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
 			return solution.getAreas(polygonArea);
-		} else 
-			return splitPolygon(polygonArea);
+		} else {
+			if (polygonArea.intersects(Utils.area2Rectangle(allDensities.getBounds(),0)))
+				return splitPolygon(polygonArea);
+			else {
+				System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
+				return Collections.emptyList();
+			}
+		}
 	}
 
 	
@@ -299,7 +311,8 @@ public class SplittableDensityArea implements SplittableArea {
 			shapeBounds  = RoundingUtils.round(shapeBounds, resolution);
 			SplittableArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds));
 			if (splittableArea.hasData() == false){
-				result.add(shapeBounds);
+				System.out.println("Warning: a part of the bounding polygon would be empty and is ignored:" + shapeBounds);
+				//result.add(shapeBounds);
 				continue;
 			}
 			List<Area> partResult = splittableArea.split(maxNodes, shapeArea);
@@ -421,10 +434,9 @@ public class SplittableDensityArea implements SplittableArea {
 		}
 
 		// we have to split the tile
-		
-		ArrayList<Integer> offsets = new ArrayList<Integer>();
-		ArrayList<Integer> splitXPositions = new ArrayList<Integer>();
-		ArrayList<Integer> splitYPositions = new ArrayList<Integer>();
+		IntArrayList offsets = new IntArrayList();
+		IntArrayList splitXPositions = new IntArrayList();
+		IntArrayList splitYPositions = new IntArrayList();
 
 		long[] rowSums = null;
 		long[] colSums = null;
@@ -474,7 +486,7 @@ public class SplittableDensityArea implements SplittableArea {
 					if (currX >= offsets.size()){
 						break;
 					}
-					offset = offsets.get(currX++);
+					offset = offsets.getInt(currX++);
 					int pos = splitX + offset;
 					if (splitX > 0 && (pos >= tile.width || pos <= 0))
 						parts = null;
@@ -484,7 +496,7 @@ public class SplittableDensityArea implements SplittableArea {
 						splitX = parts[1].x;
 					}
 				} else {
-					offset = offsets.get(currY++);
+					offset = offsets.getInt(currY++);
 					int pos = splitY + offset;
 					if (splitY > 0 && (pos >= tile.height || pos <= 0))
 						parts = null;
@@ -499,9 +511,9 @@ public class SplittableDensityArea implements SplittableArea {
 				if (axis == AXIS_HOR || currY >= splitYPositions.size()){
 					if (currX >= splitXPositions.size())
 						break;
-					parts = tile.splitHoriz(splitXPositions.get(currX++), colSums);
+					parts = tile.splitHoriz(splitXPositions.getInt(currX++), colSums);
 				} else {
-					parts = tile.splitVert(splitYPositions.get(currY++), rowSums);
+					parts = tile.splitVert(splitYPositions.getInt(currY++), rowSums);
 				}
 			}
 			if (parts == null)
@@ -981,8 +993,6 @@ public class SplittableDensityArea implements SplittableArea {
 					maxY = y + i;
 					break;
 				}
-				if (maxY >= 0)
-					break;
 			}
 
 			assert minX <= maxX;

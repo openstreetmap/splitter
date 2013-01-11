@@ -275,6 +275,14 @@ public class Utils {
 		return area <= 0;
 	}
 
-	
+
+	public static void printMem(){
+		long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+		long totalMem = Runtime.getRuntime().totalMemory() / 1024 / 1024;
+		long freeMem = Runtime.getRuntime().freeMemory() / 1024 / 1024;
+		long usedMem = totalMem - freeMem;
+		System.out.println("  JVM Memory Info: Current " + totalMem + "MB (" + usedMem + "MB used, " + freeMem + "MB free) Max " + maxMem + "MB");
+
+	}
 }
 

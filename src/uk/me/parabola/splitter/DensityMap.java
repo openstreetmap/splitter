@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
  * @author Chris Miller
  */
 public class DensityMap {
+	private static final int SEA_NODE_FACTOR = 2;
 	private final int width, height, shift;
 	private final int[][] nodeMap;
 	private Area bounds;
@@ -115,7 +116,7 @@ public class DensityMap {
 		return height;
 	}
 
-	public long addNode(int lat, int lon) {
+	public int addNode(int lat, int lon) {
 		if (!bounds.contains(lat, lon))
 			return 0;
 
@@ -167,11 +168,6 @@ public class DensityMap {
 		}
 
 		Area subset = new Area(minLat, minLon, maxLat, maxLon);
-		/*
-		if (trim) {
-			subset = trim(subset);
-		}
-*/
 		// If there's nothing in the area return an empty map
 		if (subset.getWidth() == 0 || subset.getHeight() == 0) {
 			return new DensityMap(Area.EMPTY, 24 - shift);
@@ -202,66 +198,6 @@ public class DensityMap {
 		return result;
 	}
 
-	/**
-	 * Sets the trimmed bounds based on any empty edges around the density map
-	 */
-	/*
-	private Area trim(Area area) {
-
-		int minX = lonToX(area.getMinLong());
-		int maxX = lonToX(area.getMaxLong());
-		int minY = latToY(area.getMinLat());
-		int maxY = latToY(area.getMaxLat());
-
-		while (minX < maxX && (nodeMap[minX] == null || isEmptyX(minX, minY, maxY))) {
-			minX++;
-		}
-		if (minX == maxX) {
-			return Area.EMPTY;
-		}
-
-		while (nodeMap[maxX - 1] == null || isEmptyX(maxX - 1, minY, maxY)) {
-			maxX--;
-		}
-
-		while (minY < maxY && isEmptyY(minY, minX, maxX)) {
-			minY++;
-		}
-		if (minY == maxY) {
-			return Area.EMPTY;
-		}
-
-		while (isEmptyY(maxY - 1, minX, maxX)) {
-			maxY--;
-		}
-
-		assert yToLat(minY) % (1<<shift) == 0;
-		assert yToLat(maxY) % (1<<shift) == 0;
-		assert xToLon(minX) % (1<<shift) == 0;
-		assert xToLon(maxX) % (1<<shift) == 0;
-		Area trimmedArea = new Area(yToLat(minY), xToLon(minX), yToLat(maxY), xToLon(maxX));
-		return trimmedArea;
-	}
-	 
-	private boolean isEmptyX(int x, int start, int end) {
-		int[] array = nodeMap[x];
-		if (array != null) {
-			for (int y = start; y < end; y++) {
-				if (array[y] != 0)
-					return false;
-			}
-		}
-		return true;
-	}
-
-	private boolean isEmptyY(int y, int start, int end) {
-		for (int x = start; x < end; x++) {
-			if (nodeMap[x] != null && nodeMap[x][y] != 0)
-				return false;
-		}
-		return true;
-	}
-*/
 	private int yToLat(int y) {
 		return (y << shift) + bounds.getMinLat();
 	}
@@ -401,6 +337,87 @@ public class DensityMap {
 		return area;
 	}
 
-	
-
+	/**
+	 * Handle data that will be added with the --precomp-sea option of mkgmap.
+	 * We add coast line data only to empty parts to avoid counting it twice.
+	 * @param seaData a DensityMap that was filled with data from precompiled sea 
+	 * @param area 
+	 */
+	public void mergeSeaData(DensityMap seaData, Area area, boolean trim) {
+		if (this.shift != seaData.shift
+				|| Utils.area2Rectangle(bounds, 0).equals(
+						Utils.area2Rectangle(seaData.getBounds(), 0)) == false) {
+			System.err.println("cannot merge density maps");
+			System.exit(-1);
+		}
+		if (trim && totalNodeCount == 0)
+			return;
+		int minX = lonToX(area.getMinLong()); 
+		int maxX = lonToX(area.getMaxLong());
+		int minY = latToY(area.getMinLat());
+		int maxY = latToY(area.getMaxLat());
+		if (trim){
+			for (int x = minX; x <= width; x++) {
+				if (nodeMap[x] != null){
+					minX = x;
+					break;
+				}
+			}
+			for (int x = maxX; x >= 0; x--) {
+				if (nodeMap[x] != null){
+					maxX = x;
+					break;
+				}
+			}
+			boolean done = false;
+			for (int y = minY; y < height; y++) {
+				for (int x = minX; x < width; x++) {
+					if (nodeMap[x] == null)
+						continue;
+					if (nodeMap[x][y] > 0){
+						minY = y;
+						done = true;
+						break;
+					}
+				}
+				if (done)
+					break;
+			}
+			done = false;
+			for (int y = maxY; y >= 0; y--) {
+				for (int x = minX; x < width; x++) {
+					if (nodeMap[x] == null)
+						continue;
+					if (nodeMap[x][y] > 0){
+						maxY = y;
+						done = true;
+						break;
+					}
+				}
+				if (done)
+					break;
+			}
+		}
+		long addedSeaNodes = 0;
+		for (int x = minX; x <= maxX; x++){
+			int[] seaCol = seaData.nodeMap[x];
+			if (seaCol == null)
+				continue;
+			int[] col = nodeMap[x];
+			if (col == null)
+				col = new int[height];
+			for (int y = minY; y <= maxY; y++){
+				if (col[y] == 0){
+					int seaCount = seaCol[y] * SEA_NODE_FACTOR;
+					if (seaCount > 0){
+						col[y] = seaCount;
+						totalNodeCount += seaCount;
+						addedSeaNodes += seaCount;
+					}
+				}
+			}
+		}
+		System.out.println("Added " + addedSeaNodes + " nodes from precompiled sea data.");
+	}
 }
+

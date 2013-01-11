@@ -48,6 +48,11 @@ public interface MapProcessor {
 	 */
 	boolean skipRels();
 
+	/**
+	 * returns a value that identifies the current phase
+	 * @return
+	 */
+	int getPhase();
 
 	/**
 	 * Called when the bound tag is encountered. Note that it is possible

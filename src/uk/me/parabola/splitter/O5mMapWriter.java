@@ -24,6 +24,8 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
+
 import uk.me.parabola.splitter.Relation.Member;
 
 /**
@@ -54,11 +56,12 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private static final double FACTOR = 10000000;
 
 	private DataOutputStream dos;
+	private Map<String, byte[]> wellKnownTagKeys;
+	private Map<String, byte[]> wellKnownTagVals;
 
-
-	private StringPair[] stw__tab; // string table
-	private StringPair stringPair;
-	
+	private byte[][][] stw__tab; // string table
+	private byte[] s1Bytes;
+	private byte[] s2Bytes;
 	// for delta calculations
 	private long lastNodeId;
 	private long lastWayId;
@@ -89,8 +92,10 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	
 	//private long countCollisions;
 	
-	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra) {
+	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra, Map<String, byte[]> wellKnownTagKeys, Map<String, byte[]> wellKnownTagVals) {
 		super(bounds, outputDir, mapId, extra);
+		this.wellKnownTagKeys = wellKnownTagKeys; 
+		this.wellKnownTagVals= wellKnownTagVals; 
 	}
 
 	private void reset() throws IOException{
@@ -104,7 +109,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		lastNodeId = 0; lastWayId = 0; lastRelId = 0;
 		lastRef[0] = 0; lastRef[1] = 0;lastRef[2] = 0;
 		lastLon = 0; lastLat = 0;
-		stw__tab = new StringPair[STW__TAB_MAX];
+		stw__tab = new byte[2][STW__TAB_MAX][];
 		stw_reset();
 	}
 	
@@ -270,12 +275,25 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private void stw_write(String s1, String s2, OutputStream stream) throws IOException {
 		int hash;
 		int ref;
-		stringPair = new StringPair(s1,s2);
+		s1Bytes = wellKnownTagKeys.get(s1);
+		if (s1Bytes == null){
+			s1Bytes = s1.getBytes("UTF-8");
+		}
+		if (s2 != null){
+			s2Bytes = wellKnownTagVals.get(s2);
+			if (s2Bytes == null){ 
+				s2Bytes= s2.getBytes("UTF-8");
+			}
+		}
+		else 
+			s2Bytes = null;
+
 		//  try to find a matching string (pair) in string table
 		{
 			int i;  // index in stw__tab[] 
 			ref = -1;  // ref invalid (default)
-			hash = stw_hash();
+			
+			hash = stw_hash(s1,s2);
 		    if (hash >= 0){
 		    	i = stw__hashtab[hash]; 
 		    	if(i >= 0)  // string (pair) presumably stored already
@@ -288,12 +306,10 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		    else {  // we did not find the string (pair) in the table
 		    	// write string data
 				stream.write(0x00); 
-				byte[] strBuf = stringPair.s1.getBytes("UTF-8");
-				stream.write(strBuf);
+				stream.write(s1Bytes);
 				stream.write(0x00); 
-				if (stringPair.s2 != null){
-					strBuf = stringPair.s2.getBytes("UTF-8");
-					stream.write(strBuf);
+				if (s2Bytes != null){
+					stream.write(s2Bytes);
 					stream.write(0x00); 
 				}
 		    	
@@ -328,8 +344,10 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		// enter new string table element data  
 		{
 			int i;
-
-			stw__tab[stw__tabi] = stringPair;
+			
+			stw__tab[0][stw__tabi] = s1Bytes;
+			stw__tab[1][stw__tabi] = s2Bytes;
+			
 			i = stw__hashtab[hash];
 			if(i < 0)  // no reference in hash table until now
 				stw__tabprev[stw__tabi] = stw__tabnext[stw__tabi] = stw__tabi;
@@ -351,30 +369,28 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		}  // end   enter new string table element data
 	}
 
-	int stw__getref(int stri) {
+	int stw__getref(final int stri) {
 		int strie;  // index of last occurrence 
 		int ref; 
-		String s1,s2;
 
-		s1 = stringPair.s1;
-		s2 = stringPair.s2;
-		strie= stri; 
+		strie= stri;
+		int pos = stri;
 		do{
 			// compare the string (pair) with the tab entry 
-			StringPair p2 = stw__tab[stri];
-			if (p2.s1.equals(s1)){
-				// first string equal to first string in table 
-				if (p2.s2 == null && s2 == null || p2.s2 != null
-						&& p2.s2.equals(s2)) {
+			byte[] tb1 = stw__tab[0][pos];
+			if (Arrays.equals(tb1, s1Bytes)){
+				// first string equal to first string in table
+				byte[] tb2 = stw__tab[1][pos];
+				if (Arrays.equals(tb2, s2Bytes)){
 					// second string equal to second string in table
-					ref = stw__tabi - stri;
+					ref = stw__tabi - pos;
 					if (ref <= 0)
 						ref += STW__TAB_MAX;
 					return ref;
 				}
 			}
-			stri = stw__tabnext[stri]; 
-		} while(stri!=strie); 
+			pos = stw__tabnext[pos]; 
+		} while(pos!=strie); 
 		return -1;
 	}
 	
@@ -391,17 +407,21 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		 	
 	/**
 	 * get hash value of a string pair
+	 * @param s2 
+	 * @param s1 
 	 * @return  hash value in the range 0..(STW__TAB_MAX-1) 
 	 * or -1 if the strings are longer than STW_TAB_STR_MAX bytes in total
 	 * @throws IOException 
 	 */
-	private int stw_hash() throws IOException{
-		int len = stringPair.s1.getBytes("UTF-8").length;
-		if (stringPair.s2 != null)
-			len += stringPair.s2.getBytes("UTF-8").length;
+	private int stw_hash(String s1, String s2) throws IOException{
+		int len = s1Bytes.length;
+		if (s2Bytes != null)
+			len += s2Bytes.length;
 		if (len > STW_TAB_STR_MAX)
 			return -1;
-		int hash = stringPair.hashCode();
+		int hash = s1.hashCode();
+		if (s2 != null)
+			hash ^= s2.hashCode();
 		
 		return Math.abs(hash % STW__TAB_MAX);
 	}
@@ -451,23 +471,5 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		numberConversionBuf[cntBytes++] = (byte)(part);
 		stream.write(numberConversionBuf,0,cntBytes);
 		return cntBytes;
-	}
-	
-
-	class StringPair{
-		String s1,s2;
-		
-		StringPair(String s1,String s2){
-			this.s1 = s1;
-			this.s2 = s2;
-		}
-		
-		public int hashCode(){
-			int hash = s1.hashCode();
-			if (s2 != null){
-				hash ^= s2.hashCode();
-			}
-			return hash;
-		}
 	}
 }

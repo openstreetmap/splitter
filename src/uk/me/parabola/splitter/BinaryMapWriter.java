@@ -45,6 +45,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     public PBFSerializer(BlockOutputStream output)
     {
       super(output);
+      configBatchLimit(1000);
       omit_metadata = true;
     }
 

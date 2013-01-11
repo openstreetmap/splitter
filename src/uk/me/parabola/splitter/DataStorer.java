@@ -14,7 +14,6 @@
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 
 /**
  * Stores data that is needed in different passes of the program.
@@ -33,7 +32,7 @@ public class DataStorer{
 	private final WriterDictionaryInt multiTileWriterDictionary;
 	private final WriterIndex writerIndex;
 	private SparseLong2ShortMapFunction usedWays = null;
-	private final HashMap<Long,Integer> usedRels = new HashMap<Long, Integer>();
+	private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<Integer>();
 	private boolean idsAreNotSorted;
 
 	/** 
@@ -76,7 +75,7 @@ public class DataStorer{
 		return usedWays;
 	}
 
-	public HashMap<Long, Integer> getUsedRels() {
+	public OSMId2ObjectMap<Integer> getUsedRels() {
 		return usedRels;
 	}
 

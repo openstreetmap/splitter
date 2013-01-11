@@ -61,16 +61,15 @@ public class AreaList {
 			PrintWriter pw = new PrintWriter(w);
 
 			pw.println("# List of areas");
-			pw.format("# Generated %s\n", new Date());
-			//pw.format("# Options: max-nodes=%d\n", main.getMaxNodes());
+			pw.format("# Generated %s%n", new Date());
 			pw.println("#");
 
 			for (Area area : areas) {
-				pw.format(Locale.ROOT, "%08d: %d,%d to %d,%d\n",
+				pw.format(Locale.ROOT, "%08d: %d,%d to %d,%d%n",
 						area.getMapId(),
 						area.getMinLat(), area.getMinLong(),
 						area.getMaxLat(), area.getMaxLong());
-				pw.format(Locale.ROOT, "#       : %f,%f to %f,%f\n",
+				pw.format(Locale.ROOT, "#       : %f,%f to %f,%f%n",
 						Utils.toDegrees(area.getMinLat()), Utils.toDegrees(area.getMinLong()),
 						Utils.toDegrees(area.getMaxLat()), Utils.toDegrees(area.getMaxLong()));
 				pw.println();
@@ -98,7 +97,7 @@ public class AreaList {
 			w = new FileWriter(filename);
 			PrintWriter pw = new PrintWriter(w);
 
-			pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+			pw.format("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
 								 "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
 								 "<Document>\n" +
 								 "  <Style id=\"transWhitePoly\">\n" +
@@ -109,8 +108,7 @@ public class AreaList {
 								 "      <color>00ffffff</color>\n" +
 								 "      <colorMode>normal</colorMode>\n" +
 								 "    </PolyStyle>\n" +
-								 "  </Style>\n");
-
+								 "  </Style>\n\n");
 			for (Area area : areas) {
 				double south = Utils.toDegrees(area.getMinLat());
 				double west = Utils.toDegrees(area.getMinLong());
@@ -140,7 +138,7 @@ public class AreaList {
 									"    </Polygon>\n" +
 									"  </Placemark>\n", area.getMapId(), name, south, west, north, east);
 			}
-			pw.print("</Document>\n</kml>");
+			pw.format("</Document>\n</kml>\n");
 			pw.close();
 		} catch (IOException e) {
 			System.err.println("Could not write KML file " + filename);
@@ -263,7 +261,7 @@ public class AreaList {
 						if (point.y == nextPoint.y && point.y == lastPoint.y)
 							continue;
 					}
-					pw.println(String.format("  %e  %e",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y)));
+					pw.format(Locale.ROOT, "  %e  %e%n",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y));
 					
 				}
 				pw.println("END");

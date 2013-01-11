@@ -31,8 +31,9 @@ public interface SplitterParams {
 	@Option(defaultValue = "512", description = "The maximum number of areas to process in a single pass. More areas require more memory, but less time. Values: 1-4096.")
 	int getMaxAreas();
 
-	@Option(defaultValue = "-1", description = "Nodes/ways/rels that fall outside an area will still be included if they are within this many map units.")
-	int getOverlap();
+	@Option(defaultValue = "auto", description = "Deprecated. Nodes/ways/rels that fall outside an area will still " 
+			+ "be included if they are within this many map units. ")
+	String getOverlap();
 
 	@Option(defaultValue = "1600000", description = "A threshold value that is used when no split-file is given. Splitting is done so that "
 			+ "no tile has more than maxNodes nodes inside the bounding box of the tile. "
@@ -75,7 +76,7 @@ public interface SplitterParams {
 	@Option(description = "The name of a file containing ways and relations that are known to cause problems in the split process.")
 	String getProblemFile();
 
-	@Option(description = "Write complete ways and relations if possible (requires more time and more heap memory). This should be used "
+	@Option(defaultValue="true", description = "Write complete ways and relations if possible (requires more time and more heap memory). This should be used "
 			+ "with --overlap=0")
 	boolean isKeepComplete();
 
@@ -91,4 +92,6 @@ public interface SplitterParams {
 	@Option(defaultValue = "dist", description = "Debugging: stop after the program phase. Can be split, gen-problem-list, or handle-problem-list")
 	String getStopAfter();
 	
+	@Option(description = "The name of a directory containing precompiled sea tiles.")
+	String getPrecompSea();
 }

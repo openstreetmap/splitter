@@ -1,10 +1,11 @@
 package uk.me.parabola.splitter;
 
 import it.unimi.dsi.bits.Fast;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 
 
 
@@ -100,12 +101,12 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	private int storedLengthOfCurrentChunk = 0;
 	private int currentChunkIdInStore = 0;
 
-	private HashMap<Long,int[]> topMap; 
+	private Long2ObjectOpenHashMap<int[]> topMap; 
 	private short[][][] chunkStore; 
 	private long[][][] maskStore; 
 	private int[] freePosInSore;
 	// maps chunks that can be reused  
-	private HashMap<Integer,ArrayList<Integer>> reusableChunks; 
+	private Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
 	
 	/**
 	 * A map that stores pairs of (OSM) IDs and short values identifying the
@@ -364,12 +365,12 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	@Override
 	public void clear() {
 		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
-		topMap = new HashMap<Long, int[]>();
+		topMap = new Long2ObjectOpenHashMap<int[]>();
 		chunkStore = new short[CHUNK_SIZE+1][][];
 		maskStore = new long[CHUNK_SIZE+1][][];
 		freePosInSore = new int[CHUNK_SIZE+1];
 		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
-		reusableChunks = new HashMap<Integer, ArrayList<Integer>>();
+		reusableChunks = new Int2ObjectOpenHashMap<IntArrayList>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -411,9 +412,9 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		int x = len - 1;
 		if (storedLengthOfCurrentChunk > 0){
 			// this is a rewrite, add the previously used chunk to the reusable list 
-			ArrayList<Integer> reusableChunk = reusableChunks.get(storedLengthOfCurrentChunk);
+			IntArrayList reusableChunk = reusableChunks.get(storedLengthOfCurrentChunk);
 			if (reusableChunk == null){
-				reusableChunk = new ArrayList<Integer>();
+				reusableChunk = new IntArrayList(8);
 				reusableChunks.put(storedLengthOfCurrentChunk, reusableChunk);
 			}
 			reusableChunk.add(currentChunkIdInStore);
@@ -422,7 +423,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			chunkStore[x] = new short[2][];
 			maskStore[x] = new long[2][];
 		}
-		ArrayList<Integer> reusableChunk = reusableChunks.get(x); 
+		IntArrayList reusableChunk = reusableChunks.get(x); 
 		Integer reusedIdx = null; 
 		int y,z;
 		short []store;

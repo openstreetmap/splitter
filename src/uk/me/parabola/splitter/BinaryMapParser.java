@@ -61,7 +61,7 @@ public class BinaryMapParser extends BinaryParser {
     public boolean skipBlock(FileBlockPosition block) {
 		blockCount++;
 		if (knownBlockTypes != null){
-			blockType = knownBlockTypes.get(blockCount);
+			blockType = knownBlockTypes.getShort(blockCount);
 			if (blockType != 0 && (blockType & wantedTypeMask) == 0)
 				return true;
 		}

@@ -16,20 +16,13 @@ package uk.me.parabola.splitter;
 /**
  * Builds up a density map.
  */
-class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
+class DensityMapCollector extends AbstractMapProcessor{
 	private final DensityMap densityMap;
 	private final MapDetails details = new MapDetails();
 	private Area bounds;
 
 	DensityMapCollector(int resolution) {
-		this(null, resolution);
-	}
-
-	DensityMapCollector(Area bounds, int resolution) {
-		if (bounds == null) {
-			// If we don't receive any bounds we have to assume the whole planet
-			bounds = new Area(-0x400000, -0x800000, 0x400000, 0x800000);
-		}
+		Area bounds = new Area(-0x400000, -0x800000, 0x400000, 0x800000);
 		densityMap = new DensityMap(bounds, resolution);
 	}
 
@@ -66,7 +59,6 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 		details.addToBounds(glat, glon);
 	}
 
-	@Override
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
@@ -74,19 +66,21 @@ class DensityMapCollector extends AbstractMapProcessor implements MapCollector{
 			return details.getBounds();
 		}
 	}
-	@Override
 	public SplittableArea getRoundedArea(int resolution) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);
 		return new SplittableDensityArea(densityMap.subset(bounds));
 	} 
 
-	@Override
+	public void mergeSeaData(DensityMapCollector seaData, boolean trim) {
+		densityMap.mergeSeaData(seaData.densityMap, getExactArea(), trim);
+	}
+
 	public void saveMap(String fileName) {
 		if (bounds != null && details != null && details.getBounds() != null)
 			densityMap.saveMap(fileName, details.getBounds(), bounds);
 	}
-	@Override
 	public void readMap(String fileName) {
 		bounds = densityMap.readMap(fileName, details);
 	}
+
 }

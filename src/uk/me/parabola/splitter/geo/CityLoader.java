@@ -81,7 +81,7 @@ public class CityLoader {
 
 				cities.add(new City(geoNameId, countryCode, name, lat, lon, population));
 			} catch (Exception e) {
-				System.err.println("Unable to parse GeoNames data at line " + lineNumber + "\nReason: " + e + "\nData: " + line);
+				System.err.format("Unable to parse GeoNames data at line %d%nReason:%s%nData: %s%n",lineNumber,  e.toString(),line);
 			}
 		}
 		return cities;

@@ -43,4 +43,7 @@ public abstract class AbstractMapProcessor implements MapProcessor {
 	public boolean endMap(){
 		return true;
 	}
+	public int getPhase() {
+		return 1;
+	}
 }
