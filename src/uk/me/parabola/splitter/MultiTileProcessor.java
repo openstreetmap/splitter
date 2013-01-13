@@ -879,23 +879,26 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						wayMembers.remove(i);
 						polygonWays.add(memId);
 						int pos = wayWriterMap.getKeyPos(memId);
-						assert pos >= 0;
+						if (pos < 0)
+							continue;
 						Rectangle wayBbox = wayBboxMap.get(memId);
+						if (wayBbox == null)
+							continue;
 						if (wayBbox.x < 0 && wayBbox.getMaxX() > 0 && wayBbox.width >= PROBLEM_WIDTH){
 							System.out.println("way crosses -180/180: " + memId);
 						}
-						if (wayBbox != null){
-							if (mpBbox == null)
-								mpBbox = new Rectangle(wayBbox);
-							else 
-								mpBbox.add(wayBbox);
-						}
+						if (mpBbox == null)
+							mpBbox = new Rectangle(wayBbox);
+						else 
+							mpBbox.add(wayBbox);
+						
 						if (mpBbox.x < 0 && mpBbox.getMaxX() > 0 && mpBbox.width >= PROBLEM_WIDTH){
 							if (complainedAboutSize == false){
 								System.out.println("rel crosses -180/180: " + rel.getId());
 								complainedAboutSize = true;
 							}
 						}
+
 					}
 					if (joinedWays[0] == joinedWays[1]){
 						closed = true;
