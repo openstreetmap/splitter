@@ -124,6 +124,7 @@ public class ParamParser {
 		}
 
 		// Now override these with any parameters that were specified on the command line
+		HashMap<String,String> parsedArgs = new HashMap<String, String>();
 		for (String arg : args) {
 			if (arg.startsWith("--")) {
 				String name;
@@ -137,6 +138,14 @@ public class ParamParser {
 					name = arg.substring(2);
 					value = null;
 				}
+				
+				// warn user regarding duplicated parms
+				String testVal = value==null? "no val":value;
+				String oldVal = parsedArgs.put(name, testVal);
+				if (oldVal != null && oldVal.equals(testVal) == false){
+					System.err.println("Warning: repeated paramter overwrites previous value: --" + name + (value==null? "":"="+value));
+				}
+				
 				MethodParamPair pair = paramMap.get(name);
 				if (pair != null) {
 					if (pair.getParam().getReturnType() == Boolean.class && value == null) {
