@@ -77,4 +77,14 @@ public class Element {
 		//Map.Entry<String,String> foo=new Map.Entry<String,String>("A","B");
 		return tags.iterator();
 	}
+	
+	public String getTag (String key){
+		if (tags == null)
+			return null;
+		for (Tag tag:tags){
+			if (key.equals(tag.key))
+				return tag.value;
+		}
+		return null;
+	}
 }

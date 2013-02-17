@@ -18,7 +18,9 @@ import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.awt.Rectangle;
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Iterator;
 
 /**
@@ -57,9 +59,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private WriterIndex writerIndex;
 
 	private Rectangle realWriterBbox;
+	private final HashSet<String> wantedBoundaryTagValues;
 	
-	ProblemListProcessor(DataStorer dataStorer,
-			int writerOffset, int numWritersThisPass, LongArrayList problemWays, LongArrayList problemRels) {
+	ProblemListProcessor(DataStorer dataStorer, int writerOffset,
+			int numWritersThisPass, LongArrayList problemWays,
+			LongArrayList problemRels, String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		if (dataStorer.getUsedWays() == null){
@@ -83,6 +87,10 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.problemWays = problemWays;
 		this.problemRels = problemRels;
 		this.realWriterBbox = Utils.area2Rectangle(writerIndex.getBounds(), 0);
+		if (boundaryTagList != null && boundaryTagList.length > 0)
+			wantedBoundaryTagValues = new HashSet<String>(Arrays.asList(boundaryTagList));
+		else 
+			wantedBoundaryTagValues = null;
 	}
 	
 	
@@ -209,28 +217,42 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			ways.put(way.getId(), wayWriterIdx);
 		}
 	}
-	
-	private final static String[] WANTED_RELS = {"restriction", "multipolygon" ,"through_route"};
+	// default exclude list for boundary tag
+	private final static HashSet<String> unwantedBoundaryTagValues = new HashSet<String>(
+			Arrays.asList("administrative", "postal_code", "political"));
 	@Override
 	public void processRelation(Relation rel) {
-		//BitSet writerSet = new BitSet();
 		boolean useThis = false;
+		boolean isMPRelType = false;
+		boolean hasBoundaryTag = false;
+		boolean isWantedBoundary = (wantedBoundaryTagValues == null) ? true:false;
 		Iterator<Element.Tag> tags = rel.tagsIterator();
 		while(tags.hasNext()) {
 			Element.Tag t = tags.next();
 			if ("type".equals(t.key)) {
-				for (String wanted: WANTED_RELS){
-					if (wanted.equals((t.value))){
-						useThis = true;
-						break;
-					}
+				if ("restriction".equals((t.value)) || "through_route".equals((t.value)))
+					useThis= true; // no need to check other tags
+				else if ("multipolygon".equals((t.value))  || "boundary".equals((t.value)))
+					isMPRelType= true;
+			} else if ("boundary".equals(t.key)){
+				hasBoundaryTag = true;
+				if (wantedBoundaryTagValues != null){
+					if (wantedBoundaryTagValues.contains(t.value))
+						isWantedBoundary = true;
+				} else {
+					if (unwantedBoundaryTagValues.contains(t.value))
+						isWantedBoundary = false;
 				}
 			}
+			
 			if (useThis)
 				break;
 		}
-		if (!useThis)
+		if (isMPRelType && (isWantedBoundary || hasBoundaryTag == false))
+			useThis = true;
+		if (!useThis){
 			return;
+		}
 		writerSet.clear();
 		Integer relWriterIdx;
 		if (!isFirstPass){

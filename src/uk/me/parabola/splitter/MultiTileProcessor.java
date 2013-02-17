@@ -422,7 +422,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	}
 	/**
 	 * Multipolygon relations should describe one or more closed polygons.
-	 * We calculate the writes for each of the polygons. 
+	 * We calculate the writers for each of the polygons. 
 	 */
 	private void calcWritersOfMultiPolygonRels() {
 		// recurse thru sub relations
@@ -440,6 +440,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				if (!relWriters.isEmpty()){
 					int writerIdx = multiTileDictionary.translate(relWriters);
 					rel.setMultiTileWriterIndex(writerIdx);
+					int touchedTiles = relWriters.cardinality();
+					if (touchedTiles > dataStorer.getNumOfWriters() / 2 && dataStorer.getNumOfWriters() > 10){
+						System.out.println("Warning: rel " + rel.getId() + " touches " + touchedTiles + " tiles.");
+					}
 				}
 			}
 		}
@@ -990,27 +994,29 @@ class MultiTileProcessor extends AbstractMapProcessor {
 					memTypes[i] = MEM_INVALID_TYPE;
 				
 			}
+
+			String type = rel.getTag("type");
+			if ("multipolygon".equals(type) || "boundary".equals(type))
+				markAsMultiPolygon();
+			
 			String goodNameCandidate = null;
 			String nameCandidate = null;
 			String zipCode = null;
-			for (String nameTag: NAME_TAGS){
-				Iterator<Element.Tag> tags = rel.tagsIterator();
-				while(tags.hasNext()) {
-					Element.Tag t = tags.next();
-					if ("type".equals(t.key) && ("multipolygon".equals(t.value)/* || "boundary".equals(t.value)*/)){
-						markAsMultiPolygon();
-					} 
-					else if (nameTag.equals(t.key)){
+			Iterator<Element.Tag> tags = rel.tagsIterator();
+			while(tags.hasNext()) {
+				Element.Tag t = tags.next();
+				for (String nameTag: NAME_TAGS){
+					if (nameTag.equals(t.key)){
 						goodNameCandidate = t.value;
 						break;
 					}
-					else if (t.key.contains("name"))
-						nameCandidate = t.value;
-					if (t.key.equals("postal_code"))
-						zipCode = t.value;
 				}
 				if (goodNameCandidate != null)
 					break;
+				if (t.key.contains("name"))
+					nameCandidate = t.value;
+				else if ("postal_code".equals(t.key))
+					zipCode = t.value;
 			}
 			if (goodNameCandidate != null)
 				name = goodNameCandidate;

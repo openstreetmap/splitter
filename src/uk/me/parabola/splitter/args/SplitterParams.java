@@ -94,4 +94,9 @@ public interface SplitterParams {
 	
 	@Option(description = "The name of a directory containing precompiled sea tiles.")
 	String getPrecompSea();
+
+	@Option(defaultValue="use-exclude-list", description = "A comma separated list of tag values for relations. " 
+			+ "Used to filter multipolygon and boundary relations for problem-list processing.")
+	String getBoundaryTags();
+
 }
