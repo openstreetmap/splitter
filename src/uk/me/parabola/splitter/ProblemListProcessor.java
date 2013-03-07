@@ -14,7 +14,6 @@ package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
 
-import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.awt.Rectangle;
@@ -220,8 +219,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	// default exclude list for boundary tag
 	private final static HashSet<String> unwantedBoundaryTagValues = new HashSet<String>(
 			Arrays.asList("administrative", "postal_code", "political"));
+
 	@Override
 	public void processRelation(Relation rel) {
+		if (phase == PHASE1_NODES_AND_WAYS)
+			return;
 		boolean useThis = false;
 		boolean isMPRelType = false;
 		boolean hasBoundaryTag = false;
@@ -317,11 +319,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		ways.stats(1);
 		if (isLastPass){
 			System.out.println("");
-			System.out.println("  Number of stored shorts for ways: " + Util.format(dataStorer.getUsedWays().size()));
-			System.out.println("  Number of stored integers for rels: " + Util.format(dataStorer.getUsedRels().size()));
-			System.out.println("  Number of stored combis in big dictionary: " + Util.format(dataStorer.getMultiTileWriterDictionary().size()));
-			System.out.println("  Number of detected problem ways: " + Util.format(problemWays.size()));
-			System.out.println("  Number of detected problem rels: " + Util.format(problemRels.size()));
+			System.out.println("  Number of stored shorts for ways: " + Utils.format(dataStorer.getUsedWays().size()));
+			System.out.println("  Number of stored integers for rels: " + Utils.format(dataStorer.getUsedRels().size()));
+			System.out.println("  Number of stored combis in big dictionary: " + Utils.format(dataStorer.getMultiTileWriterDictionary().size()));
+			System.out.println("  Number of detected problem ways: " + Utils.format(problemWays.size()));
+			System.out.println("  Number of detected problem rels: " + Utils.format(problemRels.size()));
 			Utils.printMem();
 			System.out.println("");
 			dataStorer.getUsedWays().clear();
