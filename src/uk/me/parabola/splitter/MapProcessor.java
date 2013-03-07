@@ -16,16 +16,6 @@ package uk.me.parabola.splitter;
 public interface MapProcessor {
 
 	/**
-	 * @return {@code true} if this processor is only interested in
-	 * {@link #startNode(int, double,double)} events, {@code false}
-	 * if all events are handled.
-	 * <p/>
-	 * If this is set to {@code true}, the caller can significantly
-	 * cut down on the amount of work it has to do.
-	 */
-	boolean isStartNodeOnly();
-
-	/**
 	 * (performance) Returns true if the reader is allowed to ignore tags
 	 * while reading OSM data
 	 */

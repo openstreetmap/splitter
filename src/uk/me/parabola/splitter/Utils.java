@@ -71,18 +71,6 @@ public class Utils {
 			return (int) ((l - DELTA) * (1 << 24)/360);
 	}
 	
-	public static double toRadians(int latitude) {
-		return toDegrees(latitude) * Math.PI / 180;
-	}
-
-	/**
-	 * @param n the integer to test
-	 * @return {@code true} if the integer is a power of two, {@code false} otherwise.
-	 */
-	public static boolean isPowerOfTwo(int n) {
-		return ((n & (n - 1)) == 0) && n > 0;
-	}
-
 	/**
 	 * Open a file and apply filters necessary to reading it such as decompression.
 	 *

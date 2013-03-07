@@ -44,16 +44,8 @@ public class O5mMapParser implements MapReader{
 	private static final String[] REL_REF_TYPES = {"node", "way", "relation", "?"};
 	private static final double FACTOR = 1d/1000000000; // used with 100*<Val>*FACTOR 
 	
-	// How many elements to process before displaying a status update
-	private static final int NODE_STATUS_UPDATE_THRESHOLD = 10000000;
-	private static final int WAY_STATUS_UPDATE_THRESHOLD = 1000000;
-	private static final int RELATION_STATUS_UPDATE_THRESHOLD = 100000;
-	
-	// for messages
-	private long nodeCount;
-	private long wayCount;
-	private long relationCount;
-	
+	// for status messages
+	private final ElementCounter elemCounter = new ElementCounter();
 	// flags set by the processor to signal what information is not needed
 	private boolean skipTags;
 	private boolean skipNodes;
@@ -271,7 +263,7 @@ public class O5mMapParser implements MapReader{
 
 		node.set(lastNodeId, flat, flon);
 		readTags(node);
-		countNode(lastNodeId);
+		elemCounter.countNode(lastNodeId);
 		processor.processNode(node);
 	}
 	
@@ -288,7 +280,7 @@ public class O5mMapParser implements MapReader{
 		if (bytesToRead == 0)
 			return; // only wayId + version: this is a delete action, we ignore it 
 		Way way = new Way();
-		way.set(lastWayId);
+		way.setId(lastWayId);
 		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		
@@ -298,7 +290,7 @@ public class O5mMapParser implements MapReader{
 		}
 		
 		readTags(way);
-		countWay(lastWayId);
+		elemCounter.countWay(lastWayId);
 		processor.processWay(way);
 		
 	}
@@ -328,7 +320,7 @@ public class O5mMapParser implements MapReader{
 		
 		// tags
 		readTags(rel);
-		countRelation(lastRelId);
+		elemCounter.countRelation(lastRelId);
 		processor.processRelation(rel);
 	}
 	
@@ -514,28 +506,6 @@ public class O5mMapParser implements MapReader{
 		}
 	}
 	
-	private void countNode(long id) {
-		nodeCount++;
-		if (nodeCount % NODE_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(nodeCount) + " nodes processed... id=" + id);
-		}
-
-	}
-
-	private void countWay(long id)  {
-		wayCount++;
-		if (wayCount % WAY_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(wayCount) + " ways processed... id=" + id);
-		}
-	}
-
-	private void countRelation(long id)  {
-		relationCount++;
-		if (relationCount % RELATION_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(relationCount) + " relations processed... id=" + id);
-		}
-	}
-
 	/**
 	 * read a varying length signed number (see o5m definition)
 	 * @return the number

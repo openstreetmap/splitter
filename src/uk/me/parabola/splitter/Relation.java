@@ -21,16 +21,6 @@ import java.util.List;
 public class Relation extends Element {
 	private final List<Member> members = new ArrayList<Member>();
 
-	public void set(long id) {
-		setId(id);
-	}
-	
-	@Override
-	public void reset() {
-		super.reset();
-		members.clear();
-	}
-
 	public void addMember(String type, long ref, String role) {
 		Member mem = new Member(type, ref, role);
 		members.add(mem);

@@ -19,24 +19,17 @@ import java.util.Iterator;
 /**
  * @author Steve Ratcliffe
  */
-public class Element {
+public abstract class Element {
 	protected ArrayList<Tag> tags; 
 	private long id;
 
 	
-	protected void setId(long id) {
+	public void setId(long id) {
 		this.id = id;
 	}
 
 	public long getId() {
 		return id;
-	}
-
-	public void reset() {
-		this.id = 0;
-		if (tags != null)
-		tags.clear();
-		//tags = null;
 	}
 
 	class Tag {
@@ -72,9 +65,8 @@ public class Element {
 
 	public Iterator<Tag> tagsIterator() {
 		if (tags == null)
-			return Collections.EMPTY_LIST.iterator();
+			return Collections.emptyListIterator();
 
-		//Map.Entry<String,String> foo=new Map.Entry<String,String>("A","B");
 		return tags.iterator();
 	}
 	

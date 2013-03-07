@@ -14,7 +14,6 @@ package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
 
-import it.unimi.dsi.Util;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.awt.Point;
@@ -253,7 +252,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			++phase;
 		}
 		else if (phase == PHASE3_NODES_AND_WAYS){
-			System.out.println("Found " + Util.format(nodeWriterMap.size()) + " of " + Utils.format(neededNodesCount) + " needed nodes.");
+			System.out.println("Found " + Utils.format(nodeWriterMap.size()) + " of " + Utils.format(neededNodesCount) + " needed nodes.");
 			Utils.printMem();
 			mpWays = null;
 			neededNodes = null;

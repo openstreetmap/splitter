@@ -29,15 +29,6 @@ public class Node extends Element {
 		this.mapLon = Utils.toMapUnit(lon);
 	}
 
-	@Override
-	public void reset() {
-		super.reset();
-		lat = 0.0d;
-		lon = 0.0d;
-		mapLat = 0;
-		mapLon = 0;
-	}
-
 	public double getLat() {
 		return lat;
 	}

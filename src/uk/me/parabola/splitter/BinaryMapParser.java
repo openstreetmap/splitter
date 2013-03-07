@@ -9,28 +9,23 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.util.List;
 
-public class BinaryMapParser extends BinaryParser {
-	// How many elements to process before displaying a status update
-	private static final int NODE_STATUS_UPDATE_THRESHOLD = 10000000;
-	private static final int WAY_STATUS_UPDATE_THRESHOLD = 1000000;
-	private static final int RELATION_STATUS_UPDATE_THRESHOLD = 100000;
+public class BinaryMapParser extends BinaryParser implements MapReader {
 	private static final short TYPE_DENSE = 0x1; 
 	private static final short TYPE_NODES = 0x2; 
 	private static final short TYPE_WAYS = 0x4; 
 	private static final short TYPE_RELS = 0x8; 
 	private final ShortArrayList blockTypes = new ShortArrayList();
 	private final ShortArrayList knownBlockTypes;
+
+	// for status messages
+	private final ElementCounter elemCounter = new ElementCounter();
 	
 	private short blockType = -1;
 	private int blockCount = -1;
-	private long nodeCount;
-	private long wayCount;
-	private long relationCount;	
 	private boolean skipTags;
 	private boolean skipNodes;
 	private boolean skipWays;
 	private boolean skipRels;
-	private boolean isStartNodeOnly;
 	short wantedTypeMask = 0;
 	
 	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes) {
@@ -40,7 +35,6 @@ public class BinaryMapParser extends BinaryParser {
 		this.skipNodes = processor.skipNodes();
 		this.skipWays = processor.skipWays();
 		this.skipRels = processor.skipRels();
-		this.isStartNodeOnly = processor.isStartNodeOnly();
 		
 		if (skipNodes == false){
 			wantedTypeMask |= TYPE_DENSE;
@@ -83,7 +77,7 @@ public class BinaryMapParser extends BinaryParser {
 	public void complete() {
 		blockTypes.add(blockType);
 		// End of map is sent when all input files are processed.
-		// So do nothing.
+		// So do nothing else.
 	}
 
 	// Per-block state for parsing, set when processing the header of a block;
@@ -102,11 +96,10 @@ public class BinaryMapParser extends BinaryParser {
 			long id =  nodes.getId(i)+last_id; last_id = id;
 			double latf = parseLat(lat), lonf = parseLon(lon);
 
-			if (!isStartNodeOnly) 
-				tmp = new Node();
+			tmp = new Node();
 			tmp.set(id, latf, lonf);
 
-			if (!isStartNodeOnly && !skipTags) {
+			if (!skipTags) {
 				if (nodes.getKeysValsCount() > 0) {
 					while (nodes.getKeysVals(j) != 0) {
 						int keyid = nodes.getKeysVals(j++);
@@ -118,7 +111,7 @@ public class BinaryMapParser extends BinaryParser {
 				}
 			}
 			processor.processNode(tmp);
-			CountNode(tmp.getId());
+			elemCounter.countNode(tmp.getId());
 		}
 	}
 
@@ -139,7 +132,7 @@ public class BinaryMapParser extends BinaryParser {
 			tmp.set(id, latf, lonf);
 
 			processor.processNode(tmp);
-			CountNode(tmp.getId());
+			elemCounter.countNode(tmp.getId());
 		}
 	}
 
@@ -165,10 +158,10 @@ public class BinaryMapParser extends BinaryParser {
 			}
 
 			long id = i.getId();
-			tmp.set(id);
+			tmp.setId(id);
 
 			processor.processWay(tmp);
-			countWay(i.getId());
+			elemCounter.countWay(i.getId());
 		}
 	}
 
@@ -188,7 +181,7 @@ public class BinaryMapParser extends BinaryParser {
 					tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
 			}
 			long id = i.getId();
-			tmp.set(id);
+			tmp.setId(id);
 
 			long last_mid=0;
 			for (int j =0; j < i.getMemidsCount() ; j++) {
@@ -209,7 +202,7 @@ public class BinaryMapParser extends BinaryParser {
 				tmp.addMember(etype,mid,role);
 			}
 			processor.processRelation(tmp);
-			countRelation(tmp.getId());
+			elemCounter.countRelation(tmp.getId());
 		}
 	}
 
@@ -239,27 +232,4 @@ public class BinaryMapParser extends BinaryParser {
 			processor.boundTag(area);
 		}
 	}
-
-	private void CountNode(long id) {
-		nodeCount++;
-		if (nodeCount % NODE_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(nodeCount) + " nodes processed... id=" + id);
-		}
-
-	}
-
-	private void countWay(long id)  {
-		wayCount++;
-		if (wayCount % WAY_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(wayCount) + " ways processed... id=" + id);
-		}
-	}
-
-	private void countRelation(long id)  {
-		relationCount++;
-		if (relationCount % RELATION_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(relationCount) + " relations processed... id=" + id);
-		}
-	}
-
 }

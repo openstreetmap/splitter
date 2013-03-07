@@ -14,32 +14,20 @@
 package uk.me.parabola.splitter;
 
 /**
- * Common OSM reader methods
+ * Common OSM reader method for status messages
  * @author GerdP
  *
  */
-public abstract class AbstractMapReader implements MapReader{
+public class ElementCounter {
 	// How many elements to process before displaying a status update
-	protected static final int NODE_STATUS_UPDATE_THRESHOLD = 10000000;
-	protected static final int WAY_STATUS_UPDATE_THRESHOLD = 1000000;
-	protected static final int RELATION_STATUS_UPDATE_THRESHOLD = 100000;
+	private static final int NODE_STATUS_UPDATE_THRESHOLD = 10000000;
+	private static final int WAY_STATUS_UPDATE_THRESHOLD = 1000000;
+	private static final int RELATION_STATUS_UPDATE_THRESHOLD = 100000;
 	
 	// for messages
-	protected long nodeCount;
-	protected long wayCount;
-	protected long relationCount;
-
-	public long getNodeCount() {
-		return nodeCount;
-	}
-
-	public long getWayCount() {
-		return wayCount;
-	}
-
-	public long getRelationCount() {
-		return relationCount;
-	}
+	private long nodeCount;
+	private long wayCount;
+	private long relationCount;
 
 	/**
 	 * Count node and eventually print progress message with the node id

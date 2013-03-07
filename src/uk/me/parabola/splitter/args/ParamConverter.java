@@ -61,7 +61,7 @@ public class ParamConverter {
 	public Object convert(Param param, String value) {
 		if (value == null)
 			return param.getDefaultValue();
-		Converter converter = converterMap.get(param.getReturnType());
+		Converter<?> converter = converterMap.get(param.getReturnType());
 		if (converter == null)
 			throw new UnsupportedOperationException("Unable to convert parameters of type " + param.getReturnType() + ". Parameter " + param.getName() + " (value=" + value + ") could not be converted.");
 		return converter.convert(value);

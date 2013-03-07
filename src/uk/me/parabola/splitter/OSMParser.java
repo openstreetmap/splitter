@@ -20,10 +20,6 @@ import org.xmlpull.v1.XmlPullParserException;
  */
 class OSMParser extends AbstractXppParser implements MapReader {
 
-	// How many elements to process before displaying a status update
-	private static final int NODE_STATUS_UPDATE_THRESHOLD = 2500000;
-	private static final int WAY_STATUS_UPDATE_THRESHOLD = 500000;
-	private static final int RELATION_STATUS_UPDATE_THRESHOLD = 50000;
 
 	private enum State {
 		Node, Way, Relation, None
@@ -34,53 +30,28 @@ class OSMParser extends AbstractXppParser implements MapReader {
 	private Relation currentRelation = new Relation();	
 
 	private final MapProcessor processor;
+	// for status messages
+	private final ElementCounter elemCounter = new ElementCounter();
 
 	// There are mixed nodes and ways in the file
 	private final boolean mixed;
-	private final boolean startNodeOnly;
+	private boolean skipTags;
+	private boolean skipNodes;
+	private boolean skipWays;
+	private boolean skipRels;
 
 	private State state = State.None;
-	private long nodeCount;
-	private long wayCount;
-	private long relationCount;
-	private long minNodeId = Long.MAX_VALUE;
-	private long maxNodeId = Long.MIN_VALUE;
 
 	OSMParser(MapProcessor processor, boolean mixed) throws XmlPullParserException {
 		this.processor = processor;
-		this.startNodeOnly = processor.isStartNodeOnly();
 		this.mixed = mixed;
-	}
-	/*
-	@Override
-	public long getNodeCount() {
-		return nodeCount;
-	}
-
-	@Override
-	public long getWayCount() {
-		return wayCount;
+		
+		skipTags = processor.skipTags();
+		skipNodes = processor.skipNodes();
+		skipWays = processor.skipWays();
+		skipRels = processor.skipRels();
 	}
 
-	@Override
-	public long getRelationCount() {
-		return relationCount;
-	}
-
-	@Override
-	public int getMinNodeId() {
-		return minNodeId;
-	}
-
-	@Override
-	public int getMaxNodeId() {
-		return maxNodeId;
-	}
-	*/
-	public void endMap() {
-		processor.endMap();
-	}
-	
 	/**
 	 * Receive notification of the start of an element.
 	 */
@@ -94,27 +65,29 @@ class OSMParser extends AbstractXppParser implements MapReader {
 			if (name.equals("node")) {
 				startNode();
 			} else if (name.equals("way")) {
-				if (!startNodeOnly)
+				if (!skipWays)
 					startWay();
-				else if (!mixed)
+				else if (!mixed && skipRels)
 					return true;
 			} else if (name.equals("relation")) {
-				if (!startNodeOnly)
+				if (!skipRels)
 					startRelation();
+				else if (!mixed)
+					return true;
 			} else if (name.equals("bounds") || name.equals("bound")) {
 				processBounds();
 			}
 			break;
 		case Node:
-			if (!startNodeOnly)
+			if (!skipNodes)
 				processNode(name);
 			break;
 		case Way:
-			if (!startNodeOnly)
+			if (!skipWays)
 				processWay(name);
 			break;
 		case Relation:
-			if (!startNodeOnly)
+			if (!skipRels)
 				processRelation(name);
 			break;
 		}
@@ -136,13 +109,6 @@ class OSMParser extends AbstractXppParser implements MapReader {
 		double lat = Convert.parseDouble(latStr);
 		double lon = Convert.parseDouble(lonStr);
 
-		if (id < minNodeId) {
-			minNodeId = id;
-		}
-		if (id > maxNodeId) {
-			maxNodeId = id;
-		}
-
 		currentNode = new Node();
 		currentNode.set(id, lat, lon);
 		state = State.Node;
@@ -150,19 +116,20 @@ class OSMParser extends AbstractXppParser implements MapReader {
 
 	private void startWay() {
 		currentWay = new Way();
-		currentWay.set(getLongAttr("id"));
+		currentWay.setId(getLongAttr("id"));
 		state = State.Way;
 	}
 
 	private void startRelation() {
 		currentRelation = new Relation();
-		currentRelation.set(getLongAttr("id"));
+		currentRelation.setId(getLongAttr("id"));
 		state = State.Relation;
 	}
 
 	private void processNode(CharSequence name) {
 		if (name.equals("tag")) {
-			currentNode.addTag(getAttr("k"), getAttr("v"));
+			if (!skipTags)
+				currentNode.addTag(getAttr("k"), getAttr("v"));
 		}
 	}
 
@@ -170,13 +137,15 @@ class OSMParser extends AbstractXppParser implements MapReader {
 		if (name.equals("nd")) {
 			currentWay.addRef(getLongAttr("ref"));
 		} else if (name.equals("tag")) {
-			currentWay.addTag(getAttr("k"), getAttr("v"));
+			if (!skipTags)
+				currentWay.addTag(getAttr("k"), getAttr("v"));
 		}
 	}
 
 	private void processRelation(CharSequence name) {
 		if (name.equals("tag")) {
-			currentRelation.addTag(getAttr("k"), getAttr("v"));
+			if (!skipTags)
+				currentRelation.addTag(getAttr("k"), getAttr("v"));
 		} else if (name.equals("member")) {
 			String type = getAttr("type");
 			long id = getLongAttr("ref");
@@ -246,32 +215,24 @@ class OSMParser extends AbstractXppParser implements MapReader {
 	public void endElement(String name) {
 		if (state == State.Node) {
 			if (name.equals("node")) {
-				processor.processNode(currentNode);
+				if (!skipNodes)
+					processor.processNode(currentNode);
 				state = State.None;
-				nodeCount++;
-				if (nodeCount % NODE_STATUS_UPDATE_THRESHOLD == 0) {
-					System.out.println(Utils.format(nodeCount) + " nodes processed...");
-				}
+				elemCounter.countNode(currentNode.getId());
 			}
 		} else if (state == State.Way) {
 			if (name.equals("way")) {
-				if (!startNodeOnly)
+				if (!skipWays)
 					processor.processWay(currentWay);
 				state = State.None;
-				wayCount++;
-				if (wayCount % WAY_STATUS_UPDATE_THRESHOLD == 0) {
-					System.out.println(Utils.format(wayCount) + " ways processed...");
-				}
+				elemCounter.countWay(currentWay.getId());
 			}
 		} else if (state == State.Relation) {
 			if (name.equals("relation")) {
-				if (!startNodeOnly)
+				if (!skipRels)
 					processor.processRelation(currentRelation);
 				state = State.None;
-				relationCount++;
-				if (relationCount % RELATION_STATUS_UPDATE_THRESHOLD == 0) {
-					System.out.println(Utils.format(relationCount) + " relations processed...");
-				}
+				elemCounter.countRelation(currentRelation.getId());
 			}
 		}
 	}

@@ -1,6 +1,5 @@
 package uk.me.parabola.splitter;
 
-import it.unimi.dsi.bits.Fast;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -122,7 +121,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	 * @return
 	 */
 	private int countUnder(long mask, int lowest) {
-		return Fast.count(mask & ((1L << lowest) - 1));
+		return Long.bitCount(mask & ((1L << lowest) - 1));
 	}
 
 	/**

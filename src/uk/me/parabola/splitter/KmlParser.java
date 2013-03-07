@@ -68,6 +68,7 @@ public class KmlParser extends AbstractXppParser {
 				state = State.Coordinates;
 			}
 			break;
+		default:
 		}
 		return false;
 	}

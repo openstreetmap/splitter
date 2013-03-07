@@ -20,16 +20,10 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 public class Way extends Element {
 	private final LongArrayList refs = new LongArrayList(10);
 
-	public void set(long id) {
+	public void set(long id){
 		setId(id);
 	}
-
-	@Override
-	public void reset() {
-		super.reset();
-		refs.clear();
-	}
-
+	
 	public void addRef(long ref) {
 		refs.add(ref);
 	}
