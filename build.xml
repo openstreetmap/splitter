@@ -46,7 +46,6 @@
   <property name="testng.jar" location="${lib}/testng-5.9-jdk15.jar"/>
   <property name="osmbin.jar" location="${lib}/osmpbf.jar"/>
   <property name="fastutil.jar" location="${lib}/fastutil.jar"/>
-  <property name="dsiutils.jar" location="${lib}/dsiutils-1.0.11.jar"/>
   <property name="protobuf.jar" location="${lib}/protobuf.jar"/>
 
 	<!-- the project's build timestamp -->
@@ -62,7 +61,6 @@
     <pathelement path="${xpp.jar}"/>
     <pathelement path="${osmbin.jar}"/>
     <pathelement path="${fastutil.jar}"/>
-    <pathelement path="${dsiutils.jar}"/>
     <pathelement path="${protobuf.jar}"/>
   </path>
 
