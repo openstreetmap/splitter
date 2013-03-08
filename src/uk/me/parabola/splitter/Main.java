@@ -134,7 +134,6 @@ public class Main {
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
 	// for faster access on blocks in o5m files
 	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>();
-	private boolean useFileAccessOptimizer = true;
 
 	private String stopAfter;
 
@@ -475,19 +474,11 @@ public class Main {
 		if (precompSeaDir != null){
 			System.out.println("Counting nodes of precompiled sea data ...");
 			long startSea = System.currentTimeMillis();
-			useFileAccessOptimizer  = false;
 			DensityMapCollector seaCollector = new DensityMapCollector(resolution);
-			MapProcessor seaProcessor = seaCollector;
 			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
-			List<String> saveFilenames = filenames;
-			filenames = precompSeaReader.getPrecompFileNames();
-			precompSeaReader = null;
-			processMap(seaProcessor);
+			precompSeaReader.processMap(seaCollector);
 			pass1Collector.mergeSeaData(seaCollector, trim);
-			filenames = saveFilenames;
-			useFileAccessOptimizer = true;
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
-			
 		}
 		
 		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
@@ -785,7 +776,7 @@ public class Main {
 					long[] skipArray = skipArrayMap.get(filename);
 					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
 					o5mParser.parse();
-					if (skipArray == null && useFileAccessOptimizer){
+					if (skipArray == null){
 						skipArray = o5mParser.getSkipArray();
 						skipArrayMap.put(filename, skipArray);
 					}
@@ -801,7 +792,7 @@ public class Main {
 						blockinput.process();
 					} finally {
 						blockinput.close();
-						if (blockTypes == null && useFileAccessOptimizer){
+						if (blockTypes == null){
 							// remember this file 
 							blockTypes = binParser.getBlockList();
 							blockTypeMap.put(filename, blockTypes);
