@@ -66,7 +66,7 @@ class DensityMapCollector extends AbstractMapProcessor{
 			return details.getBounds();
 		}
 	}
-	public SplittableArea getRoundedArea(int resolution) {
+	public SplittableDensityArea getRoundedArea(int resolution) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);
 		return new SplittableDensityArea(densityMap.subset(bounds));
 	} 

@@ -481,7 +481,7 @@ public class Main {
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
 		}
 		
-		SplittableArea splittableArea = pass1Collector.getRoundedArea(resolution);
+		SplittableDensityArea splittableArea = pass1Collector.getRoundedArea(resolution);
 		if (splittableArea.hasData() == false)
 			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);

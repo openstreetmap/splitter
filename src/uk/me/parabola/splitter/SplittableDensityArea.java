@@ -30,7 +30,7 @@ import java.util.List;
  *
  * @author GerdP
  */
-public class SplittableDensityArea implements SplittableArea {
+public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
 	private static final int MAX_LON_DEGREES = 90;
 	private static final int MAX_SINGLE_POLYGON_VERTICES = 40;
@@ -68,27 +68,30 @@ public class SplittableDensityArea implements SplittableArea {
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
 		allDensities = densities;
 	}
-	@Override
 	public void setMapId(int mapId) {
 		startMapId = mapId;
 	}
 
-	@Override
 	public void setTrim(boolean trim) {
 		this.trimShape = trim;
 	}
 
-	@Override
 	public boolean hasData(){
 		return allDensities != null && allDensities.getNodeCount() > 0;
 	}
 
-	@Override
+	/**
+	 * @return the area that this splittable area represents
+	 */ 	
 	public Area getBounds() {
 		return allDensities.getBounds();
 	}
 
-	@Override
+	/**
+	 * @param maxNodes the maximum number of nodes per area
+	 * @return a list of areas, each containing no more than {@code maxNodes} nodes.
+	 * Each area returned must be aligned to the appropriate overview map resolution.
+	 */ 	
 	public List<Area> split(long maxNodes) {
 		this.maxNodes = maxNodes; 
 		
@@ -134,7 +137,6 @@ public class SplittableDensityArea implements SplittableArea {
 		return fullSolution.getAreas(null);
 	}
 
-	@Override
 	public List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
 		this.maxNodes = maxNodes;
 		if (polygonArea == null)
@@ -309,7 +311,7 @@ public class SplittableDensityArea implements SplittableArea {
 			Area shapeBounds = new Area(rShape.y, rShape.x,(int)rShape.getMaxY(), (int)rShape.getMaxX());
 			int resolution = 24-allDensities.getShift();
 			shapeBounds  = RoundingUtils.round(shapeBounds, resolution);
-			SplittableArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds));
+			SplittableDensityArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds));
 			if (splittableArea.hasData() == false){
 				System.out.println("Warning: a part of the bounding polygon would be empty and is ignored:" + shapeBounds);
 				//result.add(shapeBounds);
