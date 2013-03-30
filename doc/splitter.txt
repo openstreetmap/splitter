@@ -139,7 +139,7 @@ the osmosis sort function.
 :  Don't trim empty space off the edges of tiles. This option is ignored when
 --polygon-file is used.
 
-output=pbf
+;--output=pbf
 :  The format in which the output files are written. Possible values are xml,
 pbf, o5m, and simulate. The default is pbf, which produces the smallest file
 sizes. The o5m format is faster to write, but creates around 40% larger files.
