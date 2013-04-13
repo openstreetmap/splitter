@@ -34,9 +34,13 @@ public class TestCustomCollections {
 		testMap(new SparseLong2ShortMapInline(), -10000L);
 		testMap(new SparseLong2ShortMapInline(), 1L << 35);
 		testMap(new SparseLong2ShortMapInline(), -1L << 35);
+		testMap(new SparseLong2ShortMapHuge(), 0L);
+		testMap(new SparseLong2ShortMapHuge(), -10000L);
+		testMap(new SparseLong2ShortMapHuge(), 1L << 35);
+		testMap(new SparseLong2ShortMapHuge(), -1L << 35);
 	}
 
-	private void testMap(SparseLong2ShortMapInline map, long idOffset) {
+	private void testMap(SparseLong2ShortMapFunction map, long idOffset) {
 		map.defaultReturnValue((short) Short.MIN_VALUE);
 
 		for (short i = 1; i < 1000; i++) {

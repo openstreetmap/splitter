@@ -66,7 +66,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		if (dataStorer.getUsedWays() == null){
-			ways = new SparseLong2ShortMapInline();
+			ways = SparseLong2ShortMap.createMap();
 			ways.defaultReturnValue(UNASSIGNED);
 			dataStorer.setUsedWays(ways);
 		}
@@ -77,7 +77,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		
 		writerSet = new BitSet(writerDictionary.getNumOfWriters());
 		this.writerIndex = dataStorer.getGrid();
-		this.coords = new SparseLong2ShortMapInline();
+		this.coords = SparseLong2ShortMap.createMap();
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.isFirstPass = (writerOffset == 0);
 		this.writerOffset = writerOffset;

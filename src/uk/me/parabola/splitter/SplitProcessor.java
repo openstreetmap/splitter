@@ -63,8 +63,8 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		this.writers = writerDictionary.getWriters();
-		this.coords = new SparseLong2ShortMapInline();
-		this.ways   = new SparseLong2ShortMapInline();
+		this.coords = SparseLong2ShortMap.createMap();
+		this.ways   = SparseLong2ShortMap.createMap();
 		this.coords.defaultReturnValue(unassigned);
 		this.ways.defaultReturnValue(unassigned); 		
 		this.writerIndex = dataStorer.getGrid();
