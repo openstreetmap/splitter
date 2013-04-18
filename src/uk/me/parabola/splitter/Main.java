@@ -151,6 +151,9 @@ public class Main {
 		if (statusFreq > 0) {
 			JVMHealthMonitor.start(statusFreq);
 		}
+		
+		checkJREVersion();
+		
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
 		try {
@@ -166,6 +169,27 @@ public class Main {
 		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
 	}
 
+	/**
+	 * Check if a JRE 1.7.x or higher is installed.
+	 */
+	private static void checkJREVersion() {
+		String version = System.getProperty("java.version");
+		if (version != null) {
+			String[] versionParts =version.split(Pattern.quote(".")); 
+			if (versionParts.length >= 2) {
+				int major = Integer.valueOf(versionParts[1]);
+				if (major < 7) {
+					System.out.println("===========================================================");
+					System.out.println("You are using an old Java runtime environment "+version);
+					System.out.println("splitter support for JRE 1.6.x will be discontinued");
+					System.out.println("after June 2013.");
+					System.out.println("Please update the JRE to the latest release.");
+					System.out.println("===========================================================");
+				}
+			}
+		}
+	}
+	
 	private void split() throws IOException, XmlPullParserException {
 
 		File outputDir = fileOutputDir;
