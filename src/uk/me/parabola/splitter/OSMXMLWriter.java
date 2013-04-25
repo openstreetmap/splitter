@@ -57,7 +57,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 
 	private void writeHeader() throws IOException {
 		writeString("<?xml version='1.0' encoding='UTF-8'?>\n");
-		writeString("<osm version='0.5' generator='splitter'>\n");
+		writeString("<osm version='0.5' generator='splitter' upload='false'>\n");
 
 		writeString("<bounds minlat='");
 		writeLongDouble(Utils.toDegrees(bounds.getMinLat()));
