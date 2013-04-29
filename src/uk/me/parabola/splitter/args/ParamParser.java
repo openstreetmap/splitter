@@ -179,19 +179,36 @@ public class ParamParser {
 	public <P> void displayUsage() {
 		System.out.println("Usage: java [JAVA_OPTIONS] -jar splitter.jar [OPTIONS] input_file (*.osm or *.pbf or *.o5m)");
 		System.out.println("Options:");
-		StringBuilder buf = new StringBuilder(100);
+		
+		int leftColWidth = maxParamLength + 5;
 		for (Param param : paramMap.values()) {
-			buf.setLength(0);
-			buf.append(" --").append(param.getName());
-			for (int i = 0; i < maxParamLength - param.getName().length() + 2; i++) {
-				buf.append(' ');
-			}
-			buf.append(param.getDescription());
+			String desc = param.getDescription();
 			if (param.getDefaultValue() != null) {
-				buf.append(" Default is ").append(param.getDefaultValue()).append('.');
+				desc += " Default is " + param.getDefaultValue() + ".";
 			}
-			System.out.println(buf.toString());
+			String ln = padRight(" --" + param.getName(), leftColWidth);
+			String[] descWords = desc.split(" ");
+			for (String word: descWords){
+				if (ln.length() + word.length() >= 78){
+					System.out.println(ln);
+					ln = padRight("", leftColWidth);
+				}
+				ln += word + " ";
+			}
+			System.out.println(ln);
 		}
+	}
+
+	/**
+	 * Pad string with blanks on the right to the desired length.
+	 * @param s the string
+	 * @param wantedLen the desired length
+	 * @return the padded string. No truncation or padding is done 
+	 * if s is longer than wantedLen.  
+	 */
+	
+	private static String padRight(String s, int wantedLen) {
+	     return String.format("%1$-" + wantedLen + "s", s);  
 	}
 
 	private <P> String getParameterName(Method method, Option option) {
