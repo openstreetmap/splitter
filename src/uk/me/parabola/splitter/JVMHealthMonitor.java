@@ -19,10 +19,7 @@ package uk.me.parabola.splitter;
  * @author Chris Miller
  */
 public class JVMHealthMonitor {
-	private JVMHealthMonitor() {
-	}
-
-	private static Thread statusThread;
+	private final Thread statusThread;
 	private static long startTime;
 
 	/**
@@ -32,10 +29,7 @@ public class JVMHealthMonitor {
 	 *
 	 * @param statusFrequency the number of seconds to sleep between each status update.
 	 */
-	public static void start(final long statusFrequency) {
-		if (statusThread != null) {
-			throw new IllegalStateException("A JVMHealthMonitor thread is already running. JVMHealthMonitor.start() must only be called once during the lifetime of an application.");
-		}
+	public JVMHealthMonitor (final long statusFrequency) {
 		startTime = System.currentTimeMillis();
 		statusThread = new Thread(new Runnable() {
 			@Override
@@ -64,10 +58,14 @@ public class JVMHealthMonitor {
 		);
 		statusThread.setDaemon(true);
 		statusThread.setName("JVMHealthMonitor");
-		statusThread.start();
 	}
 
-	private static String getElapsedTime() {
+	public void start(){
+		if (!statusThread.isAlive())
+			statusThread.start();
+	}
+	
+	private String getElapsedTime() {
 		long elapsed = (System.currentTimeMillis() - startTime) / 1000;
 		long seconds = elapsed % 60;
 		long minutes = elapsed / 60 % 60;

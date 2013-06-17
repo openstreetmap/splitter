@@ -147,9 +147,11 @@ public class Main {
 	}
 
 	private void start(String[] args) {
+		JVMHealthMonitor healthMonitor = null;
 		readArgs(args);
 		if (statusFreq > 0) {
-			JVMHealthMonitor.start(statusFreq);
+			healthMonitor = new JVMHealthMonitor(statusFreq);
+			healthMonitor.start();
 		}
 		
 		checkJREVersion();
