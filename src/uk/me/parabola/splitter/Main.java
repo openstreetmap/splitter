@@ -397,8 +397,7 @@ public class Main {
 		// plausibility checks and default handling 
 		if (keepComplete){
 			if (filenames.size() > 1){
-				System.err.println("--keep-complete is not supported for multiple input files. Please execute splitter once for each file.");
-				System.exit(-1);
+				System.err.println("warning: --keep-complete is not fully supported for multiple input files.");
 			}
 			if (filenames.isEmpty()){
 				System.err.println("stdin cannot be used with --keep-complete because multiple read passes are needed.");
