@@ -42,7 +42,8 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private final static byte MEM_REL_TYPE  = 3;
 	private final static byte MEM_INVALID_TYPE = -1;
 	private final static int PROBLEM_WIDTH = Utils.toMapUnit(180.0);
-	private final static String[] NAME_TAGS = {"name","name:en","int_name","note"}; 
+	private final static String[] NAME_TAGS = {"name","name:en","int_name","note"};
+	private final static String NOT_SORTED_MSG = "Maybe the IDs are not sorted. This is not supported with keep-complete=true or --problem-list";
 	
 	private int phase = PHASE1_RELS_ONLY;
 	private final DataStorer dataStorer;
@@ -171,7 +172,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				wayWriterMap.add(way.getId(), wayWriterIdx);
 			}catch (IllegalArgumentException e){
 				System.err.println(e.getMessage());
-				System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+				System.err.println(NOT_SORTED_MSG);
 				System.exit(-1);
 			}
 
@@ -275,7 +276,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						relWriterMap.add(entry.getKey(), val);
 					}catch (IllegalArgumentException e){
 						System.err.println(e);
-						System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+						System.err.println(NOT_SORTED_MSG); 
 						System.exit(-1);
 					}
 				}
@@ -491,14 +492,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 	/**
 	 * Store the coordinates of a node in the most appropriate data structure.
-	 * We try to use an array list, if input is not sorted, we switch to a HashMap 
 	 * @param node
 	 */
 	private void storeCoord(Node node) {
-		// store two ints in one long to save memory
-		int lat = node.getMapLat();
-		int lon = node.getMapLon();
-
 		long id = node.getId();
 		if (lastCoordId >= id){
 			System.err.println("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
@@ -510,13 +506,13 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			nodePos = nodeWriterMap.add(id, WriterDictionaryInt.UNASSIGNED);
 		}catch (IllegalArgumentException e){
 			System.err.println(e.getMessage());
-			System.err.println("IDs are not sorted. This is not supported with keep-complete=true or --problem-list"); 
+			System.err.println(NOT_SORTED_MSG);
 			System.exit(-1);
 		}
 				
+		nodeLons[nodePos ] = node.getMapLon();
+		nodeLats[nodePos] = node.getMapLat();
 		lastCoordId = id;
-		nodeLons[nodePos ] = lon;
-		nodeLats[nodePos] = lat;
 	}
 
 	/**
