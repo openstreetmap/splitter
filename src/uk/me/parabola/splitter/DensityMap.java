@@ -356,6 +356,10 @@ public class DensityMap {
 		int maxX = lonToX(area.getMaxLong());
 		int minY = latToY(area.getMinLat());
 		int maxY = latToY(area.getMaxLat());
+		if (maxX == width)
+			--maxX;
+		if (maxY == height)
+			--maxY;
 		if (trim){
 			for (int x = minX; x <= width; x++) {
 				if (nodeMap[x] != null){
@@ -405,7 +409,7 @@ public class DensityMap {
 				continue;
 			int[] col = nodeMap[x];
 			if (col == null)
-				col = new int[height];
+				col = new int[height+1];
 			for (int y = minY; y <= maxY; y++){
 				if (col[y] == 0){
 					int seaCount = seaCol[y] * SEA_NODE_FACTOR;
