@@ -69,9 +69,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private long lastRef[];
 	private int lastLon,lastLat;
 	
-	boolean isFirstNode = true;
-	boolean isFirstWay = true;
-	boolean isFirstRel = true;
+	int lastWrittenDatasetType = 0;
 	
 	// index of last entered element in string table
 	short stw__tabi= 0; 
@@ -163,6 +161,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		dos.write(fileType);
 		writeUnsignedNum(stream.size(), dos);
 		stream.writeTo(dos);
+		lastWrittenDatasetType = fileType;
 	}
 
 	public void finishWrite() {
@@ -184,8 +183,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 
 	@Override
 	public void write(Node node) throws IOException {
-		if (isFirstNode){
-			isFirstNode = false;
+		if (lastWrittenDatasetType != NODE_DATASET){
 			reset();
 		}
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -203,8 +201,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	}
 
 	public void write(Way way) throws IOException {
-		if (isFirstWay){
-			isFirstWay = false;
+		if (lastWrittenDatasetType != WAY_DATASET){
 			reset();
 		}
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -226,8 +223,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	}
 
 	public void write(Relation rel) throws IOException {
-		if (isFirstRel){
-			isFirstRel = false;
+		if (lastWrittenDatasetType != REL_DATASET){
 			reset();
 		}
 		ByteArrayOutputStream stream = new ByteArrayOutputStream(256);
