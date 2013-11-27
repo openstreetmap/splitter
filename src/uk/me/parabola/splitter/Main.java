@@ -236,6 +236,10 @@ public class Main {
 				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
 				return;
 			}
+			if (mapId + areaList.getAreas().size() > 99999999){
+				System.err.println("Too many areas for initial mapid " + mapId + ", resetting to 63240001");
+				mapId = 63240001;
+			}
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
 			}
@@ -323,6 +327,10 @@ public class Main {
 			}
 		}
 		mapId = params.getMapid();
+		if (mapId > 99999999) {
+			mapId = 63240001;
+			System.err.println("The --mapid parameter must have less than 9 digits. Resetting to " + mapId + ".");
+		} 		
 		maxNodes = params.getMaxNodes();
 		description = params.getDescription();
 		geoNamesFile = params.getGeonamesFile();
