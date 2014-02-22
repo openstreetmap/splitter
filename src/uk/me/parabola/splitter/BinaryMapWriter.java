@@ -473,7 +473,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
    * */
   public void finishHeader(Osmformat.HeaderBlock.Builder headerblock)
   {
-    headerblock.setWritingprogram("splitter-r171");
+    headerblock.setWritingprogram("splitter-r" + Version.VERSION);
     headerblock.addRequiredFeatures("OsmSchema-V0.6");
     if(useDense) {
       headerblock.addRequiredFeatures("DenseNodes");
