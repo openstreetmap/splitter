@@ -44,6 +44,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final DataStorer dataStorer;
 	private LongArrayList problemWays; 
 	private LongArrayList problemRels;
+	private final OSMId2ObjectMap<Short> oneTileOnlyRels;
+
 	private BitSet writerSet;
 	
 	private int phase = PHASE1_NODES_AND_WAYS;
@@ -62,7 +64,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	ProblemListProcessor(DataStorer dataStorer, int writerOffset,
 			int numWritersThisPass, LongArrayList problemWays,
-			LongArrayList problemRels, String[] boundaryTagList) {
+			LongArrayList problemRels, 	OSMId2ObjectMap<Short> oneTileOnlyRels,
+			String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		if (dataStorer.getUsedWays() == null){
@@ -85,6 +88,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.isLastPass = (writerOffset + numWritersThisPass == writers.length);
 		this.problemWays = problemWays;
 		this.problemRels = problemRels;
+		this.oneTileOnlyRels = oneTileOnlyRels;
 		this.realWriterBbox = Utils.area2Rectangle(writerIndex.getBounds(), 0);
 		if (boundaryTagList != null && boundaryTagList.length > 0)
 			wantedBoundaryTagValues = new HashSet<String>(Arrays.asList(boundaryTagList));
@@ -298,6 +302,14 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			if (checkWriters(writerSet)){
 				problemRels.add(rel.getId());
 				//System.out.println("gen: r" + rel.getId() + " touches " + writerDictionary.getMapIds(writerSet));
+			} else {
+				for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
+					if (writers[i].areaIsPseudo() == false)  {
+						// this should be the only writer
+						oneTileOnlyRels.put(rel.getId(), (short) i);
+						break;
+					}
+				}
 			}
 			return;
 		}

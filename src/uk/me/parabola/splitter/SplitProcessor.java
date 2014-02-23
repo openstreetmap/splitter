@@ -34,6 +34,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final Long2IntClosedMapFunction nodeWriterMap;
 	private final Long2IntClosedMapFunction wayWriterMap;
 	private final Long2IntClosedMapFunction relWriterMap;
+	private final OSMId2ObjectMap<Short> oneTileOnlyRels;
 
 	//	for statistics
 	private long countQuickTest = 0;
@@ -58,9 +59,10 @@ class SplitProcessor extends AbstractMapProcessor {
 	private BitSet usedWriters;
 	
 	
-	SplitProcessor(DataStorer dataStorer,
+	SplitProcessor(DataStorer dataStorer, 	OSMId2ObjectMap<Short> oneTileOnlyRels,
 			int writerOffset, int numWritersThisPass, int maxThreads){
 		this.dataStorer = dataStorer;
+		this.oneTileOnlyRels = oneTileOnlyRels;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		this.writers = writerDictionary.getWriters();
 		this.coords = SparseLong2ShortMap.createMap();
@@ -154,26 +156,22 @@ class SplitProcessor extends AbstractMapProcessor {
 	@Override
 	public void processRelation(Relation rel) {
 		currentRelAreaSet.clear();
-		int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
-		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
-			
-			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
-			try {
+		Short singleTileWriterIdx = oneTileOnlyRels.get(rel.getId());
+		if (singleTileWriterIdx != null){
+			currentRelAreaSet.set(singleTileWriterIdx);
+		} else {
+			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
+			if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
+
+				BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 				// set only active writer bits
 				for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
 					currentRelAreaSet.set(i);
 				}
-				writeRelation(rel);
-				//System.out.println("added rel: " +  r.getId());
-			} catch (IOException e) {
-				throw new RuntimeException("failed to write relation " + rel.getId(),
-						e);
 			}
-		}
-		else{
-			short oldclIndex = unassigned;
-			short oldwlIndex = unassigned;
-			try {
+			else{
+				short oldclIndex = unassigned;
+				short oldwlIndex = unassigned;
 				for (Member mem : rel.getMembers()) {
 					// String role = mem.getRole();
 					long id = mem.getRef();
@@ -201,12 +199,16 @@ class SplitProcessor extends AbstractMapProcessor {
 						}
 					}
 				}
-
-				writeRelation(rel);
-			} catch (IOException e) {
-				throw new RuntimeException("failed to write relation " + rel.getId(),
-						e);
+//				if (currentRelAreaSet.cardinality() > 1 && relWriterMap != null){
+//					System.out.println("relation " + rel.getId() + " " + rel.tags + " might be incomplete in some tiles");
+//				}
 			}
+		}
+		try {
+			writeRelation(rel);
+		} catch (IOException e) {
+			throw new RuntimeException("failed to write relation " + rel.getId(),
+					e);
 		}
 	}
 	@Override

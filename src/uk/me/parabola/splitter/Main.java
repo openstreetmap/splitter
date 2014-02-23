@@ -130,6 +130,9 @@ public class Main {
 	private TreeSet<Long> calculatedProblemWays = new TreeSet<Long>();
 	private TreeSet<Long> calculatedProblemRels = new TreeSet<Long>();
 	
+	// map with relations that should be complete and are written to only one tile 
+	private final OSMId2ObjectMap<Short> oneTileOnlyRels = new OSMId2ObjectMap<Short>();
+
 	// for faster access on blocks in pbf files
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
 	// for faster access on blocks in o5m files
@@ -608,7 +611,7 @@ public class Main {
 			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
 			ProblemListProcessor processor = new ProblemListProcessor(
 					dataStorer, writerOffset, numWritersThisPass,
-					problemWaysThisPart, problemRelsThisPart, boundaryTags);
+					problemWaysThisPart, problemRelsThisPart, oneTileOnlyRels, boundaryTags);
 			
 			boolean done = false;
 			while (!done){
@@ -768,7 +771,7 @@ public class Main {
 			int writerOffset = i * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
 			dataStorer.restartWriterMaps();
-			SplitProcessor processor = new SplitProcessor(dataStorer, writerOffset, numWritersThisPass, maxThreads);
+			SplitProcessor processor = new SplitProcessor(dataStorer, oneTileOnlyRels, writerOffset, numWritersThisPass, maxThreads);
 
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numWritersThisPass +
 					" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
