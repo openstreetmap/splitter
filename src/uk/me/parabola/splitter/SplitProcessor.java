@@ -158,6 +158,8 @@ class SplitProcessor extends AbstractMapProcessor {
 		currentRelAreaSet.clear();
 		Short singleTileWriterIdx = oneTileOnlyRels.get(rel.getId());
 		if (singleTileWriterIdx != null){
+			if (singleTileWriterIdx < writerOffset || singleTileWriterIdx > lastWriter)
+				return;
 			currentRelAreaSet.set(singleTileWriterIdx);
 		} else {
 			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
