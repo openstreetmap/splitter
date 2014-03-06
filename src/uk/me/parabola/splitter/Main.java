@@ -803,8 +803,13 @@ public class Main {
 			}
 		}
 
-		for (String filename : filenames) {
+		for (int i = 0; i < filenames.size(); i++){
+			String filename = filenames.get(i);
 			System.out.println("Processing " + filename);
+			if (i == 1 && processor instanceof DensityMapCollector){
+				((DensityMapCollector) processor).checkBounds();
+			}
+			
 			try {
 				if (filename.endsWith(".o5m")) {
 					File file = new File(filename);

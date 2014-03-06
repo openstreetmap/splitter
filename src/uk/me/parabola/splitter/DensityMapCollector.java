@@ -59,6 +59,17 @@ class DensityMapCollector extends AbstractMapProcessor{
 		details.addToBounds(glat, glon);
 	}
 
+	/**
+	 * Check if a bounds tag was found. If not,
+	 * use the bbox of the data that was collected so far.
+	 * This is used when multiple input files are used
+	 * and first doesn't contain a bounds tag.
+	 */
+	public void checkBounds(){
+		if (this.bounds == null)
+			this.bounds = getExactArea();
+	}
+	
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
