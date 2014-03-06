@@ -128,21 +128,23 @@ public class PrecompSeaReader {
 					}
 				} else if (precompSeaDir.getName().endsWith(".zip")){
 					zipFile = new ZipFile(precompSeaDir);
-					internalPath = "sea";
-					ZipEntry entry = zipFile.getEntry(internalPath);
-					if (entry == null)
-						internalPath = "";
-					else 
-						internalPath = internalPath + "/";
-					entry = zipFile.getEntry(internalPath + indexFileName);
+					internalPath = "sea/";
+					ZipEntry entry = zipFile.getEntry(internalPath + indexFileName);
 					if (entry == null){
 						indexFileName = "index.txt";
 						entry = zipFile.getEntry(internalPath + indexFileName);
 					}
+					if (entry == null){
+						internalPath = "";
+						indexFileName = "index.txt.gz";
+						entry = zipFile.getEntry(internalPath + indexFileName);
+					}
 					if (entry != null){
 						indexStream = zipFile.getInputStream(entry);
-					}
-				} else {
+					} else 
+						System.err.println("Don't know how to read " + precompSeaDir);
+				} 
+				else {
 					System.err.println("Don't know how to read " + precompSeaDir);
 				}
 				if (indexStream != null){
