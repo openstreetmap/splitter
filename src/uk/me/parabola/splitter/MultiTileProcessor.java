@@ -915,9 +915,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				if (isRelevant & hasMissingWays)
 					System.out.println("Incomplete multipolygon relation " + rel.getId() + " (" + rel.getName() + "): using bbox of " + 
 							(closed ? "closed":"unclosed") + " polygon to calc tiles, ways: " + polygonWays);
-				joinedWays = null;
 				mpBbox = null;
-			}
+			} 
+			joinedWays = null;
 		}
 		return;
 	}
