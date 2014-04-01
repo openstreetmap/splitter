@@ -236,7 +236,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		while(tags.hasNext()) {
 			Element.Tag t = tags.next();
 			if ("type".equals(t.key)) {
-				if ("restriction".equals((t.value)) || "through_route".equals((t.value)))
+				if ("restriction".equals((t.value)) || "through_route".equals((t.value)) || t.value.startsWith("restriction:"))
 					useThis= true; // no need to check other tags
 				else if ("multipolygon".equals((t.value))  || "boundary".equals((t.value)))
 					isMPRelType= true;
