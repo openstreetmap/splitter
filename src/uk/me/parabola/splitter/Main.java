@@ -1038,7 +1038,7 @@ public class Main {
 	 * @param realAreas
 	 * @return
 	 */
-	private List<Area> addPseudoWriters(List<Area> realAreas){
+	private static List<Area> addPseudoWriters(List<Area> realAreas){
 		ArrayList<Area> areas = new ArrayList<Area>(realAreas);
 		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
 
@@ -1057,7 +1057,7 @@ public class Main {
 	 * @param area an area that is considered to be empty or a rectangle
 	 * @return 
 	 */
-	private java.awt.geom.Area simplifyArea(java.awt.geom.Area area) {
+	private static java.awt.geom.Area simplifyArea(java.awt.geom.Area area) {
 		if (area.isEmpty() || area.isRectangular())
 			return area;
 		// area.isRectugular() may returns false although the shape is a
@@ -1070,7 +1070,7 @@ public class Main {
 		return area;
 	}
 
-	private boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
+	private static boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
 		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
 		long sumTiles = 0;
 
@@ -1258,7 +1258,7 @@ public class Main {
 	 * @param areas list of areas (either real or pseudo)
 	 * @return true if pseudo-areas were added
 	 */
-	private boolean addPseudoArea(ArrayList<Area> areas) {
+	private static boolean addPseudoArea(ArrayList<Area> areas) {
 		int oldSize = areas.size();
 		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
 		java.awt.geom.Area uncovered = new java.awt.geom.Area(planetBounds); 

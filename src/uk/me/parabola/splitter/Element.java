@@ -65,7 +65,7 @@ public abstract class Element {
 
 	public Iterator<Tag> tagsIterator() {
 		if (tags == null)
-			return Collections.EMPTY_LIST.iterator();
+			return Collections.emptyIterator();
 
 		return tags.iterator();
 	}

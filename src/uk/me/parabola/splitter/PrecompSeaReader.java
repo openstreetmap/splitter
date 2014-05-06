@@ -320,7 +320,7 @@ public class PrecompSeaReader {
 	 * @param indexGrid the previously allocated index grid  
 	 * @return the byte that was saved in the index grid 
 	 */
-	private byte updatePrecompSeaTileIndex (String precompKey, String fileName, byte[][] indexGrid){
+	private static byte updatePrecompSeaTileIndex (String precompKey, String fileName, byte[][] indexGrid){
 		String[] tileCoords = keySplitter.split(precompKey);
 		byte type = '?';
 		if (tileCoords.length == 2){
