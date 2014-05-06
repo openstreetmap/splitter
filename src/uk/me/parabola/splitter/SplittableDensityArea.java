@@ -34,10 +34,11 @@ public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
 	private static final int MAX_LON_DEGREES = 90;
 	private static final int MAX_SINGLE_POLYGON_VERTICES = 40;
-	private static final int MAX_LOOPS = 20;	// number of loops to find better solution
+	private static final int MAX_LOOPS = 100;	// number of loops to find better solution
 	private static final int AXIS_HOR = 0; 
 	private static final int AXIS_VERT = 1; 
 	private static final int NICE_MAX_ASPECT_RATIO = 4;
+	private static final int MAX_CACHE_SIZE = 200000;
 	private double maxAspectRatio = Double.MIN_VALUE;
 	private long minNodes = Long.MAX_VALUE;
 	private final DensityMap allDensities;
@@ -404,6 +405,8 @@ public class SplittableDensityArea {
 	 * @return a solution instance or null 
 	 */
 	private Solution findSolution(int depth, final Tile tile){
+		if (cache.size() > MAX_CACHE_SIZE)
+			return null;
 		boolean addAndReturn = false;
 		if (tile.count == 0){
 			if (!allowEmptyPart)
@@ -585,7 +588,7 @@ public class SplittableDensityArea {
 					bestSolution = solution;
 					foundBetter = true;
 					System.out.println("Best solution until now: " + bestSolution.toString());
-					if (bestSolution.isNice()){
+					if (bestSolution.isNice() && bestSolution.getWorstMinNodes() >= maxNodes * 3 / 2){
 						System.out.println("This seems to be nice.");
 						break;
 					}
@@ -616,24 +619,30 @@ public class SplittableDensityArea {
 				maxAspectRatio = Math.min(32,maxAspectRatio);
 				
 				if (maxAspectRatio == saveMaxAspectRatio){
-					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO)
-						minNodes = maxNodes / 3;
+					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
+						if (minNodes == 0)
+							minNodes = maxNodes / 3;
+						else {
+							if (minNodes < maxNodes / 2)
+								minNodes = bestSolution.getWorstMinNodes() + bestSolution.getWorstMinNodes()/8;
+							else 
+								minNodes = bestSolution.getWorstMinNodes() + bestSolution.getWorstMinNodes()/16;
+						}
+					}
 					else 
 						minNodes = Math.min(maxNodes / 3, bestSolution.worstMinNodes + maxNodes/20);
 				}
 			}
-	
 			if (saveMaxAspectRatio == maxAspectRatio && saveMinNodes == minNodes){
 				if (bestSolution.isEmpty() == false)
 					System.out.println("Can't find a better solution");
 				break;
 			}
-			if (cache.size() > 1000000){
+			if (cache.size() > MAX_CACHE_SIZE){
 				System.out.println("Can't find a better solution");
 				break;
 			}
 		} 
-		
 		return bestSolution;
 	}
 
@@ -1068,6 +1077,11 @@ public class SplittableDensityArea {
 			return  rating1 + rating2;
 			
 		}
+		
+		public long getWorstMinNodes(){
+			return worstMinNodes;
+		}
+		
 		public boolean isEmpty(){
 			return tiles.isEmpty();
 		}
