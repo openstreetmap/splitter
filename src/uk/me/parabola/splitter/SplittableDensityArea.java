@@ -685,7 +685,7 @@ public class SplittableDensityArea {
 				if (maxAspectRatio == saveMaxAspectRatio){
 					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
 						if (minNodes == 0)
-							minNodes = maxNodes / 3;
+							minNodes = bestSolution.getWorstMinNodes() + 1;
 						else {
 							if (minNodes < maxNodes / 2)
 								minNodes = bestSolution.getWorstMinNodes() + bestSolution.getWorstMinNodes()/8;
