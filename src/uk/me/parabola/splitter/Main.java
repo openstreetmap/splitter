@@ -85,6 +85,8 @@ public class Main {
 	// Nodes added by overlap or keep-complete are not taken into account. 
 	private long maxNodes;
 
+	private int numTiles = -1;
+	
 	// This is a value in the range 0-24.
 	// Higher numbers mean higher detail. The resolution determines how the tiles must
 	// be aligned. Eg a resolution of 13 means the tiles need to have their edges aligned to
@@ -335,6 +337,20 @@ public class Main {
 			System.err.println("The --mapid parameter must have less than 9 digits. Resetting to " + mapId + ".");
 		} 		
 		maxNodes = params.getMaxNodes();
+		String numTilesParm = params.getNumTiles();
+		if (numTilesParm != null){
+			try{
+				numTiles = Integer.parseInt(numTilesParm);
+				if (numTiles >= 0 && numTiles < 2 ){
+					System.err.println("Error: The --num-tiles parameter must be 2 or higher. Resetting to 2.");
+					numTiles = 2;
+				}
+			} catch(NumberFormatException e){
+				System.err.println("Error: Invalid number "+ numTilesParm + 
+						". The --num-tiles parameter must be an integer value of 2 or higher.");
+				System.exit(-1);
+			}
+		}
 		description = params.getDescription();
 		geoNamesFile = params.getGeonamesFile();
 		if (geoNamesFile != null){
@@ -522,12 +538,20 @@ public class Main {
 			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);
 		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
-		System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
+		
+		
 		splittableArea.setTrim(trim);
 		splittableArea.setMapId(mapId);
 		long startSplit = System.currentTimeMillis();
-		
-		List<Area> areas = splittableArea.split(maxNodes, polygon);
+		List<Area> areas ;
+		if (numTiles >= 2){
+			System.out.println("Splitting nodes into " + numTiles + " areas");
+			areas = splittableArea.split(polygon, numTiles);
+		}
+		else {
+			System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
+			areas = splittableArea.split(maxNodes, polygon);
+		}
 		if (areas != null && areas.isEmpty() == false)
 			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
 		return new AreaList(areas);

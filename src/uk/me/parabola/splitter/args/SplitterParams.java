@@ -40,6 +40,10 @@ public interface SplitterParams {
 			+ "Nodes added by overlap or keep-complete are not taken into account.")
 	int getMaxNodes();
 
+	@Option(description = "A target value that is used when no split-file is given. Splitting is done so that "
+			+ "the given number of tiles is produced. The max-nodes value is ignored if this option is given.")
+	String getNumTiles();
+
 	@Option(defaultValue = "13", description = "The resolution of the overview map to be produced by mkgmap.")
 	int getResolution();
 

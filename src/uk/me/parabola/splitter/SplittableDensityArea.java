@@ -47,6 +47,7 @@ public class SplittableDensityArea {
 	int minAspectRatioFactorPos = Integer.MAX_VALUE;
 	double maxAspectRatioFactor = Double.MIN_VALUE;
 	
+	private boolean beQuiet = false;
 	private long maxNodes;
 	private final int shift;
 	private HashSet<Tile> cache;
@@ -108,7 +109,8 @@ public class SplittableDensityArea {
 		if (startSolution != null && startSolution.isNice())
 			return startSolution.getAreas(null);
 
-		System.out.println("Split was not yet succesfull. Trying to remove large empty areas...");
+		if (!beQuiet)
+			System.out.println("Split was not yet succesfull. Trying to remove large empty areas...");
 		List<Tile> startTiles = checkForEmptyClusters(0, startTile, true);
 		if (startTiles.size() == 1){
 			Tile tile = startTiles.get(0);
@@ -120,15 +122,18 @@ public class SplittableDensityArea {
 					return startSolution.getAreas(null);
 			}
 		}			
-		System.out.println("Trying again with " + startTiles.size() + " trimmed partition(s), also allowing big empty parts.");
+		if (!beQuiet)
+			System.out.println("Trying again with " + startTiles.size() + " trimmed partition(s), also allowing big empty parts.");
 		allowEmptyPart = true;
 		for (Tile tile: startTiles){
-			System.out.println("Solving partition " + tile.toString());
+			if (!beQuiet)
+				System.out.println("Solving partition " + tile.toString());
 			Solution solution = solveRectangularArea(tile);
 			if (solution != null && solution.isEmpty() == false)
 				fullSolution.merge(solution);
 			else {
-				System.out.println("Warning: No solution found for partition " + tile.toString());
+				if (!beQuiet)
+					System.out.println("Warning: No solution found for partition " + tile.toString());
 			}
 		}
 		System.out.println("Final solution has " +  fullSolution.toString());
@@ -160,6 +165,61 @@ public class SplittableDensityArea {
 				return Collections.emptyList();
 			}
 		}
+	}
+
+	
+	public List<Area> split(java.awt.geom.Area polygonArea, int wantedTiles) {
+		long currMaxNodes = this.allDensities.getNodeCount() / wantedTiles;
+		class Pair {
+			long maxNodes;
+			int numTiles;
+			
+			Pair(long maxNodes, int numTiles){
+				this.maxNodes = maxNodes;
+				this.numTiles = numTiles;  
+			}
+		}
+		Pair bestBelow = null;
+		Pair bestAbove = null;
+		beQuiet = true;
+		while (true) {
+			System.out.println("Trying a max-nodes value of " + currMaxNodes + " to split " + allDensities.getNodeCount() + " nodes into " + wantedTiles + " areas");
+			List<Area> res = split(currMaxNodes, polygonArea);
+			if (res.isEmpty() || res.size() == wantedTiles){
+				beQuiet = false;
+				res = split(currMaxNodes, polygonArea);
+				return res;
+			}
+			else {
+				Pair pair = new Pair(currMaxNodes, res.size());
+				if (res.size() > wantedTiles){
+					if (bestAbove == null)
+						bestAbove = pair;
+					else if (bestAbove.numTiles > pair.numTiles)
+						bestAbove = pair;
+					else  if (bestAbove.numTiles == pair.numTiles && pair.maxNodes < bestAbove.maxNodes)
+						bestAbove = pair;
+				} else {
+					if (bestBelow == null)
+						bestBelow = pair;
+					else if (bestBelow.numTiles < pair.numTiles)
+						bestBelow = pair;
+					else  if (bestBelow.numTiles == pair.numTiles && pair.maxNodes > bestBelow.maxNodes)
+						bestBelow = pair;
+				}
+				long testMaxNodes;
+				if (bestBelow == null || bestAbove == null)
+					testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
+				else 
+					testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
+				
+				if (testMaxNodes == currMaxNodes){
+					System.err.println("Cannot find split with exactly " + wantedTiles + " areas");
+					return res;
+				}
+				currMaxNodes = testMaxNodes;
+			}
+		} 
 	}
 
 	
@@ -208,7 +268,8 @@ public class SplittableDensityArea {
 				}
 			}
 		}
-		System.out.println("Highest node count in a single grid element is " +Utils.format(maxNodesInDensityMapGridElement));
+		if (!beQuiet)
+			System.out.println("Highest node count in a single grid element is " +Utils.format(maxNodesInDensityMapGridElement));
 		yxMap = new int [height][width];
 		for(int y = 0; y < height; y++){
 			for (int x = 0; x < width; x++){
@@ -575,7 +636,8 @@ public class SplittableDensityArea {
 		spread = 0;
 		minNodes = 0;
 		maxAspectRatio = 1L<<allDensities.getShift();
-		System.out.println("Trying to find nice split for " + startTile);
+		if (!beQuiet)
+			System.out.println("Trying to find nice split for " + startTile);
 		Solution bestSolution = new Solution();
 		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			double saveMaxAspectRatio = maxAspectRatio; 
@@ -589,7 +651,8 @@ public class SplittableDensityArea {
 					foundBetter = true;
 					System.out.println("Best solution until now: " + bestSolution.toString());
 					if (bestSolution.isNice() && bestSolution.getWorstMinNodes() >= maxNodes * 3 / 2){
-						System.out.println("This seems to be nice.");
+						if (!beQuiet)
+							System.out.println("This seems to be nice.");
 						break;
 					}
 				}
@@ -609,7 +672,8 @@ public class SplittableDensityArea {
 				else if (spread <= 5)
 					spread = 7;
 				// maybe try more primes ?
-				System.out.println("Trying non-natural splits with spread " + spread + " ...");
+				if (!beQuiet)
+					System.out.println("Trying non-natural splits with spread " + spread + " ...");
 				continue;
 			}
 			
@@ -635,11 +699,13 @@ public class SplittableDensityArea {
 			}
 			if (saveMaxAspectRatio == maxAspectRatio && saveMinNodes == minNodes){
 				if (bestSolution.isEmpty() == false)
-					System.out.println("Can't find a better solution");
+					if (!beQuiet)
+						System.out.println("Can't find a better solution");
 				break;
 			}
 			if (cache.size() > MAX_CACHE_SIZE){
-				System.out.println("Can't find a better solution");
+				if (!beQuiet)
+					System.out.println("Can't find a better solution");
 				break;
 			}
 		} 
@@ -1125,13 +1191,15 @@ public class SplittableDensityArea {
 						fits = false;
 				}
 				Area area = new Area(r.y,r.x,(int)r.getMaxY(),(int)r.getMaxX());
-				if (tile.count > maxNodes)
-					note = " but is already at the minimum size so can't be split further";
-				else
-					note = "";
-				long percentage = 100 * tile.count / maxNodes;
-				System.out.println("Area " + num++ + " covers " + area 
-						+ " and contains " + tile.count + " nodes (" + percentage + " %)" + note);
+				if (!beQuiet){
+					if (tile.count > maxNodes)
+						note = " but is already at the minimum size so can't be split further";
+					else
+						note = "";
+					long percentage = 100 * tile.count / maxNodes;
+					System.out.println("Area " + num++ + " covers " + area 
+							+ " and contains " + tile.count + " nodes (" + percentage + " %)" + note);
+				}
 				result.add(area);
 			}
 			if (fits == false){
