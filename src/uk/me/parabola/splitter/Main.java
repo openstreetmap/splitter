@@ -702,21 +702,20 @@ public class Main {
 			wellKnownTagVals = new HashMap<String, byte[]>();
 			
 			String[] tagKeys = { "1", "1outer", "1inner", // relation specific  
-					// 52 most often used keys (taken from taginfo 2012-12-19)
+					// 50 most often used keys (taken from taginfo 2014-05-19)
 					"source", "building",
 					"highway", "name", "addr:housenumber", "addr:street",
-					"tiger:cfcc", "tiger:county", "tiger:source", "tiger:tlid",
-					"tiger:reviewed", "addr:city", "tiger:separated",
-					"tiger:upload_uuid", "natural", "addr:country",
-					"addr:postcode", "attribution", "waterway", "wall",
-					"tiger:name_base", "landuse", "tiger:name_type", "surface",
-					"amenity", "oneway", "power", "yh:WIDTH", "tiger:zip_left",
-					"3dshapes:ggmodelk", "yh:STRUCTURE", "yh:TYPE", "note",
-					"yh:TOTYUMONO", "yh:WIDTH_RANK", "ref", "tiger:zip_right",
-					"access", "source_ref", "is_in", "note:ja", "lanes",
-					"KSJ2:curve_id", "place", "layer", "maxspeed", "tracktype",
-					"osak:identifier", "KSJ2:long", "KSJ2:lat",
-					"KSJ2:coordinate" };
+					"addr:city", "addr:postcode", "created_by", "addr:country", 
+					"natural", "source:date", "tiger:cfcc", "tiger:county", 
+					"tiger:reviewed", "landuse", "waterway", "wall", "surface", 
+					"attribution", "power", "tiger:source", "tiger:tlid",
+					"tiger:name_base", "oneway", "amenity", "start_date",
+					"tiger:name_type", "ref:bag", "tiger:upload_uuid",  
+					"tiger:separated", "ref", "yh:WIDTH", "tiger:zip_left", 
+					"note", "source_ref", "tiger:zip_right", "access",
+					"yh:STRUCTURE", "yh:TYPE", "yh:TOTYUMONO", "yh:WIDTH_RANK",  
+					"maxspeed", "lanes", "service", "barrier", "source:addr",
+					"tracktype", "is_in", "layer" };
 
 			for (String s:tagKeys){
 				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
