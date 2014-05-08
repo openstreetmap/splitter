@@ -674,7 +674,12 @@ public class Main {
 			remainingAreas.removeAll(distinctAreas);
 		} 
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
-		
+		if (partition > 1){
+			// correct wrong entries caused by partitioning 
+			for (Long id: calculatedProblemRels){
+				oneTileOnlyRels.remove(id);
+			}
+		}
 		if (problemReport != null){
 			writeProblemList(problemReport, 
 					new ArrayList<Long>(calculatedProblemWays),
