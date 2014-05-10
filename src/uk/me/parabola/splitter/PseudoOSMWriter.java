@@ -38,7 +38,8 @@ public class PseudoOSMWriter extends AbstractOSMWriter{
 	@Override
 	public void finishWrite() {}
 
-	public boolean isAreaIsPseudo() {
+	@Override
+	public boolean areaIsPseudo() {
 		return areaIsPseudo;
 	}
 }

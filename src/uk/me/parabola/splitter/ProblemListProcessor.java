@@ -16,7 +16,6 @@ import uk.me.parabola.splitter.Relation.Member;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
-import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashSet;
@@ -59,7 +58,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private boolean isLastPass;
 	private WriterIndex writerIndex;
 
-	private Rectangle realWriterBbox;
+	
 	private final HashSet<String> wantedBoundaryTagValues;
 	
 	ProblemListProcessor(DataStorer dataStorer, int writerOffset,
@@ -89,7 +88,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.problemWays = problemWays;
 		this.problemRels = problemRels;
 		this.oneTileOnlyRels = oneTileOnlyRels;
-		this.realWriterBbox = Utils.area2Rectangle(writerIndex.getBounds(), 0);
 		if (boundaryTagList != null && boundaryTagList.length > 0)
 			wantedBoundaryTagValues = new HashSet<String>(Arrays.asList(boundaryTagList));
 		else 
@@ -210,7 +208,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		}
 		
 		if (isLastPass){
-			if (checkWriters(writerSet)){
+			if (checkIfMultipleWriters(writerSet)){
 				problemWays.add(way.getId());
 				//System.out.println("gen: w" + way.getId() + " touches " + writerDictionary.getMapIds(writerSet));
 			}
@@ -299,17 +297,36 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (writerSet.isEmpty())
 			return;
 		if (isLastPass){
-			if (checkWriters(writerSet)){
+			if (checkIfMultipleWriters(writerSet)){
 				problemRels.add(rel.getId());
 				//System.out.println("gen: r" + rel.getId() + " touches " + writerDictionary.getMapIds(writerSet));
 			} else {
+				// the relation is only in one tile 
+				int newWriterIdx = -1;
 				for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
 					if (writers[i].areaIsPseudo() == false)  {
 						// this should be the only writer
-						oneTileOnlyRels.put(rel.getId(), (short) i);
+						newWriterIdx = i;
 						break;
 					}
 				}
+				// find out if it was already processed in a previous partition of tiles
+				Short writerInOtherPartition = oneTileOnlyRels.get(rel.getId());
+				
+				if (newWriterIdx >= 0){
+					// the relation is written to a real tile in this partition
+					if (writerInOtherPartition != null && writerInOtherPartition >= 0){
+						// the relation also appeared in another partition of tiles,
+						// so it is a problem rel
+						problemRels.add(rel.getId());
+						return;
+					}
+				} 
+				// store the info that the rel is only in one tile, but
+				// don't overwrite the info when it was a real tile
+				if (writerInOtherPartition == null || writerInOtherPartition < 0){
+					oneTileOnlyRels.put(rel.getId(), (short) newWriterIdx);
+				} 
 			}
 			return;
 		}
@@ -345,28 +362,14 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	}
 	
 	/** 
-	 * 
 	 * @param writerCombis
 	 * @return true if the combination of writers can contain a problem polygon
 	 */
-	boolean checkWriters(BitSet writerCombis){
-
-		if (writerCombis.cardinality() <= 1)
-			return false; // only one writer: not a problem case
-		Rectangle bbox = null;
-		for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
-			if (writers[i].areaIsPseudo() == false)  
-				return true; // multiple writers with a real writer area: problem case 
-			
-			Rectangle writerBbox = Utils.area2Rectangle(writers[i].getBounds(), 0);
-			if (bbox == null)
-				bbox = writerBbox;
-			else 
-				bbox.add(writerBbox);
-		}
-		// TODO: make sure that we detect two boxes that share exactly the same line
-		if (bbox.intersects(realWriterBbox))
-			return true;
-		return false;
+	boolean checkIfMultipleWriters(BitSet writerCombis){
+		// this returns a few false positives for those cases
+		// where a way or rel crosses two pseudo-areas at a 
+		// place that is far away from the real writers
+		// but it is difficult to detect these cases.
+		return writerCombis.cardinality() > 1;
 	}
 }
