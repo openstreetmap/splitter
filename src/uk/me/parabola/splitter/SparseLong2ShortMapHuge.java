@@ -118,7 +118,7 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 	 * 
 	 * @return
 	 */
-	private int countUnder(long mask, int lowest) {
+	private static int countUnder(long mask, int lowest) {
 		return Long.bitCount(mask & ((1L << lowest) - 1));
 	}
 
