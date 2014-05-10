@@ -145,11 +145,11 @@ class SplitProcessor extends AbstractMapProcessor {
 				System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				ways.stats(0);
 			}
-		}
-		try {
-			writeWay(w);
-		} catch (IOException e) {
-			throw new RuntimeException("failed to write way " + w.getId(), e);
+			try {
+				writeWay(w);
+			} catch (IOException e) {
+				throw new RuntimeException("failed to write way " + w.getId(), e);
+			}
 		}
 	}
 
