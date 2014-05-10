@@ -659,19 +659,21 @@ public class Main {
 	private void partitionAreasForProblemListGenerator(List<Area> realAreas) throws IOException, XmlPullParserException{
 		long startProblemListGenerator = System.currentTimeMillis();
 
-		ArrayList<Area> remainingAreas = new ArrayList<Area>(realAreas);
-		ArrayList<Area> distinctAreas;
+		List<Area> remainingAreas = new ArrayList<Area>(realAreas);
+		List<Area> distinctAreas;
 		int partition = 0;
 		while (remainingAreas.size() > 0){
 			++partition;
-			distinctAreas = getNonOverlappingAreas(remainingAreas, true);
-			if (distinctAreas.size() * 1.25 > maxAreasPerPass)
-				distinctAreas = getNonOverlappingAreas(remainingAreas, false);
-			else 
-				remainingAreas.clear();
+			List<Area> workingSet = new ArrayList<Area>(remainingAreas);
+			distinctAreas = getNonOverlappingAreas(workingSet, true);
+			if (distinctAreas.size() * 1.25 > maxAreasPerPass){
+				workingSet = new ArrayList<Area>(remainingAreas);
+				distinctAreas = getNonOverlappingAreas(workingSet, false);
+			}
 			System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
 			genProblemLists(distinctAreas, partition);
-			remainingAreas.removeAll(distinctAreas);
+			remainingAreas = workingSet;
+			
 		} 
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
 		if (partition > 1){
@@ -1094,7 +1096,7 @@ public class Main {
 	 * Create a list of areas that do not overlap. If areas in the original
 	 * list are overlapping, they can be replaced by up to 5 disjoint areas.
 	 * This is done if parameter makeDisjoint is true
-	 * @param realAreas the list of areas 
+	 * @param realAreas the list of areas (is modified in this method)
 	 * @param makeDisjoint if true, replace overlapping areas by disjoint ones
 	 * @return the new list
 	 */
@@ -1103,20 +1105,28 @@ public class Main {
 		ArrayList<Area> splitList = new ArrayList<Area>();
 		int artificialId = -99999999;
 		boolean foundOverlap = false;
-		for (int i = 0; i < realAreas.size(); i++){
-			Area area1= realAreas.get(i);
+		Iterator<Area> realAreaIter = realAreas.iterator();
 			
+		while (realAreaIter.hasNext()){
+			Area area1 = realAreaIter.next();
 			Rectangle r1 = area1.getRect();
 			if (covered.intersects(r1) == false){
 				splitList.add(area1);
+				realAreaIter.remove();
 			}
 			else {
 				if (makeDisjoint == false)
+					continue;
+				//check if area is completely within covered area
+				java.awt.geom.Area copyArea = new java.awt.geom.Area(area1.getJavaArea());
+				copyArea.subtract(covered);
+				if (copyArea.isEmpty())
 					continue;
 				if (makeDisjoint && foundOverlap == false){
 					foundOverlap = true;
 					System.out.println("Removing overlaps from tiles...");
 				}
+				realAreaIter.remove();
 				//String msg = "splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size() + " overlapping ";	
 				// find intersecting areas in the already covered part
 				ArrayList<Area> splitAreas = new ArrayList<Area>();
