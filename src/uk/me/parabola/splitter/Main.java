@@ -271,10 +271,10 @@ public class Main {
 				out = new File(fileOutputDir, kmlOutputFile);
 			System.out.println("Writing KML file to " + out.getPath());
 			areaList.writeKml(out.getPath());
-			if (polygonDescProcessor != null)
-				polygonDescProcessor.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
-			
 		}
+		if (polygonDescProcessor != null)
+			polygonDescProcessor.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
+		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 		
 		if ("split".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
@@ -290,7 +290,6 @@ public class Main {
 			}
 		}
 		writeAreas(areas);
-		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 	}
 
 	private int getAreasPerPass(int areaCount) {
