@@ -43,6 +43,7 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -144,9 +145,10 @@ public class Main {
 
 	private String precompSeaDir;
 
+	private String polygonDescFile;
+	PolygonDescProcessor polygonDescProcessor;
 	
 	public static void main(String[] args) {
-
 		Main m = new Main();
 		m.start(args);
 	}
@@ -266,10 +268,14 @@ public class Main {
 		if (kmlOutputFile != null) {
 			File out = new File(kmlOutputFile);
 			if (!out.isAbsolute())
-				kmlOutputFile = new File(fileOutputDir, kmlOutputFile).getPath();
-			System.out.println("Writing KML file to " + kmlOutputFile);
-			areaList.writeKml(kmlOutputFile);
+				out = new File(fileOutputDir, kmlOutputFile);
+			System.out.println("Writing KML file to " + out.getPath());
+			areaList.writeKml(out.getPath());
+			if (polygonDescProcessor != null)
+				polygonDescProcessor.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
+			
 		}
+		
 		if ("split".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
 			System.err.println("stopped after " + stopAfter); 
@@ -284,7 +290,7 @@ public class Main {
 			}
 		}
 		writeAreas(areas);
-		writeArgsFile(areas);
+		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 	}
 
 	private int getAreasPerPass(int areaCount) {
@@ -482,6 +488,33 @@ public class Main {
 				}
 			}
 		}
+		polygonDescFile = params.getPolygonDescFile();
+		if (polygonDescFile != null) {
+			if (splitFile != null){
+				System.out.println("Warning: parameter polygon-desc-file is ignored because split-file is used.");
+			} else {
+				File f = new File(polygonDescFile);
+
+				if (!f.exists()){
+					System.out.println("Error: polygon desc file doesn't exist: " + polygonDescFile);  
+					System.exit(-1);
+				}
+				polygonDescProcessor = new PolygonDescProcessor();
+				try {
+					processOSMFiles(polygonDescProcessor, Arrays.asList(polygonDescFile));
+					polygon = polygonDescProcessor.getPolygon();
+					if (checkPolygon(polygon) == false){
+						System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
+					}
+					
+				} catch (XmlPullParserException e) {
+					polygon = null;
+					polygonDescProcessor = null;
+					System.err.println("Could not read polygon desc file");
+					e.printStackTrace();
+				}
+			}
+		}
 		stopAfter = params.getStopAfter();
 		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){
 			System.err.println("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
@@ -496,6 +529,7 @@ public class Main {
 				System.exit(-1);
 			}
 		}
+		
 	}
 
 	/**
@@ -832,64 +866,7 @@ public class Main {
 				e.printStackTrace();
 			}
 		}
-
-		for (int i = 0; i < filenames.size(); i++){
-			String filename = filenames.get(i);
-			System.out.println("Processing " + filename);
-			if (i == 1 && processor instanceof DensityMapCollector){
-				((DensityMapCollector) processor).checkBounds();
-			}
-			
-			try {
-				if (filename.endsWith(".o5m")) {
-					File file = new File(filename);
-					InputStream stream = new FileInputStream(file);
-					long[] skipArray = skipArrayMap.get(filename);
-					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
-					o5mParser.parse();
-					if (skipArray == null){
-						skipArray = o5mParser.getSkipArray();
-						skipArrayMap.put(filename, skipArray);
-					}
-				}
-				else if (filename.endsWith(".pbf")) {
-					// Is it a binary file?
-					File file = new File(filename);
-					ShortArrayList blockTypes = blockTypeMap.get(filename);
-					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
-					BlockInputStream blockinput = (new BlockInputStream(
-							new FileInputStream(file), binParser));
-					try {
-						blockinput.process();
-					} finally {
-						blockinput.close();
-						if (blockTypes == null){
-							// remember this file 
-							blockTypes = binParser.getBlockList();
-							blockTypeMap.put(filename, blockTypes);
-						}
-					}
-				} else {
-					// No, try XML.
-					Reader reader = Utils.openFile(filename, maxThreads > 1);
-					parser.setReader(reader);
-					try {
-						parser.parse();
-					} finally {
-						reader.close();
-					}
-				}
-			} catch (FileNotFoundException e) {
-				System.out.printf("ERROR: file %s was not found%n", filename);
-			} catch (XmlPullParserException e) {
-				System.out.printf("ERROR: file %s is not a valid OSM XML file%n", filename);
-			} catch (IllegalArgumentException e) {
-				System.out.printf("ERROR: file %s contains unexpected data%n", filename);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		boolean done = processor.endMap();
+		boolean done = processOSMFiles(processor, filenames);
 		return done;
 	}
 	
@@ -1399,5 +1376,69 @@ public class Main {
 		}
 		return true;
 	}
+
+	private boolean processOSMFiles(MapProcessor processor, List<String> filenames) throws XmlPullParserException {
+		// Create both an XML reader and a binary reader, Dispatch each input to the
+		// Appropriate parser.
+		OSMParser parser = new OSMParser(processor, mixed);
 	
+		for (int i = 0; i < filenames.size(); i++){
+			String filename = filenames.get(i);
+			System.out.println("Processing " + filename);
+			if (i == 1 && processor instanceof DensityMapCollector){
+				((DensityMapCollector) processor).checkBounds();
+			}
+			
+			try {
+				if (filename.endsWith(".o5m")) {
+					File file = new File(filename);
+					InputStream stream = new FileInputStream(file);
+					long[] skipArray = skipArrayMap.get(filename);
+					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
+					o5mParser.parse();
+					if (skipArray == null){
+						skipArray = o5mParser.getSkipArray();
+						skipArrayMap.put(filename, skipArray);
+					}
+				}
+				else if (filename.endsWith(".pbf")) {
+					// Is it a binary file?
+					File file = new File(filename);
+					ShortArrayList blockTypes = blockTypeMap.get(filename);
+					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
+					BlockInputStream blockinput = (new BlockInputStream(
+							new FileInputStream(file), binParser));
+					try {
+						blockinput.process();
+					} finally {
+						blockinput.close();
+						if (blockTypes == null){
+							// remember this file 
+							blockTypes = binParser.getBlockList();
+							blockTypeMap.put(filename, blockTypes);
+						}
+					}
+				} else {
+					// No, try XML.
+					Reader reader = Utils.openFile(filename, maxThreads > 1);
+					parser.setReader(reader);
+					try {
+						parser.parse();
+					} finally {
+						reader.close();
+					}
+				}
+			} catch (FileNotFoundException e) {
+				System.out.printf("ERROR: file %s was not found%n", filename);
+			} catch (XmlPullParserException e) {
+				System.out.printf("ERROR: file %s is not a valid OSM XML file%n", filename);
+			} catch (IllegalArgumentException e) {
+				System.out.printf("ERROR: file %s contains unexpected data%n", filename);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		boolean done = processor.endMap();
+		return done;
+	}
 }

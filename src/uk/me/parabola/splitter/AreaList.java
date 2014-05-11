@@ -275,4 +275,57 @@ public class AreaList {
 				w.close();
 		}
 	}
+	
+	/**
+	 * Write a file that can be given to mkgmap that contains the correct arguments
+	 * for the split file pieces.  You are encouraged to edit the file and so it
+	 * contains a template of all the arguments that you might want to use.
+	 */
+	public void writeArgsFile(String filename, String outputType, int startMapId) {
+		PrintWriter w;
+		try {
+			w = new PrintWriter(new FileWriter(filename));
+		} catch (IOException e) {
+			System.err.println("Could not write template.args file");
+			return;
+		}
+
+		w.println("#");
+		w.println("# This file can be given to mkgmap using the -c option");
+		w.println("# Please edit it first to add a description of each map.");
+		w.println("#");
+		w.println();
+
+		w.println("# You can set the family id for the map");
+		w.println("# family-id: 980");
+		w.println("# product-id: 1");
+
+		w.println();
+		w.println("# Following is a list of map tiles.  Add a suitable description");
+		w.println("# for each one.");
+		int mapId = startMapId;
+		if (mapId % 100 == 0)
+			mapId++;
+		for (Area a : areas) {
+			w.println();
+			
+			w.format("mapname: %08d%n", (startMapId <0) ? a.getMapId() : mapId++);
+			if (a.getName() == null)
+				w.println("# description: OSM Map");
+			else
+				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
+			String ext;
+			if("pbf".equals(outputType))
+				ext = ".osm.pbf";
+			else if("o5m".equals(outputType))
+				ext = ".o5m";
+			else
+				ext = ".osm.gz";
+			w.format("input-file: %08d%s%n", a.getMapId(), ext);
+		}
+
+		w.println();
+		w.close();
+	}
+
 }

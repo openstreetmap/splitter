@@ -93,6 +93,9 @@ public interface SplitterParams {
 	@Option(description = "The name of a file containing a bounding polygon in osmosis polygon file format.")
 	String getPolygonFile();
 
+	@Option(description = "An osm file (.o5m, .pbf, .osm) with named ways that describe bounding polygons with OSM ways having tags name and mapid" )
+	String getPolygonDescFile();
+
 	@Option(defaultValue = "dist", description = "Debugging: stop after the program phase. Can be split, gen-problem-list, or handle-problem-list")
 	String getStopAfter();
 	
