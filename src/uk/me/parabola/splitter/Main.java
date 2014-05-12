@@ -105,7 +105,7 @@ public class Main {
 	private boolean mixed;
 	// A polygon file in osmosis polygon format
 	private String polygonFile;
-	private java.awt.geom.Area polygon;
+	private List<PolygonDesc> polygons = new ArrayList<>();
 
 	// The path where the results are written out to.
 	private File fileOutputDir;
@@ -481,10 +481,10 @@ public class Main {
 				}
 				PolygonFileReader polyReader = new PolygonFileReader(f);
 				java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
-				polygon = Utils.AreaDegreesToMapUnit(polygonInDegrees);
-				if (checkPolygon(polygon) == false){
-					System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-				}
+				PolygonDesc pd = new PolygonDesc(polyReader.getPolygonName(),
+						Utils.AreaDegreesToMapUnit(polygonInDegrees), 
+						mapId);
+				polygons.add(pd);
 			}
 		}
 		polygonDescFile = params.getPolygonDescFile();
@@ -501,17 +501,19 @@ public class Main {
 				polygonDescProcessor = new PolygonDescProcessor(resolution);
 				try {
 					processOSMFiles(polygonDescProcessor, Arrays.asList(polygonDescFile));
-					polygon = polygonDescProcessor.getPolygon();
-					if (checkPolygon(polygon) == false){
-						System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-					}
-					
+					polygons = polygonDescProcessor.getPolygons();
+					KmlWriter.writeKml("e:/ld_sp/start-poly.kml", "start", polygonDescProcessor.getCombinedPolygon());
 				} catch (XmlPullParserException e) {
-					polygon = null;
+					polygons = null;
 					polygonDescProcessor = null;
 					System.err.println("Could not read polygon desc file");
 					e.printStackTrace();
 				}
+			}
+		}
+		if (polygons.isEmpty() == false){
+			if (checkPolygon(polygons) == false){
+				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 			}
 		}
 		stopAfter = params.getStopAfter();
@@ -579,11 +581,11 @@ public class Main {
 		List<Area> areas ;
 		if (numTiles >= 2){
 			System.out.println("Splitting nodes into " + numTiles + " areas");
-			areas = splittableArea.split(polygon, numTiles);
+			areas = splittableArea.split(polygons, numTiles);
 		}
 		else {
 			System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
-			areas = splittableArea.split(maxNodes, polygon);
+			areas = splittableArea.split(maxNodes, polygons);
 		}
 		if (areas != null && areas.isEmpty() == false)
 			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
@@ -1336,6 +1338,20 @@ public class Main {
 	}
 
 	/**
+	 * Check if the bounding polygons are usable.
+	 * @param polygon
+	 * @return
+	 */
+	private boolean checkPolygon(List<PolygonDesc> polygons) {
+		for (PolygonDesc pd : polygons){
+			if (checkPolygon(pd.area) == false)
+				return false;
+		}
+		return true;
+	}
+
+
+	/**
 	 * Check if the bounding polygon is usable.
 	 * @param polygon
 	 * @return
@@ -1356,7 +1372,7 @@ public class Main {
 					estimatedPoints += (Math.min(width, height) / rectangleWidth) * 2;
 				}
 				
-				if (estimatedPoints > 40)
+				if (estimatedPoints > SplittableDensityArea.MAX_SINGLE_POLYGON_VERTICES)
 					return false; // too complex
 					
 				p1 = p2;

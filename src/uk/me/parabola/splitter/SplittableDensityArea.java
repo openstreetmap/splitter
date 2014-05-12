@@ -33,7 +33,7 @@ import java.util.List;
 public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
 	private static final int MAX_LON_DEGREES = 90;
-	private static final int MAX_SINGLE_POLYGON_VERTICES = 40;
+	public static final int MAX_SINGLE_POLYGON_VERTICES = 40;
 	private static final int MAX_LOOPS = 100;	// number of loops to find better solution
 	private static final int AXIS_HOR = 0; 
 	private static final int AXIS_VERT = 1; 
@@ -143,7 +143,7 @@ public class SplittableDensityArea {
 		return fullSolution.getAreas(null);
 	}
 
-	public List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
+	private List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
 		this.maxNodes = maxNodes;
 		if (polygonArea == null)
 			return split(maxNodes);
@@ -153,6 +153,7 @@ public class SplittableDensityArea {
 				System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
 				return Collections.emptyList();
 			}
+			
 			prepare(polygonArea);
 			Tile tile = new Tile(rasteredArea.getBounds().x,rasteredArea.getBounds().y,rasteredArea.getBounds().width,rasteredArea.getBounds().height);
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
@@ -167,8 +168,88 @@ public class SplittableDensityArea {
 		}
 	}
 
-	
-	public List<Area> split(java.awt.geom.Area polygonArea, int wantedTiles) {
+	/**
+	 * Split a list of named polygons. Overlapping areas of the polygons are
+	 * extracted. 
+	 * @param maxNodes
+	 * @param namedPolygons
+	 * @return
+	 */
+	public List<Area> split(long maxNodes, List<PolygonDesc> namedPolygons) {
+		if (namedPolygons.isEmpty())
+			return split(maxNodes);
+		List<Area> result = new ArrayList<>();
+		class ShareInfo {
+			java.awt.geom.Area area;
+			final List<Integer> sharedBy = new ArrayList<>();
+		}
+		List<ShareInfo> sharedParts = new ArrayList<>();
+		for (int i = 0; i < namedPolygons.size(); i++){
+			boolean wasDistinct = true;
+			PolygonDesc namedPart = namedPolygons.get(i);
+			java.awt.geom.Area distinctPart = new java.awt.geom.Area (namedPart.area);
+			for(int j = 0; j < namedPolygons.size(); j++){
+				if (j == i)
+					continue;
+				java.awt.geom.Area test = new java.awt.geom.Area(namedPart.area);
+				test.intersect(namedPolygons.get(j).area);
+				if (test.isEmpty() == false){
+					wasDistinct = false;
+					distinctPart.subtract(namedPolygons.get(j).area);
+					if (j > i){
+						ShareInfo si = new ShareInfo();
+						si.area = test;
+						si.sharedBy.add(i);
+						si.sharedBy.add(j);
+						sharedParts.add(si);
+					}
+				}
+			}
+			if (distinctPart.isEmpty() == false && distinctPart.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
+//				KmlWriter.writeKml("e:/ld_sp/distinct_"+namedPart.name, "distinct", distinctPart);
+				if (wasDistinct == false)
+					System.out.println("splitting distinct part of " + namedPart.name);
+				else 
+					System.out.println("splitting " + namedPart.name);
+				result.addAll(split(maxNodes, distinctPart));
+			}
+		}
+		
+		for (int i = 0; i < sharedParts.size(); i++){
+			ShareInfo si = sharedParts.get(i);
+			int last = namedPolygons.size(); // list is extended in the loop
+			for (int j = 0; j < last; j++){
+				if (si.sharedBy.contains(j))
+					continue;
+				java.awt.geom.Area test = new java.awt.geom.Area(si.area);
+				test.intersect(namedPolygons.get(j).area);
+				if (test.isEmpty() == false){
+					si.area.subtract(test);
+					if (j > si.sharedBy.get(si.sharedBy.size()-1)){
+						ShareInfo si2 = new ShareInfo();
+						si2.area = test;
+						si2.sharedBy.addAll(si.sharedBy);
+						si2.sharedBy.add(j);
+						sharedParts.add(si2);
+					}
+				}
+				if (si.area.isEmpty())
+					break;
+			}
+			if (si.area.isEmpty() == false && si.area.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
+				String desc = "";
+				for (Integer pos : si.sharedBy)
+					desc += namedPolygons.get(pos).name + " and ";
+				desc = desc.substring(0,desc.lastIndexOf(" and"));
+				System.out.println("splitting area shared by exactly " + si.sharedBy.size() + " polygons: " + desc);
+//				KmlWriter.writeKml("e:/ld_sp/shared_"+desc.replace(" " , "_"), desc, si.area);
+				result.addAll(split(maxNodes, si.area));
+			}
+		}
+		return result;
+	}
+
+	public List<Area> split(List<PolygonDesc> namedPolygons, int wantedTiles) {
 		long currMaxNodes = this.allDensities.getNodeCount() / wantedTiles;
 		class Pair {
 			long maxNodes;
@@ -184,10 +265,10 @@ public class SplittableDensityArea {
 		beQuiet = true;
 		while (true) {
 			System.out.println("Trying a max-nodes value of " + currMaxNodes + " to split " + allDensities.getNodeCount() + " nodes into " + wantedTiles + " areas");
-			List<Area> res = split(currMaxNodes, polygonArea);
+			List<Area> res = split(currMaxNodes, namedPolygons);
 			if (res.isEmpty() || res.size() == wantedTiles){
 				beQuiet = false;
-				res = split(currMaxNodes, polygonArea);
+				res = split(currMaxNodes, namedPolygons);
 				return res;
 			}
 			else {
@@ -368,8 +449,10 @@ public class SplittableDensityArea {
 				continue;
 			java.awt.geom.Area shapeArea = Utils.shapeToArea(shape);
 			Rectangle rShape = shapeArea.getBounds();
-			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES)
+			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
 				shapeArea = new java.awt.geom.Area(rShape);
+				System.out.println("Warning: shape is too complex, using rectangle " + rShape+ " instead");
+			}
 			Area shapeBounds = new Area(rShape.y, rShape.x,(int)rShape.getMaxY(), (int)rShape.getMaxX());
 			int resolution = 24-allDensities.getShift();
 			shapeBounds  = RoundingUtils.round(shapeBounds, resolution);
@@ -395,11 +478,13 @@ public class SplittableDensityArea {
 	 * @param rasteredPolygonArea an area describing a rectilinear shape
 	 * @return a solution or null if splitting failed
 	 */
+	private int rectangles = 0;
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
 		if (rasteredPolygonArea.isRectangular()){
 			Rectangle r = rasteredPolygonArea.getBounds();
 			Tile part = new Tile(r.x, r.y, r.width, r.height);
+//			KmlWriter.writeKml("e:/ld_sp/rect"+rectangles, "rect", allDensities.getArea(r.x,r.y,r.width,r.height).getJavaArea());
 			return solveRectangularArea(part);
 		} else {
 			List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
@@ -409,6 +494,7 @@ public class SplittableDensityArea {
 			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
 				Rectangle r = rasteredPolygonArea.getBounds();
 				Tile part = new Tile(r.x, r.y, r.width, r.height);
+				System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
 				return solveRectangularArea(part);
 			}
 			
@@ -445,7 +531,7 @@ public class SplittableDensityArea {
 						if (part0Sol != null && part0Sol.isEmpty() == false){
 							area = new java.awt.geom.Area(r2);
 							area.intersect(rasteredPolygonArea);
-							part1Sol = findSolutionWithSinglePolygon(depth, tile, area);
+							part1Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
 							if (part1Sol != null && part1Sol.isEmpty() == false)
 								break;
 						}
@@ -636,6 +722,7 @@ public class SplittableDensityArea {
 		spread = 0;
 		minNodes = 0;
 		maxAspectRatio = 1L<<allDensities.getShift();
+		
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
 		Solution bestSolution = new Solution();
@@ -1187,8 +1274,9 @@ public class SplittableDensityArea {
 					cutArea.intersect(polygonArea);
 					if (cutArea.isEmpty() == false && cutArea.isRectangular() )
 						r = cutArea.getBounds();
-					else
+					else {
 						fits = false;
+					}
 				}
 				Area area = new Area(r.y,r.x,(int)r.getMaxY(),(int)r.getMaxX());
 				if (!beQuiet){

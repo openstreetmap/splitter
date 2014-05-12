@@ -39,19 +39,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 	private HashMap<Integer,Double> lonValues = new HashMap<>();
 	final int resolution;
 
-	// helper class to store data
-	private class PolygonDesc {
-		private final java.awt.geom.Area area;
-		private final String name;
-		private final int mapId;
-		public PolygonDesc(String name, Area area, int mapId) {
-			this.name = name;
-			this.area = area;
-			this.mapId = mapId;
-		}
-	}
-
-
 	public PolygonDescProcessor(int resolution) {
 		this.resolution = resolution;
 	}
@@ -118,13 +105,14 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 		nodes = null;
 		latValues = null;
 		lonValues = null;
+		System.out.println("found " + polygonDescriptions.size() + " named polygons");
 		return true;
 	}
 	
 	/**
 	 * @return the combined polygon 
 	 */
-	Area getPolygon(){
+	Area getCombinedPolygon(){
 		Area combinedArea = new Area();  
 		for (PolygonDesc pd : polygonDescriptions){
 			combinedArea.add(pd.area);
@@ -167,5 +155,9 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 		int half = 1 << (shift - 1);	// 0.5 shifted
 		int mask = ~((1 << shift) - 1); // to remove fraction bits
 		return (val + half) & mask; 
+	}
+
+	public List<PolygonDesc> getPolygons() {
+		return polygonDescriptions;
 	}
 }
