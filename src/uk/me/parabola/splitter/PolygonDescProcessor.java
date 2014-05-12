@@ -19,21 +19,64 @@ import java.awt.geom.Area;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
  * 
  * Class to read a polygon description file.
+ * Expected input are nodes and ways. Ways with
+ * tag name=* and mapid=nnnnnnnn should describe polygons
+ * which are used to calculate a combined polygon and
+ * area lists.  
  * @author GerdP
  *
  */
 class PolygonDescProcessor extends AbstractMapProcessor {
 	private Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
 	private final List<PolygonDesc> polygonDescriptions = new ArrayList<>();
+	private HashMap<Integer,Double> latValues = new HashMap<>();
+	private HashMap<Integer,Double> lonValues = new HashMap<>();
+	final int resolution;
+
+	// helper class to store data
+	private class PolygonDesc {
+		private final java.awt.geom.Area area;
+		private final String name;
+		private final int mapId;
+		public PolygonDesc(String name, Area area, int mapId) {
+			this.name = name;
+			this.area = area;
+			this.mapId = mapId;
+		}
+	}
+
+
+	public PolygonDescProcessor(int resolution) {
+		this.resolution = resolution;
+	}
 
 	@Override
 	public void processNode(Node n){
-		nodes.put(n.getId(), n);
+		int lat = getRoundedCoord(n.getMapLat());
+		int lon = getRoundedCoord(n.getMapLon());
+		double roundedLat = Utils.toDegrees(lat);
+		double roundedLon = Utils.toDegrees(lon);
+		Double reusedLat = latValues.get(lat);
+		Double reusedLon = lonValues.get(lon);
+		if (reusedLat == null)
+			latValues.put(lat, roundedLat);
+		else 
+			roundedLat = reusedLat;
+		if (reusedLon == null)
+			lonValues.put(lon, roundedLon);
+		else 
+			reusedLon = roundedLon;
+		
+		Node rNode = new Node();
+		rNode.set(n.getId(),roundedLat,roundedLon);
+		nodes.put(rNode.getId(), rNode);
+		
 	}
 
 	@Override
@@ -73,8 +116,14 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 	@Override
 	public boolean endMap(){
 		nodes = null;
+		latValues = null;
+		lonValues = null;
 		return true;
 	}
+	
+	/**
+	 * @return the combined polygon 
+	 */
 	Area getPolygon(){
 		Area combinedArea = new Area();  
 		for (PolygonDesc pd : polygonDescriptions){
@@ -83,17 +132,14 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 		return combinedArea;
 	}
 	
-	class PolygonDesc {
-		private final java.awt.geom.Area area;
-		private final String name;
-		private final int mapId;
-		public PolygonDesc(String name, Area area, int mapId) {
-			this.name = name;
-			this.area = area;
-			this.mapId = mapId;
-		}
-	}
-
+	/**
+	 * Calculate and write the area lists for each named polygon.
+	 * @param fileOutputDir
+	 * @param areas the list of all areas 
+	 * @param kmlOutputFile optional kml file name or null
+	 * @param outputType file name extension of output files
+	 * @throws IOException 
+	 */
 	public void writeListFiles(File fileOutputDir,
 			List<uk.me.parabola.splitter.Area> areas, String kmlOutputFile, String outputType) throws IOException {
 		for (PolygonDesc pd : polygonDescriptions){
@@ -114,5 +160,12 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 			al.writePoly(new File(fileOutputDir, pd.name + "-" + "areas.poly").getPath());
 			al.writeArgsFile(new File(fileOutputDir, pd.name + "-" + "template.args").getPath(), outputType, pd.mapId);
 		}
+	}
+	
+	private int getRoundedCoord(int val){
+		int shift = 24 - resolution;
+		int half = 1 << (shift - 1);	// 0.5 shifted
+		int mask = ~((1 << shift) - 1); // to remove fraction bits
+		return (val + half) & mask; 
 	}
 }
