@@ -498,7 +498,7 @@ public class Main {
 					System.out.println("Error: polygon desc file doesn't exist: " + polygonDescFile);  
 					System.exit(-1);
 				}
-				polygonDescProcessor = new PolygonDescProcessor();
+				polygonDescProcessor = new PolygonDescProcessor(resolution);
 				try {
 					processOSMFiles(polygonDescProcessor, Arrays.asList(polygonDescFile));
 					polygon = polygonDescProcessor.getPolygon();
