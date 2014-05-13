@@ -738,13 +738,17 @@ public class SplittableDensityArea {
 				long bestRating  = bestSolution.getRating();
 				long rating  = solution.getRating();
 				if (rating < bestRating || rating == bestRating && solution.getWorstMinNodes() > bestSolution.getWorstMinNodes()) {
-					bestSolution = solution;
 					foundBetter = true;
+				} else if (solution.getWorstMinNodes() > bestSolution.getWorstMinNodes() && solution.isNice()) {
+					foundBetter = true;
+				}
+				if (foundBetter){
+					bestSolution = solution;
 					System.out.println("Best solution until now: " + bestSolution.toString());
 				}
 				if (solution.isNice() && bestSolution.isNice() == false)
 					System.out.println("rejected solution " + solution.toString() );
-				
+
 				if (bestSolution.isNice() && bestSolution.getWorstMinNodes() >= maxNodes * 3 / 2){
 					if (!beQuiet)
 						System.out.println("This seems to be nice.");
