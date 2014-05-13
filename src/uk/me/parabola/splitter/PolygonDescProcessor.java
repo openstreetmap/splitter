@@ -138,9 +138,13 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 			}
 			AreaList al = new AreaList(areasPart);
 			if (kmlOutputFile != null){
-				String kmlOutputFilePart = pd.name + "-" + kmlOutputFile;
-				File out = new File(kmlOutputFilePart);
-				if (!out.isAbsolute())
+				File out = new File(kmlOutputFile);
+				String kmlOutputFilePart = pd.name + "-" + out.getName();
+				if (out.getParent() != null)
+					out = new File(out.getParent(), kmlOutputFilePart);
+				else
+					out = new File(kmlOutputFilePart);
+				if (out.getParent() == null)
 					out = new File(fileOutputDir, kmlOutputFilePart);
 				System.out.println("Writing KML file to " + out.getPath());
 				al.writeKml(out.getPath());
