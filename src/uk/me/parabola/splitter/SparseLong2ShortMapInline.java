@@ -445,8 +445,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 							+ " chunks: "
 							+ Utils.format(newElems * CHUNK_STORE_ELEMS));
 					Utils.printMem();
-					System.err.println("Try to increase max heap to a value > 2GB or reduce the max-area value so that one more pass is used.");
-					System.exit(-1);
+					throw new SplitFailedException("Try to increase max heap to a value > 2GB or reduce the max-area value so that one more pass is used.");
 				}
 				short[][] tmp = new short[newElems][]; 
 				System.arraycopy(chunkStore[x], 0, tmp, 0, y);

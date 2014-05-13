@@ -146,16 +146,28 @@ public class Main {
 	private String precompSeaDir;
 
 	private String polygonDescFile;
-	PolygonDescProcessor polygonDescProcessor;
+	private PolygonDescProcessor polygonDescProcessor;
 	
 	public static void main(String[] args) {
 		Main m = new Main();
-		m.start(args);
+		try{
+			int rc = m.start(args);
+			if (rc != 0)
+				System.exit(1);
+		} catch (StopWithRC0Exception e){
+			// we want to stop silently
+		}
 	}
-
-	private void start(String[] args) {
+	
+	private int start(String[] args) {
+		int rc = 0;
 		JVMHealthMonitor healthMonitor = null;
-		readArgs(args);
+		
+		try{
+			readArgs(args);
+		} catch (IllegalArgumentException e) {
+			return 1;
+		}
 		if (statusFreq > 0) {
 			healthMonitor = new JVMHealthMonitor(statusFreq);
 			healthMonitor.start();
@@ -173,15 +185,20 @@ public class Main {
 		} catch (XmlPullParserException e) {
 			System.err.println("Error parsing xml from file " + e);
 			e.printStackTrace();
+		} catch (SplitFailedException e) {
+			e.printStackTrace();
+			rc = 1;
 		}
 		System.out.println("Time finished: " + new Date());
 		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
+		return rc;
 	}
 
 	/**
 	 * Check if a JRE 1.7.x or higher is installed.
 	 */
 	private static void checkJREVersion() {
+		/*
 		String version = System.getProperty("java.version");
 		if (version != null) {
 			String[] versionParts =version.split(Pattern.quote(".")); 
@@ -197,6 +214,7 @@ public class Main {
 				}
 			}
 		}
+		*/
 	}
 	
 	private void split() throws IOException, XmlPullParserException {
@@ -279,14 +297,14 @@ public class Main {
 		if ("split".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
 			System.err.println("stopped after " + stopAfter); 
-			System.exit(0);
+			throw new StopWithRC0Exception();
 		}
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 			if ("gen-problem-list".equals(stopAfter)){
 				try {Thread.sleep(1000);}catch (InterruptedException e) {}
 				System.err.println("stopped after " + stopAfter); 
-				System.exit(0);
+				throw new StopWithRC0Exception();
 			}
 		}
 		writeAreas(areas);
@@ -311,7 +329,7 @@ public class Main {
 			}
 			System.out.println();
 			parser.displayUsage();
-			System.exit(-1);
+			throw new IllegalArgumentException();
 		}
 
 		System.out.println("Splitter version " + Version.VERSION + " compiled " + Version.TIMESTAMP);
@@ -333,7 +351,7 @@ public class Main {
 			}
 			if (!filesOK){
 				System.out.println("Make sure that option parameters start with -- " );
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		mapId = params.getMapid();
@@ -353,14 +371,14 @@ public class Main {
 			} catch(NumberFormatException e){
 				System.err.println("Error: Invalid number "+ numTilesParm + 
 						". The --num-tiles parameter must be an integer value of 2 or higher.");
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		description = params.getDescription();
 		geoNamesFile = params.getGeonamesFile();
 		if (geoNamesFile != null){
 			if (testAndReportFname(geoNamesFile, "geonames-file") == false){
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		resolution = params.getResolution();
@@ -393,12 +411,12 @@ public class Main {
 		problemFile = params.getProblemFile();
 		if (problemFile != null){
 			if (!readProblemIds(problemFile))
-				System.exit(-1);
+				throw new IllegalArgumentException();
 		}
 		String splitFile = params.getSplitFile();
 		if (splitFile != null) {
 			if (testAndReportFname(splitFile, "split-file") == false){
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		
@@ -406,7 +424,7 @@ public class Main {
 		if (mixed && (keepComplete || problemFile != null)){
 			System.err.println("--mixed=true is not supported in combination with --keep-complete=true or --problem-file.");
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
-			System.exit(-1);
+			throw new IllegalArgumentException();
 		}
 		
 		String overlap = params.getOverlap();
@@ -416,7 +434,7 @@ public class Main {
 			} 
 			catch (NumberFormatException e){
 				System.err.println("Error: --overlap=" + overlap + " is not is not a valid option.");
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		problemReport = params.getProblemReport();
@@ -433,7 +451,7 @@ public class Main {
 			}
 			if (filenames.isEmpty()){
 				System.err.println("stdin cannot be used with --keep-complete because multiple read passes are needed.");
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 			if (overlapAmount > 0){
 				System.err.println("Warning: --overlap is used in combination with --keep-complete=true ");
@@ -477,7 +495,7 @@ public class Main {
 
 				if (!f.exists()){
 					System.out.println("Error: polygon file doesn't exist: " + polygonFile);  
-					System.exit(-1);
+					throw new IllegalArgumentException();
 				}
 				PolygonFileReader polyReader = new PolygonFileReader(f);
 				java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
@@ -519,7 +537,7 @@ public class Main {
 		stopAfter = params.getStopAfter();
 		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){
 			System.err.println("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
-			System.exit(-1);
+			throw new IllegalArgumentException();
 		}
 		
 		precompSeaDir = params.getPrecompSea();
@@ -527,7 +545,7 @@ public class Main {
 			File dir = new File (precompSeaDir);
 			if (dir.exists() == false || dir.canRead() == false){
 				System.out.println("Error: precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
-				System.exit(-1);
+				throw new IllegalArgumentException();
 			}
 		}
 		
@@ -819,7 +837,7 @@ public class Main {
 		if ("handle-problem-list".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
 			System.err.println("stopped after " + stopAfter); 
-			System.exit(0);
+			throw new StopWithRC0Exception();
 		}
 
 		// the final split passes
@@ -1030,8 +1048,7 @@ public class Main {
 			boolean changed = addPseudoArea(areas);
 			
 			if (!changed){
-				System.out.println("Failed to fill planet with pseudo-areas");
-				System.exit(-1);
+				throw new SplitFailedException("Failed to fill planet with pseudo-areas");
 			}
 		}
 		return areas;
@@ -1232,8 +1249,7 @@ public class Main {
 			else {
 				Rectangle r1 = a.getRect();
 				if (covered.intersects(r1) == true){
-					System.out.println("Failed to create list of distinct areas");
-					System.exit(-1);
+					throw new SplitFailedException("Failed to create list of distinct areas");
 				}
 				covered.add(a.getJavaArea());
 			}

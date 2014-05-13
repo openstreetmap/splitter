@@ -347,8 +347,7 @@ public class DensityMap {
 		if (this.shift != seaData.shift
 				|| Utils.area2Rectangle(bounds, 0).equals(
 						Utils.area2Rectangle(seaData.getBounds(), 0)) == false) {
-			System.err.println("cannot merge density maps");
-			System.exit(-1);
+			throw new SplitFailedException("cannot merge density maps");
 		}
 		if (trim && totalNodeCount == 0)
 			return;

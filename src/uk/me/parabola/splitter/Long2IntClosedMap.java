@@ -66,8 +66,7 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public int add(long key, int val) {
 		if (key == 0 || key == Long.MAX_VALUE){
-			System.err.println("Error: Cannot store " + name + " id " + key + ", this value is reserved.");
-			System.exit(-1);
+			throw new IllegalArgumentException("Error: Cannot store " + name + " id " + key + ", this value is reserved.");
 		}
 		if (keys == null){
 			throw new IllegalArgumentException(name + ": Add on read-only map requested");

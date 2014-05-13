@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import uk.me.parabola.splitter.StopWithRC0Exception;
 import uk.me.parabola.splitter.Version;
 
 /**
@@ -98,11 +99,11 @@ public class ParamParser {
 
 		if (wantHelp) {
 			displayUsage();
-			System.exit(0);
+			throw new StopWithRC0Exception();
 		}
 		if (wantVersion){
 			System.err.println("splitter " + Version.VERSION + " compiled " + Version.TIMESTAMP);
-			System.exit(0); 
+			throw new StopWithRC0Exception(); 
 		}
 		ParamInvocationHandler invocationHandler = new ParamInvocationHandler(valuesMap);
 		return (P) Proxy.newProxyInstance(paramInterface.getClassLoader(), new Class<?>[]{paramInterface}, invocationHandler);
@@ -165,7 +166,7 @@ public class ParamParser {
 					} else if ("version".equals(name)){
 						wantVersion = true;
 					} else {
-						errors.add("Parameter " + arg + " is not recognised, ignoring");
+						errors.add("Parameter " + arg + " is not recognised");
 					}
 				}
 			} else {
@@ -211,7 +212,7 @@ public class ParamParser {
 	     return String.format("%1$-" + wantedLen + "s", s);  
 	}
 
-	private <P> String getParameterName(Method method, Option option) {
+	private static <P> String getParameterName(Method method, Option option) {
 		return option.name().length() == 0 ? ReflectionUtils.getParamName(method) : option.name();
 	}
 

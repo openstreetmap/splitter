@@ -489,7 +489,6 @@ public class SplittableDensityArea {
 		} else {
 			List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
 			List<Point> shape = shapes.get(0);
-			Rectangle pBounds = rasteredPolygonArea.getBounds();
 			
 			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
 				Rectangle r = rasteredPolygonArea.getBounds();
@@ -498,6 +497,7 @@ public class SplittableDensityArea {
 				return solveRectangularArea(part);
 			}
 			
+			Rectangle pBounds = rasteredPolygonArea.getBounds();
 			int lastPoint = shape.size() - 1;
 			if (shape.get(0).equals(shape.get(lastPoint)))
 				--lastPoint;

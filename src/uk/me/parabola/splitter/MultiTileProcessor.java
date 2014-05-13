@@ -172,8 +172,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				wayWriterMap.add(way.getId(), wayWriterIdx);
 			}catch (IllegalArgumentException e){
 				System.err.println(e.getMessage());
-				System.err.println(NOT_SORTED_MSG);
-				System.exit(-1);
+				throw new SplitFailedException(NOT_SORTED_MSG);
 			}
 
 		}
@@ -276,8 +275,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						relWriterMap.add(entry.getKey(), val);
 					}catch (IllegalArgumentException e){
 						System.err.println(e);
-						System.err.println(NOT_SORTED_MSG); 
-						System.exit(-1);
+						throw new SplitFailedException(NOT_SORTED_MSG); 
 					}
 				}
 			}
@@ -499,15 +497,14 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (lastCoordId >= id){
 			System.err.println("Error: Node ids are not sorted. Use e.g. osmosis to sort the input data.");
 			System.err.println("This is not supported with keep-complete=true or --problem-list"); 
-			System.exit(-1);
+			throw new SplitFailedException("Node ids are not sorted");
 		}
 		int nodePos = -1;
 		try{
 			nodePos = nodeWriterMap.add(id, WriterDictionaryInt.UNASSIGNED);
 		}catch (IllegalArgumentException e){
 			System.err.println(e.getMessage());
-			System.err.println(NOT_SORTED_MSG);
-			System.exit(-1);
+			throw new SplitFailedException(NOT_SORTED_MSG);
 		}
 				
 		nodeLons[nodePos ] = node.getMapLon();

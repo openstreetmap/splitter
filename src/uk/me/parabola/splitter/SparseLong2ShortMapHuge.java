@@ -442,8 +442,7 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 							+ ": reached limit of possible length-" + len
 							+ " chunks: "
 							+ Utils.format(newElems * CHUNK_STORE_ELEMS));
-					System.err.println("Try to reduce the max-area value so that one more pass is used.");
-					System.exit(-1);
+					throw new SplitFailedException("Try to reduce the max-area value so that one more pass is used.");
 				}
 				short[][] tmp = new short[newElems][]; 
 				System.arraycopy(chunkStore[x], 0, tmp, 0, y);
