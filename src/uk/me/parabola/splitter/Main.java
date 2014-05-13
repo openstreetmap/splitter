@@ -282,7 +282,12 @@ public class Main {
 		List<Area> areas = areaList.getAreas();
 		System.out.println(areas.size() + " areas:");
 		for (Area area : areas) {
-			System.out.print("Area " + area.getMapId() + " covers " + area.toHexString());
+			System.out.format("Area %08d: %d,%d to %d,%d covers %s",
+					area.getMapId(),
+					area.getMinLat(), area.getMinLong(),
+					area.getMaxLat(), area.getMaxLong(),
+					area.toHexString());
+			
 			if (area.getName() != null)
 				System.out.print(' ' + area.getName());
 			System.out.println();
