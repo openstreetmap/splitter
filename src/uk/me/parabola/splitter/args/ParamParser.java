@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import uk.me.parabola.splitter.StopWithRC0Exception;
+import uk.me.parabola.splitter.StopNoErrorException;
 import uk.me.parabola.splitter.Version;
 
 /**
@@ -99,11 +99,11 @@ public class ParamParser {
 
 		if (wantHelp) {
 			displayUsage();
-			throw new StopWithRC0Exception();
+			throw new StopNoErrorException(null);
 		}
 		if (wantVersion){
 			System.err.println("splitter " + Version.VERSION + " compiled " + Version.TIMESTAMP);
-			throw new StopWithRC0Exception(); 
+			throw new StopNoErrorException(null); 
 		}
 		ParamInvocationHandler invocationHandler = new ParamInvocationHandler(valuesMap);
 		return (P) Proxy.newProxyInstance(paramInterface.getClassLoader(), new Class<?>[]{paramInterface}, invocationHandler);

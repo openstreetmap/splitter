@@ -13,12 +13,12 @@
 package uk.me.parabola.splitter;
 
 /**
- * Thrown when the program should be stopped without setting error code 
+ * Thrown when the program should be stopped  
  *
  * @author GerdP
  */
-public class StopWithRC0Exception extends RuntimeException {
-	public StopWithRC0Exception() {
-		super();
+public class StopNoErrorException extends RuntimeException {
+	public StopNoErrorException(String s) {
+		super(s);
 	}
 }

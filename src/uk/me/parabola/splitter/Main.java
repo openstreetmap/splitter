@@ -154,8 +154,9 @@ public class Main {
 			int rc = m.start(args);
 			if (rc != 0)
 				System.exit(1);
-		} catch (StopWithRC0Exception e){
-			// we want to stop silently
+		} catch (StopNoErrorException e){
+			if (e.getMessage() != null)
+				System.out.println(e.getMessage());
 		}
 	}
 	
@@ -188,6 +189,10 @@ public class Main {
 		} catch (SplitFailedException e) {
 			e.printStackTrace();
 			rc = 1;
+		} catch (StopNoErrorException e){
+			if (e.getMessage() != null)
+				System.out.println(e.getMessage());
+			// nothing to do
 		}
 		System.out.println("Time finished: " + new Date());
 		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
@@ -297,14 +302,14 @@ public class Main {
 		if ("split".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
 			System.err.println("stopped after " + stopAfter); 
-			throw new StopWithRC0Exception();
+			throw new StopNoErrorException("stopped after " + stopAfter);
 		}
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 			if ("gen-problem-list".equals(stopAfter)){
 				try {Thread.sleep(1000);}catch (InterruptedException e) {}
 				System.err.println("stopped after " + stopAfter); 
-				throw new StopWithRC0Exception();
+				throw new StopNoErrorException("stopped after " + stopAfter);
 			}
 		}
 		writeAreas(areas);
@@ -837,7 +842,7 @@ public class Main {
 		if ("handle-problem-list".equals(stopAfter)){
 			try {Thread.sleep(1000);}catch (InterruptedException e) {}
 			System.err.println("stopped after " + stopAfter); 
-			throw new StopWithRC0Exception();
+			throw new StopNoErrorException("stopped after " + stopAfter);
 		}
 
 		// the final split passes

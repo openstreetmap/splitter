@@ -59,7 +59,7 @@ public class SplittableDensityArea {
 	private boolean trimShape;
 	private boolean trimTiles;
 	private boolean allowEmptyPart = false;
-	private int startMapId;
+	private int currMapId;
 	private int maxNodesInDensityMapGridElement;
 	enum sides {TOP,RIGHT,BOTTOM,LEFT}
 	
@@ -71,7 +71,7 @@ public class SplittableDensityArea {
 		allDensities = densities;
 	}
 	public void setMapId(int mapId) {
-		startMapId = mapId;
+		currMapId = mapId;
 	}
 
 	public void setTrim(boolean trim) {
@@ -726,6 +726,7 @@ public class SplittableDensityArea {
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
 		Solution bestSolution = new Solution();
+		double bestAspectRatio = Double.MAX_VALUE;
 		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			double saveMaxAspectRatio = maxAspectRatio; 
 			double saveMinNodes = minNodes;
@@ -733,20 +734,30 @@ public class SplittableDensityArea {
 			cache = new HashSet<SplittableDensityArea.Tile>();
 			Solution solution = findSolution(0, startTile);
 			if (solution != null){
-				if (solution.isNice() || solution.getRating() < bestSolution.getRating()) {
+				bestAspectRatio = Math.min(bestAspectRatio, solution.getWorstAspectRatio()); 
+				long bestRating  = bestSolution.getRating();
+				long rating  = solution.getRating();
+				if (rating < bestRating || rating == bestRating && solution.getWorstMinNodes() > bestSolution.getWorstMinNodes()) {
 					bestSolution = solution;
 					foundBetter = true;
 					System.out.println("Best solution until now: " + bestSolution.toString());
-					if (bestSolution.isNice() && bestSolution.getWorstMinNodes() >= maxNodes * 3 / 2){
-						if (!beQuiet)
-							System.out.println("This seems to be nice.");
-						break;
-					}
+				}
+				if (solution.isNice() && bestSolution.isNice() == false)
+					System.out.println("rejected solution " + solution.toString() );
+				
+				if (bestSolution.isNice() && bestSolution.getWorstMinNodes() >= maxNodes * 3 / 2){
+					if (!beQuiet)
+						System.out.println("This seems to be nice.");
+					break;
+				}
+				if (bestSolution.size() == 1){
+					if (!beQuiet)
+						System.out.println("This can't be improved.");
+					break;
 				}
 			}
 			else {
 				if ((spread >= 7 && bestSolution.isEmpty() == false)){
-					System.out.println("Can't find a better solution");
 					break; // no hope to find something better in a reasonable time
 				}
 			}
@@ -759,8 +770,7 @@ public class SplittableDensityArea {
 				else if (spread <= 5)
 					spread = 7;
 				// maybe try more primes ?
-				if (!beQuiet)
-					System.out.println("Trying non-natural splits with spread " + spread + " ...");
+//					System.out.println("Trying non-natural splits with spread " + spread + " ...");
 				continue;
 			}
 			
@@ -785,20 +795,23 @@ public class SplittableDensityArea {
 				}
 			}
 			if (saveMaxAspectRatio == maxAspectRatio && saveMinNodes == minNodes){
-				if (bestSolution.isEmpty() == false)
-					if (!beQuiet)
-						System.out.println("Can't find a better solution");
 				break;
 			}
 			if (cache.size() > MAX_CACHE_SIZE){
-				if (!beQuiet)
-					System.out.println("Can't find a better solution");
 				break;
 			}
 		} 
+		printFinishMsg(bestSolution);
 		return bestSolution;
 	}
 
+	private void printFinishMsg(Solution solution){
+		if (!beQuiet){
+			if (solution.isEmpty() == false)
+				System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
+		}
+		return;
+	}
 	/**
 	 * Helper class to store area info with node counters.
 	 * The node counters use the values saved in the xyMap / yxMap.
@@ -1181,7 +1194,7 @@ public class SplittableDensityArea {
 		private double worstAspectRatio = -1;
 		private long worstMinNodes = Long.MAX_VALUE;
 		private final List<Tile> tiles;
-
+		
 		public Solution() {
 			tiles = new ArrayList<Tile>();
 		}
@@ -1192,7 +1205,7 @@ public class SplittableDensityArea {
 			if (aspectRatio < 1.0)
 				aspectRatio = 1.0 / aspectRatio;
 			worstAspectRatio = Math.max(aspectRatio, worstAspectRatio);
-			worstMinNodes = Math.min(tile.count, worstMinNodes); 			
+			worstMinNodes = Math.min(tile.count, worstMinNodes); 		
 			return true;
 		}
 		public void merge(Solution other){
@@ -1208,10 +1221,11 @@ public class SplittableDensityArea {
 			}
 			tiles.addAll(other.tiles);
 		}
-		
+
 		public long getRating(){
 			if (tiles.isEmpty())
 				return Long.MAX_VALUE;
+			
 			int countNonZero = 0;
 			worstAspectRatio = -1;
 			worstMinNodes = Long.MAX_VALUE;
@@ -1226,17 +1240,25 @@ public class SplittableDensityArea {
 				++countNonZero;
 			}
 			long rating1 = countNonZero * Math.round(worstAspectRatio*worstAspectRatio);  
-			long rating2 = (maxNodes/3)/worstMinNodes;  
-			return  rating1 + rating2;
+			long rating2 = maxNodes * 100/worstMinNodes;
+			return rating1 + rating2;
 			
 		}
 		
 		public long getWorstMinNodes(){
 			return worstMinNodes;
 		}
+
+		public double getWorstAspectRatio(){
+			return worstAspectRatio;
+		}
 		
 		public boolean isEmpty(){
 			return tiles.isEmpty();
+		}
+		
+		public int size(){
+			return tiles.size();
 		}
 		/**
 		 * Convert the list of Tile instances to Area instances, report some
@@ -1247,7 +1269,6 @@ public class SplittableDensityArea {
 		 */
 		public List<Area> getAreas(java.awt.geom.Area polygonArea) {
 			List<Area> result = new ArrayList<Area>();
-			int num = startMapId;
 			int shift = allDensities.getShift();
 			int minLat = allDensities.getBounds().getMinLat();
 			int minLon = allDensities.getBounds().getMinLong();
@@ -1285,7 +1306,7 @@ public class SplittableDensityArea {
 					else
 						note = "";
 					long percentage = 100 * tile.count / maxNodes;
-					System.out.println("Area " + num++ + " covers " + area 
+					System.out.println("Area " + currMapId++ + " covers " + area 
 							+ " and contains " + tile.count + " nodes (" + percentage + " %)" + note);
 				}
 				result.add(area);
