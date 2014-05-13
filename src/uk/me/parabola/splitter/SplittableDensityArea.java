@@ -46,11 +46,14 @@ public class SplittableDensityArea {
 	private double[] aspectRatioFactor;
 	int minAspectRatioFactorPos = Integer.MAX_VALUE;
 	double maxAspectRatioFactor = Double.MIN_VALUE;
+	private static final int[] SPREAD_VALUES = { 0, 3, 5, 7};  
+	private static final int MAX_SPREAD = SPREAD_VALUES[SPREAD_VALUES.length-1];
 	
 	private boolean beQuiet = false;
 	private long maxNodes;
 	private final int shift;
 	private HashSet<Tile> cache;
+	private HashMap<Integer, Long> badMinNodes = new HashMap<>();
 	private final HashMap<Rectangle,Long> knownTileCounts;
 	private int [][]yxMap;
 	private int [][]xyMap;
@@ -99,7 +102,6 @@ public class SplittableDensityArea {
 		
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
-		cache = new HashSet<Tile>();
 		prepare(null);
 		Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight(), allDensities.getNodeCount());
 		
@@ -705,9 +707,10 @@ public class SplittableDensityArea {
 	 */
 	private void markBad(Tile tile){
 		cache.add(tile);
-		if (cache.size() % 10000 == 0){
-			System.out.println("stored states " + cache.size());
-		}
+//		if (cache.size() % 10000 == 0){
+//			System.out.println("min-nodes = " + minNodes + ", spread = "
+//					+ spread + ", stored states: " + cache.size());
+//		}
 	}
 	
 	/**
@@ -722,6 +725,7 @@ public class SplittableDensityArea {
 		spread = 0;
 		minNodes = 0;
 		maxAspectRatio = 1L<<allDensities.getShift();
+		badMinNodes = new HashMap<>();
 		
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
@@ -732,6 +736,7 @@ public class SplittableDensityArea {
 			double saveMinNodes = minNodes;
 			boolean foundBetter = false;
 			cache = new HashSet<SplittableDensityArea.Tile>();
+			System.out.println("searching for split with spread " + spread + " and min-nodes " + minNodes);
 			Solution solution = findSolution(0, startTile);
 			if (solution != null){
 				bestAspectRatio = Math.min(bestAspectRatio, solution.getWorstAspectRatio()); 
@@ -761,17 +766,22 @@ public class SplittableDensityArea {
 						System.out.println("This can't be improved.");
 					break;
 				}
-			}
+			} 
 			else {
-				if ((spread >= 7 && bestSolution.isEmpty() == false)){
+				Long lastBad = badMinNodes.get(spread);
+				if (lastBad == null || lastBad > minNodes){
+					badMinNodes.put(spread, minNodes);
+					lastBad = minNodes;
+				}
+				if ((spread >= MAX_SPREAD && bestSolution.isEmpty() == false)){
 					if (minNodes > bestSolution.getWorstMinNodes() + 1){
 						// reduce minNodes
-						minNodes = (bestSolution.getWorstMinNodes() + 1 + minNodes) / 2;
-						if (minNodes - bestSolution.getWorstMinNodes() < 1000)
+						minNodes = (bestSolution.getWorstMinNodes() + lastBad) / 2;
+						if (minNodes - bestSolution.getWorstMinNodes() < 10000)
 							minNodes = bestSolution.getWorstMinNodes() + 1;
-						if (bestSolution.spread < 7){
+						if (bestSolution.spread < MAX_SPREAD)
 							spread = bestSolution.spread;
-						}
+						
 						System.out.println("restarting with min-nodes " + minNodes + " and spread " + spread);
 						continue;
 					}
@@ -779,16 +789,15 @@ public class SplittableDensityArea {
 					break; // no hope to find something better in a reasonable time
 				}
 			}
-			if (foundBetter == false && spread <= 5){
+			if (foundBetter == false && spread < MAX_SPREAD){
 				// no (better) solution found for the criteria, search also with "non-natural" split lines
-				if (spread == 0)
-					spread = 3;
-				else if (spread <= 3)
-					spread = 5;
-				else if (spread <= 5)
-					spread = 7;
-				// maybe try more primes ?
-					System.out.println("Trying non-natural splits with spread " + spread + " ...");
+				for (int i = 0; i < SPREAD_VALUES.length; i++){
+					if (spread == SPREAD_VALUES[i]){
+						spread = SPREAD_VALUES[i+1];
+						break;
+					}
+				}
+//				System.out.println("Trying non-natural splits with spread " + spread + " ...");
 				continue;
 			}
 			
@@ -799,7 +808,11 @@ public class SplittableDensityArea {
 				
 				if (maxAspectRatio == saveMaxAspectRatio){
 					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
-						minNodes = bestSolution.getWorstMinNodes() + (maxNodes - bestSolution.getWorstMinNodes() ) / 2;
+						Long lastBad = badMinNodes.get(spread);
+						if (lastBad == null)
+							minNodes = bestSolution.getWorstMinNodes() + (maxNodes - bestSolution.getWorstMinNodes() ) / 2;
+						else 
+							minNodes = bestSolution.getWorstMinNodes() + (lastBad - bestSolution.getWorstMinNodes() ) / 2;
 					}
 					else 
 						minNodes = Math.min(maxNodes / 3, bestSolution.worstMinNodes + maxNodes/20);
@@ -1485,6 +1498,8 @@ public class SplittableDensityArea {
 					+ ". The smallest node count is " + worstMinNodes + ", the worst aspect ratio is near " + ratio;
 			
 		}
+		
+		
 	}
 
 }
