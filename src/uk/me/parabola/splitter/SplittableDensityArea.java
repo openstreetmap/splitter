@@ -103,7 +103,7 @@ public class SplittableDensityArea {
 		prepare(null);
 		Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight(), allDensities.getNodeCount());
 		
-		Solution fullSolution = new Solution();
+		Solution fullSolution = new Solution(spread);
 		Solution startSolution = solveRectangularArea(startTile);
 		
 		if (startSolution != null && startSolution.isNice())
@@ -561,7 +561,7 @@ public class SplittableDensityArea {
 			if  (tile.width * tile.height <= 4) 
 				return null;
 			else 
-				return new Solution(); // allow empty part of the world
+				return new Solution(spread); // allow empty part of the world
 		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
 			addAndReturn = true;  // can't split further
 		} else if (tile.count < minNodes && depth == 0) {
@@ -580,7 +580,7 @@ public class SplittableDensityArea {
 			return null;
 		}
 		if (addAndReturn){
-			Solution solution = new Solution();
+			Solution solution = new Solution(spread);
 			solution.add(tile);  // can't split further
 			return solution;
 		}
@@ -725,7 +725,7 @@ public class SplittableDensityArea {
 		
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
-		Solution bestSolution = new Solution();
+		Solution bestSolution = new Solution(spread);
 		double bestAspectRatio = Double.MAX_VALUE;
 		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			double saveMaxAspectRatio = maxAspectRatio; 
@@ -740,6 +740,8 @@ public class SplittableDensityArea {
 				if (rating < bestRating || rating == bestRating && solution.getWorstMinNodes() > bestSolution.getWorstMinNodes()) {
 					foundBetter = true;
 				} else if (solution.getWorstMinNodes() > bestSolution.getWorstMinNodes() && solution.isNice()) {
+					foundBetter = true;
+				} else if (solution.getWorstAspectRatio() < bestSolution.getWorstAspectRatio() && bestSolution.getWorstMinNodes() < 100){
 					foundBetter = true;
 				}
 				if (foundBetter){
@@ -762,6 +764,18 @@ public class SplittableDensityArea {
 			}
 			else {
 				if ((spread >= 7 && bestSolution.isEmpty() == false)){
+					if (minNodes > bestSolution.getWorstMinNodes() + 1){
+						// reduce minNodes
+						minNodes = (bestSolution.getWorstMinNodes() + 1 + minNodes) / 2;
+						if (minNodes - bestSolution.getWorstMinNodes() < 1000)
+							minNodes = bestSolution.getWorstMinNodes() + 1;
+						if (bestSolution.spread < 7){
+							spread = bestSolution.spread;
+						}
+						System.out.println("restarting with min-nodes " + minNodes + " and spread " + spread);
+						continue;
+					}
+					
 					break; // no hope to find something better in a reasonable time
 				}
 			}
@@ -774,7 +788,7 @@ public class SplittableDensityArea {
 				else if (spread <= 5)
 					spread = 7;
 				// maybe try more primes ?
-//					System.out.println("Trying non-natural splits with spread " + spread + " ...");
+					System.out.println("Trying non-natural splits with spread " + spread + " ...");
 				continue;
 			}
 			
@@ -785,14 +799,7 @@ public class SplittableDensityArea {
 				
 				if (maxAspectRatio == saveMaxAspectRatio){
 					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
-						if (minNodes == 0)
-							minNodes = bestSolution.getWorstMinNodes() + 1;
-						else {
-							if (minNodes < maxNodes / 2)
-								minNodes = bestSolution.getWorstMinNodes() + bestSolution.getWorstMinNodes()/8;
-							else 
-								minNodes = bestSolution.getWorstMinNodes() + bestSolution.getWorstMinNodes()/16;
-						}
+						minNodes = bestSolution.getWorstMinNodes() + (maxNodes - bestSolution.getWorstMinNodes() ) / 2;
 					}
 					else 
 						minNodes = Math.min(maxNodes / 3, bestSolution.worstMinNodes + maxNodes/20);
@@ -1198,9 +1205,11 @@ public class SplittableDensityArea {
 		private double worstAspectRatio = -1;
 		private long worstMinNodes = Long.MAX_VALUE;
 		private final List<Tile> tiles;
+		private final int spread;
 		
-		public Solution() {
+		public Solution(int spread) {
 			tiles = new ArrayList<Tile>();
+			this.spread = spread;
 		}
 		
 		public boolean add(Tile tile){
