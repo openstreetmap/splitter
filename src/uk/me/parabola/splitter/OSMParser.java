@@ -196,6 +196,8 @@ class OSMParser extends AbstractXppParser implements MapReader {
 			mapUnits[i] = Utils.toMapUnit(coords[i]);
 		}
 		Area bounds = new Area(mapUnits[0], mapUnits[1], mapUnits[2], mapUnits[3]);
+		if (!bounds.verify())
+			throw new IllegalArgumentException("invalid bbox area in osm file: " + bounds);
 
 		if (bounds.getMinLong() > bounds.getMaxLong()) {
 			System.out.println("A <bounds/> tag was found but it crosses +/-180 the latitude line (western edge=" +

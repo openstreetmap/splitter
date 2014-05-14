@@ -123,6 +123,8 @@ public class AreaList {
 						Integer.decode(matcher.group(3)),
 						Integer.decode(matcher.group(4)),
 						Integer.decode(matcher.group(5)));
+				if (!area.verify())
+					throw new IllegalArgumentException("invalid area in file "+ filename+ ": " + line);
 				area.setMapId(Integer.parseInt(mapid));
 				areas.add(area);
 			}

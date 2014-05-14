@@ -233,6 +233,9 @@ public class O5mMapParser implements MapReader{
 				Utils.toMapUnit(leftf),
 				Utils.toMapUnit(topf),
 				Utils.toMapUnit(rightf));
+		if (!area.verify())
+			throw new IllegalArgumentException("invalid bbox area in o5m file: " + area);
+
 		processor.boundTag(area);
 	}
 
