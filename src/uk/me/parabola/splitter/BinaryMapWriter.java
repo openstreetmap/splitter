@@ -142,11 +142,9 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 
       public Osmformat.PrimitiveGroup serialize()
       {
-        if(useDense) {
+        if(useDense) 
           return serializeDense();
-        } else {
-          return serializeNonDense();
-        }
+		return serializeNonDense();
       }
 
       /**

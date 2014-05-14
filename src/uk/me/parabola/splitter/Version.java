@@ -60,8 +60,7 @@ public class Version {
 		String version = props.getProperty("svn.version", DEFAULT_VERSION);
 		if (version.matches("[1-9]+.*"))
 			return version;
-		else 
-			return DEFAULT_VERSION;
+		return DEFAULT_VERSION;
 	}
 	private static String getTimeStamp() {
 		InputStream is = Version.class.getResourceAsStream("/splitter-version.properties");

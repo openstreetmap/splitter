@@ -167,20 +167,18 @@ public class O5mMapParser implements MapReader{
 						skip(bytesToRead);
 						continue;
 					}
-					else{ 
-						if (bytesToRead > ioBuf.length){
-							ioBuf = new byte[(int)bytesToRead+100];
-						}
-						int bytesRead  = 0;
-						int neededBytes = bytesToRead;
-						while (neededBytes > 0){
-							bytesRead += is.read(ioBuf, bytesRead, neededBytes);
-							neededBytes -= bytesRead;
-						} 
-						ioPos = 0;
-						bis = new ByteArrayInputStream(ioBuf,0,bytesToRead);
-						is = bis;
+					if (bytesToRead > ioBuf.length){
+						ioBuf = new byte[bytesToRead+100];
 					}
+					int bytesRead  = 0;
+					int neededBytes = bytesToRead;
+					while (neededBytes > 0){
+						bytesRead += is.read(ioBuf, bytesRead, neededBytes);
+						neededBytes -= bytesRead;
+					} 
+					ioPos = 0;
+					bis = new ByteArrayInputStream(ioBuf,0,bytesToRead);
+					is = bis;
 					break;					
 				default:	
 				}
@@ -223,10 +221,10 @@ public class O5mMapParser implements MapReader{
 	 * @throws IOException
 	 */
 	private void readBBox() {
-		double leftf = (double) (100L*readSignedNum32()) * FACTOR;
-		double bottomf = (double) (100L*readSignedNum32()) * FACTOR;
-		double rightf = (double) (100L*readSignedNum32()) * FACTOR;
-		double topf = (double) (100L*readSignedNum32()) * FACTOR;
+		double leftf = 100L*readSignedNum32() * FACTOR;
+		double bottomf = 100L*readSignedNum32() * FACTOR;
+		double rightf = 100L*readSignedNum32() * FACTOR;
+		double topf = 100L*readSignedNum32() * FACTOR;
 		assert bytesToRead == 0;
 		System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
 
@@ -253,8 +251,8 @@ public class O5mMapParser implements MapReader{
 		int lon = readSignedNum32() + lastLon; lastLon = lon;
 		int lat = readSignedNum32() + lastLat; lastLat = lat;
 			
-		double flon = (double)(100L*lon) * FACTOR;
-		double flat = (double)(100L*lat) * FACTOR;
+		double flon = 100L*lon * FACTOR;
+		double flat = 100L*lat * FACTOR;
 		assert flat >= -90.0 && flat <= 90.0;  
 		assert flon >= -180.0 && flon <= 180.0;  
 
@@ -515,9 +513,8 @@ public class O5mMapParser implements MapReader{
 		result = b;
 		if ((b & 0x80) == 0){  // just one byte
 			if ((b & 0x01) == 1)
-				return -1-(result>>1); 
-			else
-				return result>>1;
+				return -1-(result>>1);
+			return result>>1;
 		}
 		int sign = b & 0x01;
 		result = (result & 0x7e)>>1;
@@ -531,8 +528,7 @@ public class O5mMapParser implements MapReader{
 		result += fac * b;
 		if (sign == 1) // negative
 			return -1-result;
-		else
-			return result;
+		return result;
 
 	}
 
@@ -548,9 +544,8 @@ public class O5mMapParser implements MapReader{
 		result = b;
 		if ((b & 0x80) == 0){  // just one byte
 			if ((b & 0x01) == 1)
-				return -1-(result>>1); 
-			else
-				return result>>1;
+				return -1-(result>>1);
+			return result>>1;
 		}
 		int sign = b & 0x01;
 		result = (result & 0x7e)>>1;
@@ -564,8 +559,7 @@ public class O5mMapParser implements MapReader{
 		result += fac * b;
 		if (sign == 1) // negative
 			return -1-result;
-		else
-			return result;
+		return result;
 
 	}
 

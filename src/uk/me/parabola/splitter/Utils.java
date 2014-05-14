@@ -53,7 +53,7 @@ public class Utils {
 	}
 
 	public static double toDegrees(int val) {
-		return (double) val / ((1 << 24) / 360.0);
+		return 360.0d * val / (1 << 24) ;
 	}
 
 	/**
@@ -67,8 +67,7 @@ public class Utils {
 		double DELTA = 0.000001; // TODO check if we really mean this
 		if (l > 0)
 			return (int) ((l + DELTA) * (1 << 24)/360);
-		else
-			return (int) ((l - DELTA) * (1 << 24)/360);
+		return (int) ((l - DELTA) * (1 << 24)/360);
 	}
 	
 	/**

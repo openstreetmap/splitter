@@ -99,8 +99,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	public boolean skipTags() {
 		if (phase == PHASE1_NODES_AND_WAYS)
 			return true;
-		else
-			return false;
+		return false;
 	}
 
 	@Override

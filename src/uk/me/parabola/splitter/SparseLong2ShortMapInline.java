@@ -157,8 +157,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			RLEWork[0] = unassigned; // signal a normal compressed record
 			return opos;
 		}
-		else 
-			return -1;
+		return -1;
 	}
 	
 	/**
@@ -335,30 +334,24 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		long elementmask = 1L << chunkoffset;
 		if ((chunkMask & elementmask) == 0) 
 			return unassigned; // not in chunk 
-		else {
-			int startOfChunk = z * chunkLen + 1;
-			// the map contains the key, extract the value
-			short firstAfterMask = store[startOfChunk];
-			if (chunkLen == ONE_VALUE_CHUNK_SIZE)
-				return firstAfterMask;
-			else {
-				int index = countUnder(chunkMask, chunkoffset);
-				if (firstAfterMask == unassigned){
-					// extract from compressed chunk 
-					short len; 
-					for (int j=1; j < chunkLen; j+=2){
-						len =  store[j+startOfChunk];
-						index -= len;
-						if (index < 0) return store[j+startOfChunk+1];
-					}
-					return unassigned; // should not happen
-				}
-				else {
-					// extract from uncompressed chunk
-					return store[index +  startOfChunk];
-				}
+		int startOfChunk = z * chunkLen + 1;
+		// the map contains the key, extract the value
+		short firstAfterMask = store[startOfChunk];
+		if (chunkLen == ONE_VALUE_CHUNK_SIZE)
+			return firstAfterMask;
+		int index = countUnder(chunkMask, chunkoffset);
+		if (firstAfterMask == unassigned){
+			// extract from compressed chunk 
+			short len; 
+			for (int j=1; j < chunkLen; j+=2){
+				len =  store[j+startOfChunk];
+				index -= len;
+				if (index < 0) return store[j+startOfChunk+1];
 			}
+			return unassigned; // should not happen
 		}
+		// extract from uncompressed chunk
+		return store[index +  startOfChunk];
 	}
 
 	@Override

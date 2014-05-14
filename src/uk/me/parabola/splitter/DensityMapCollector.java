@@ -73,9 +73,8 @@ class DensityMapCollector extends AbstractMapProcessor{
 	public Area getExactArea() {
 		if (bounds != null) {
 			return bounds;
-		} else {
-			return details.getBounds();
 		}
+		return details.getBounds();
 	}
 	public SplittableDensityArea getRoundedArea(int resolution) {
 		Area bounds = RoundingUtils.round(getExactArea(), resolution);

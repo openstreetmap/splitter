@@ -23,7 +23,6 @@ public class SparseLong2ShortMap {
 		// prefer implementation with lower memory footprint when free heap is less than 2 GB
 		if (maxMem < 2048)
 			return new SparseLong2ShortMapInline();
-		else 
-			return new SparseLong2ShortMapHuge();
+		return new SparseLong2ShortMapHuge();
 	}
 }

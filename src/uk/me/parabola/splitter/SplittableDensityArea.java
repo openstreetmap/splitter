@@ -120,8 +120,7 @@ public class SplittableDensityArea {
 				// don't try again to find a solution
 				if (startSolution == null)
 					return Collections.emptyList();
-				else 
-					return startSolution.getAreas(null);
+				return startSolution.getAreas(null);
 			}
 		}			
 		if (!beQuiet)
@@ -160,14 +159,11 @@ public class SplittableDensityArea {
 			Tile tile = new Tile(rasteredArea.getBounds().x,rasteredArea.getBounds().y,rasteredArea.getBounds().width,rasteredArea.getBounds().height);
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
 			return solution.getAreas(polygonArea);
-		} else {
-			if (polygonArea.intersects(Utils.area2Rectangle(allDensities.getBounds(),0)))
-				return splitPolygon(polygonArea);
-			else {
-				System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
-				return Collections.emptyList();
-			}
 		}
+		if (polygonArea.intersects(Utils.area2Rectangle(allDensities.getBounds(),0)))
+			return splitPolygon(polygonArea);
+		System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
+		return Collections.emptyList();
 	}
 
 	/**
@@ -273,35 +269,33 @@ public class SplittableDensityArea {
 				res = split(currMaxNodes, namedPolygons);
 				return res;
 			}
-			else {
-				Pair pair = new Pair(currMaxNodes, res.size());
-				if (res.size() > wantedTiles){
-					if (bestAbove == null)
-						bestAbove = pair;
-					else if (bestAbove.numTiles > pair.numTiles)
-						bestAbove = pair;
-					else  if (bestAbove.numTiles == pair.numTiles && pair.maxNodes < bestAbove.maxNodes)
-						bestAbove = pair;
-				} else {
-					if (bestBelow == null)
-						bestBelow = pair;
-					else if (bestBelow.numTiles < pair.numTiles)
-						bestBelow = pair;
-					else  if (bestBelow.numTiles == pair.numTiles && pair.maxNodes > bestBelow.maxNodes)
-						bestBelow = pair;
-				}
-				long testMaxNodes;
-				if (bestBelow == null || bestAbove == null)
-					testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
-				else 
-					testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
-				
-				if (testMaxNodes == currMaxNodes){
-					System.err.println("Cannot find split with exactly " + wantedTiles + " areas");
-					return res;
-				}
-				currMaxNodes = testMaxNodes;
+			Pair pair = new Pair(currMaxNodes, res.size());
+			if (res.size() > wantedTiles){
+				if (bestAbove == null)
+					bestAbove = pair;
+				else if (bestAbove.numTiles > pair.numTiles)
+					bestAbove = pair;
+				else  if (bestAbove.numTiles == pair.numTiles && pair.maxNodes < bestAbove.maxNodes)
+					bestAbove = pair;
+			} else {
+				if (bestBelow == null)
+					bestBelow = pair;
+				else if (bestBelow.numTiles < pair.numTiles)
+					bestBelow = pair;
+				else  if (bestBelow.numTiles == pair.numTiles && pair.maxNodes > bestBelow.maxNodes)
+					bestBelow = pair;
 			}
+			long testMaxNodes;
+			if (bestBelow == null || bestAbove == null)
+				testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
+			else 
+				testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
+			
+			if (testMaxNodes == currMaxNodes){
+				System.err.println("Cannot find split with exactly " + wantedTiles + " areas");
+				return res;
+			}
+			currMaxNodes = testMaxNodes;
 		} 
 	}
 
@@ -488,64 +482,63 @@ public class SplittableDensityArea {
 			Tile part = new Tile(r.x, r.y, r.width, r.height);
 //			KmlWriter.writeKml("e:/ld_sp/rect"+rectangles, "rect", allDensities.getArea(r.x,r.y,r.width,r.height).getJavaArea());
 			return solveRectangularArea(part);
-		} else {
-			List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
-			List<Point> shape = shapes.get(0);
-			
-			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
-				Rectangle r = rasteredPolygonArea.getBounds();
-				Tile part = new Tile(r.x, r.y, r.width, r.height);
-				System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
-				return solveRectangularArea(part);
-			}
-			
-			Rectangle pBounds = rasteredPolygonArea.getBounds();
-			int lastPoint = shape.size() - 1;
-			if (shape.get(0).equals(shape.get(lastPoint)))
-				--lastPoint;
-			for (int i = 0; i <= lastPoint; i++){
-				Point point = shape.get(i);
-				if (i > 0 && point.equals(shape.get(0)))
-					continue;
-				int cutX = point.x;
-				int cutY = point.y;
-				Solution part0Sol = null,part1Sol = null;
-				for (int axis = 0; axis < 2; axis++){
-					Rectangle r1,r2;
-					if (axis == AXIS_HOR){
-						r1 = new Rectangle(pBounds.x,pBounds.y,cutX-pBounds.x,pBounds.height);
-						r2 = new Rectangle(cutX,pBounds.y,(int)(pBounds.getMaxX()-cutX),pBounds.height);
-					} else {
-						r1 = new Rectangle(pBounds.x,pBounds.y,pBounds.width,cutY-pBounds.y);
-						r2 = new Rectangle(pBounds.x,cutY,pBounds.width,(int)(pBounds.getMaxY()-cutY));
-					}
-
-					if (r1.width * r1.height> r2.width * r2.height){
-						Rectangle help = r1;
-						r1 = r2;
-						r2 = help;
-					}
-					if (r1.isEmpty() == false && r2.isEmpty() == false){
-						java.awt.geom.Area area = new java.awt.geom.Area(r1);
-						area.intersect(rasteredPolygonArea);
-						
-						part0Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
-						if (part0Sol != null && part0Sol.isEmpty() == false){
-							area = new java.awt.geom.Area(r2);
-							area.intersect(rasteredPolygonArea);
-							part1Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
-							if (part1Sol != null && part1Sol.isEmpty() == false)
-								break;
-						}
-					}
-				}
-				if (part1Sol != null){
-					part0Sol.merge(part1Sol);
-					return part0Sol;
-				}
-			}
-			return null;
 		}
+		List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
+		List<Point> shape = shapes.get(0);
+		
+		if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
+			Rectangle r = rasteredPolygonArea.getBounds();
+			Tile part = new Tile(r.x, r.y, r.width, r.height);
+			System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
+			return solveRectangularArea(part);
+		}
+		
+		Rectangle pBounds = rasteredPolygonArea.getBounds();
+		int lastPoint = shape.size() - 1;
+		if (shape.get(0).equals(shape.get(lastPoint)))
+			--lastPoint;
+		for (int i = 0; i <= lastPoint; i++){
+			Point point = shape.get(i);
+			if (i > 0 && point.equals(shape.get(0)))
+				continue;
+			int cutX = point.x;
+			int cutY = point.y;
+			Solution part0Sol = null,part1Sol = null;
+			for (int axis = 0; axis < 2; axis++){
+				Rectangle r1,r2;
+				if (axis == AXIS_HOR){
+					r1 = new Rectangle(pBounds.x,pBounds.y,cutX-pBounds.x,pBounds.height);
+					r2 = new Rectangle(cutX,pBounds.y,(int)(pBounds.getMaxX()-cutX),pBounds.height);
+				} else {
+					r1 = new Rectangle(pBounds.x,pBounds.y,pBounds.width,cutY-pBounds.y);
+					r2 = new Rectangle(pBounds.x,cutY,pBounds.width,(int)(pBounds.getMaxY()-cutY));
+				}
+
+				if (r1.width * r1.height> r2.width * r2.height){
+					Rectangle help = r1;
+					r1 = r2;
+					r2 = help;
+				}
+				if (r1.isEmpty() == false && r2.isEmpty() == false){
+					java.awt.geom.Area area = new java.awt.geom.Area(r1);
+					area.intersect(rasteredPolygonArea);
+					
+					part0Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
+					if (part0Sol != null && part0Sol.isEmpty() == false){
+						area = new java.awt.geom.Area(r2);
+						area.intersect(rasteredPolygonArea);
+						part1Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
+						if (part1Sol != null && part1Sol.isEmpty() == false)
+							break;
+					}
+				}
+			}
+			if (part1Sol != null){
+				part0Sol.merge(part1Sol);
+				return part0Sol;
+			}
+		}
+		return null;
 	}
 	/**
 	 * Try to split the tile into nice parts recursively. 
@@ -562,8 +555,7 @@ public class SplittableDensityArea {
 				return null;
 			if  (tile.width * tile.height <= 4) 
 				return null;
-			else 
-				return new Solution(spread); // allow empty part of the world
+			return new Solution(spread); // allow empty part of the world
 		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
 			addAndReturn = true;  // can't split further
 		} else if (tile.count < minNodes && depth == 0) {

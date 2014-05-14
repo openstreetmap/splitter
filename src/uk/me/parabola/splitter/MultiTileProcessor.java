@@ -790,7 +790,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	/*
 	 * Report a loop in a relation 
 	 */
-	void loopAction(MTRelation rel, MTRelation subRel, ArrayList<MTRelation> visited){
+	static void loopAction(MTRelation rel, MTRelation subRel, ArrayList<MTRelation> visited){
 		if (subRel.isOnLoop())
 			return; // don't complain again
 		if (rel.getId() == subRel.getId()){
@@ -846,30 +846,28 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						hasMissingWays = true;
 						continue;
 					}
-					else {
-						long mpWayStart = mpWay.startNode;
-						long mpWayEnd = mpWay.endNode;
-						added = true;
-						if (joinedWays == null){
-							joinedWays = new long[2];
-							joinedWays[0] = mpWayStart;
-							joinedWays[1] = mpWayEnd; 
-						}
-						else if (joinedWays[0] == mpWayStart){
-							joinedWays[0] = mpWayEnd;
-						}
-						else if (joinedWays[0] == mpWayEnd){
-							joinedWays[0] = mpWayStart;
-						}
-						else if (joinedWays[1] == mpWayStart){
-							joinedWays[1] = mpWayEnd;
-						}
-						else if (joinedWays[1] == mpWayEnd){
-							joinedWays[1] = mpWayStart;
-						}
-						else 
-							added = false;
+					long mpWayStart = mpWay.startNode;
+					long mpWayEnd = mpWay.endNode;
+					added = true;
+					if (joinedWays == null){
+						joinedWays = new long[2];
+						joinedWays[0] = mpWayStart;
+						joinedWays[1] = mpWayEnd; 
 					}
+					else if (joinedWays[0] == mpWayStart){
+						joinedWays[0] = mpWayEnd;
+					}
+					else if (joinedWays[0] == mpWayEnd){
+						joinedWays[0] = mpWayStart;
+					}
+					else if (joinedWays[1] == mpWayStart){
+						joinedWays[1] = mpWayEnd;
+					}
+					else if (joinedWays[1] == mpWayEnd){
+						joinedWays[1] = mpWayStart;
+					}
+					else 
+						added = false;
 					if (added){
 						changed = true;
 						wayMembers.remove(i);
