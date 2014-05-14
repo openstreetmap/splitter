@@ -189,7 +189,7 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		}
 	}
 
-	void open() throws FileNotFoundException{
+	private void open() throws FileNotFoundException{
 		FileInputStream fis = new FileInputStream(tmpFile);
 		BufferedInputStream stream = new BufferedInputStream(fis);
 		dis = new DataInputStream(stream);
