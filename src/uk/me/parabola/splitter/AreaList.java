@@ -72,7 +72,7 @@ public class AreaList {
 			}
 
 		} catch (IOException e) {
-			System.err.println("Could not write areas.list file");
+			System.err.println("Could not write areas.list file, processing continues");
 		}
 	}
 

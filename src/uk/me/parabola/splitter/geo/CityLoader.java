@@ -50,7 +50,7 @@ public class CityLoader {
 		try(BufferedReader r = new BufferedReader(Utils.openFile(geoNamesFile, true))){
 			result = load(r);
 		} catch (IOException ignore) {
-			System.out.println("Warning: Could not read geonames file " + geoNamesFile + " processing continous");
+			System.out.println("Warning: Could not read geonames file " + geoNamesFile + ", processing continues");
 		}
 		return result;
 	}

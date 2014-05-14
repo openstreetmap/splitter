@@ -950,7 +950,7 @@ public class Main {
 
 			w.println();
 		} catch (IOException e) {
-			System.err.println("Warning: Could not write problem-list file " + fname + ", processing continous");
+			System.err.println("Warning: Could not write problem-list file " + fname + ", processing continues");
 		}
 	}
 	
