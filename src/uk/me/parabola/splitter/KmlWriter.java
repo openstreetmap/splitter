@@ -18,7 +18,7 @@ import java.io.PrintWriter;
 import java.util.List;
 import java.util.Locale;
 /**
- * A helper class to create kml files from java areas.
+ * A class to create kml files from java areas (polygons) or rectangular areas.
  * @author GerdP
  *
  */
@@ -39,7 +39,7 @@ public class KmlWriter {
 				"  </Style>\n\n");
 	}
 	
-	private static void writeLineHeader(PrintWriter pw, String name){
+	private static void writeLineHeader(PrintWriter pw, int id, String name){
 		pw.format(Locale.ROOT,
 				"  <Placemark>\n" +
 						"    <name>%1$d</name>\n" +
@@ -49,8 +49,8 @@ public class KmlWriter {
 						"      </description>\n" +
 						"    <Polygon>\n" +
 						"      <outerBoundaryIs>\n" +
-						"        <LineString>\n" +
-						"          <coordinates>\n", 0, name);
+						"        <LinearRing>\n" +
+						"          <coordinates>\n", id, name);
 
 
 	}
@@ -58,7 +58,7 @@ public class KmlWriter {
 	private static void writeLineFooter(PrintWriter pw){
 		pw.format(Locale.ROOT,
 				"          </coordinates>\n" +
-				"        </LineString>\n" +
+				"        </LinearRing>\n" +
 				"      </outerBoundaryIs>\n" +
 				"    </Polygon>\n" +
 				"  </Placemark>\n");
@@ -70,15 +70,18 @@ public class KmlWriter {
 	}
 
 	private static void writeCoordinates(PrintWriter pw, double x, double y){
-		
-		pw.format(Locale.ROOT, "            %f,%f\n",Utils.toDegrees((int) x), Utils.toDegrees((int) y));
+		pw.format(Locale.ROOT, "            %f,%f\n",x,y);
 	}
 	
 	
-	@SuppressWarnings("unused")
+	
+	/**
+	 * Write a java area in kml format.
+	 * @param filename
+	 * @param name
+	 * @param area
+	 */
 	public static void writeKml(String filename, String name, java.awt.geom.Area area){
-		if (true)
-			return;
 		String filePath = filename;
 		if (filePath.endsWith(".kml") == false)
 			filePath += ".kml";
@@ -89,18 +92,20 @@ public class KmlWriter {
 			double startx = 0,starty = 0;
 			double[] res = new double[6];
 			PathIterator pit = area.getPathIterator(null);
-
+			int id = 0;
 			while (!pit.isDone()) {
 				int type = pit.currentSegment(res);
+				double x = Utils.toDegrees((int) res[0]);
+				double y = Utils.toDegrees((int) res[1]);
 				switch (type) {
 				case PathIterator.SEG_MOVETO:
-					writeLineHeader(pw, name + linePart++);
-					writeCoordinates(pw, res[0], res[1]);
-					startx = res[0];
-					starty = res[1];
+					writeLineHeader(pw, id++, name + linePart++);
+					writeCoordinates(pw, x,y);
+					startx = x;
+					starty = y;
 					break;
 				case PathIterator.SEG_LINETO:
-					writeCoordinates(pw, res[0], res[1]);
+					writeCoordinates(pw, x,y);
 					break;
 				case PathIterator.SEG_CLOSE:
 					writeCoordinates(pw, startx,starty);
@@ -135,27 +140,13 @@ public class KmlWriter {
 				double east = Utils.toDegrees(area.getMaxLong());
 
 				String name = area.getName() == null ? String.valueOf(area.getMapId()) : area.getName();
-				pw.format(Locale.ROOT,
-								  "  <Placemark>\n" +
-									"    <name>%1$d</name>\n" +
-									"    <styleUrl>#transWhitePoly</styleUrl>\n" +
-									"      <description>\n" +
-									"        <![CDATA[%2$s]]>\n" +
-									"      </description>\n" +
-									"    <Polygon>\n" +
-									"      <outerBoundaryIs>\n" +
-									"        <LinearRing>\n" +
-									"          <coordinates>\n" +
-									"            %4$f,%3$f\n" +
-									"            %4$f,%5$f\n" +
-									"            %6$f,%5$f\n" +
-									"            %6$f,%3$f\n" +
-									"            %4$f,%3$f\n" +
-									"          </coordinates>\n" +
-									"        </LinearRing>\n" +
-									"      </outerBoundaryIs>\n" +
-									"    </Polygon>\n" +
-									"  </Placemark>\n", area.getMapId(), name, south, west, north, east);
+				writeLineHeader(pw, area.getMapId(), name);
+				writeCoordinates(pw, west, south);
+				writeCoordinates(pw, west, north);
+				writeCoordinates(pw, east, north);
+				writeCoordinates(pw, east, south);
+				writeCoordinates(pw, west, south);
+				writeLineFooter(pw);
 			}
 			writeKmlFooter(pw);
 		} catch (IOException e) {
