@@ -103,7 +103,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		try {
 			writeNode(n);
 		} catch (IOException e) {
-			throw new RuntimeException("failed to write node " + n.getId(), e);
+			throw new SplitFailedException("failed to write node " + n.getId(), e);
 		}
 	}
 
@@ -148,7 +148,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			try {
 				writeWay(w);
 			} catch (IOException e) {
-				throw new RuntimeException("failed to write way " + w.getId(), e);
+				throw new SplitFailedException("failed to write way " + w.getId(), e);
 			}
 		}
 	}
@@ -209,8 +209,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		try {
 			writeRelation(rel);
 		} catch (IOException e) {
-			throw new RuntimeException("failed to write relation " + rel.getId(),
-					e);
+			throw new SplitFailedException("failed to write relation " + rel.getId(), e);
 		}
 	}
 	@Override
@@ -230,7 +229,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			try {
 				writerInputQueues[i].stop();
 			} catch (InterruptedException e) {
-				throw new RuntimeException(
+				throw new SplitFailedException(
 						"Failed to add the stop element for worker thread " + i,
 						e);
 			}
@@ -247,7 +246,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			try {
 				workerThread.join();
 			} catch (InterruptedException e) {
-				throw new RuntimeException("Failed to join for thread "
+				throw new SplitFailedException("Failed to join for thread "
 						+ workerThread.getName(), e);
 			}
 		}
@@ -351,6 +350,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			seenRel = true;
 			System.out.println("Writing relations " + new Date());
 		}
+		
 		for (int n = currentRelAreaSet.nextSetBit(0); n >= 0; n = currentRelAreaSet.nextSetBit(n + 1)) {
 			// if n is out of bounds, then something has gone wrong
 			if (maxThreads > 1) {
@@ -365,8 +365,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		try {
 			writerInputQueues[writerNumber-writerOffset].put(element);
 		} catch (InterruptedException e) {
-			// throw new RuntimeException("Failed to write node " +
-			// element.getId() + " to worker thread " + writerNumber, e);
+			throw new SplitFailedException("Failed to add to working queue", e);
 		}
 	}
 
@@ -447,7 +446,7 @@ class SplitProcessor extends AbstractMapProcessor {
 							}
 
 						} catch (IOException e) {
-								throw new RuntimeException("Thread "
+								throw new SplitFailedException("Thread "
 										+ Thread.currentThread().getName()
 										+ " failed to write element ", e);
 						}

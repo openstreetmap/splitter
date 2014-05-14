@@ -451,7 +451,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     }
   }
 
-  private void writeHeader() throws IOException
+  private void writeHeader()
   {
     Osmformat.HeaderBlock.Builder headerblock = Osmformat.HeaderBlock
         .newBuilder();

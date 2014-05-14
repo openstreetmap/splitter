@@ -85,7 +85,7 @@ public class WriterDictionaryShort{
 			}
 			combiIndex = (short) (sets.size() - DICT_START);
 			if (combiIndex == Short.MAX_VALUE){
-				throw new RuntimeException("writerDictionary is full. Decrease --max-areas value");
+				throw new SplitFailedException("writerDictionary is full. Decrease --max-areas value");
 			}
 			sets.add(bnew);
 			arrays.add(a);

@@ -21,4 +21,8 @@ public class SplitFailedException extends RuntimeException {
 	public SplitFailedException(String s) {
 		super(s);
 	}
+    public SplitFailedException(String message, Throwable cause) {
+        super(message, cause);
+    }
+	
 }
