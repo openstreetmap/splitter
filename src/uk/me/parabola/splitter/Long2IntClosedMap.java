@@ -21,6 +21,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -164,14 +165,9 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 
 	@Override
 	public int getSeq(long id){
-		if (currentKey == Long.MIN_VALUE){
-			try{
-				open();
-			} catch (IOException e) {
-				// TODO: handle exception
-			}
+		if (currentKey == Long.MIN_VALUE)
 			readPair();
-		}
+		
 		while(id > currentKey)
 			readPair();
 		if (id < currentKey || id == Long.MAX_VALUE){
@@ -187,13 +183,13 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 				open();
 			currentKey = dis.readLong();
 			currentVal = dis.readInt();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (IOException e){
+			System.out.println(e);
+			throw new SplitFailedException("Failed to read from temp file" + tmpFile);
 		}
 	}
 
-	void open() throws IOException{
+	void open() throws FileNotFoundException{
 		FileInputStream fis = new FileInputStream(tmpFile);
 		BufferedInputStream stream = new BufferedInputStream(fis);
 		dis = new DataInputStream(stream);
@@ -202,22 +198,23 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public void finish() {
 		if (tmpFile != null && tmpFile.exists()){
-			try {
-				close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			close();
 			tmpFile.delete();
 			System.out.println("temporary file " + tmpFile.getAbsolutePath() + " was deleted");
 		}
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() {
 		currentKey = Long.MIN_VALUE;
 		currentVal = unassigned;
 		if (dis != null)
-			dis.close();
+			try {
+				dis.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 	}
 
 	@Override
@@ -236,7 +233,6 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public void stats(String prefix) {
 		System.out.println(prefix + name + "WriterMap contains " + Utils.format(size) + " pairs.");
-		
 	}
 }
 

@@ -39,7 +39,6 @@ import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.PrintWriter;
 import java.io.Reader;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -94,8 +93,6 @@ public class Main {
 
 	// Whether or not to trim tiles of any empty space around their edges.
 	private boolean trim;
-	// This gets set if no osm file is supplied as a parameter.
-	private boolean useStdIn;
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
 	// Whether or not the source OSM file(s) contain strictly nodes first, then ways, then rels,
@@ -165,6 +162,8 @@ public class Main {
 		try{
 			readArgs(args);
 		} catch (IllegalArgumentException e) {
+			if (e != null)
+				System.out.println("Error: " + e.getMessage());
 			return 1;
 		}
 		if (statusFreq > 0) {
@@ -181,12 +180,14 @@ public class Main {
 		} catch (IOException e) {
 			System.err.println("Error opening or reading file " + e);
 			e.printStackTrace();
+			return 1;
 		} catch (XmlPullParserException e) {
 			System.err.println("Error parsing xml from file " + e);
 			e.printStackTrace();
+			return 1;
 		} catch (SplitFailedException e) {
 			e.printStackTrace();
-			rc = 1;
+			return 1;
 		} catch (StopNoErrorException e){
 			if (e.getMessage() != null)
 				System.out.println(e.getMessage());
@@ -235,20 +236,7 @@ public class Main {
 		}
 
 		if (filenames.isEmpty()) {
-			if (areaList == null) {
-				throw new IllegalArgumentException("No .osm files were supplied so --split-file must be specified");
-			} else {
-				int areaCount = areaList.getAreas().size();
-				int passes = getAreasPerPass(areaCount);
-				if (passes > 1) {
-					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because " + passes
-							+ " passes are required to write out the areas. Increase --max-areas to match the number of areas (" + areaCount + ')');
-				}
-				if (problemRels.isEmpty() == false || problemWays.isEmpty() != false){
-					throw new IllegalArgumentException("No .osm files were supplied, but stdin cannot be used because with problem-file."); 
-				}
-				useStdIn = true;
-			}
+			throw new IllegalArgumentException("No input files were supplied");
 		}
 
 		if (areaList == null) {
@@ -349,18 +337,17 @@ public class Main {
 		}
 		filenames = parser.getAdditionalParams();
 		if (filenames.isEmpty()){
-			System.out.println("No file name(s) given, will try to read from stdin." );
-		} else {
-			boolean filesOK = true;
-			for (String fileName: filenames){
-				if (testAndReportFname(fileName, "input file") == false){
-					filesOK = false;
-				}
+			throw new IllegalArgumentException("No file name(s) given");
+		}
+		boolean filesOK = true;
+		for (String fileName: filenames){
+			if (testAndReportFname(fileName, "input file") == false){
+				filesOK = false;
 			}
-			if (!filesOK){
-				System.out.println("Make sure that option parameters start with -- " );
-				throw new IllegalArgumentException();
-			}
+		}
+		if (!filesOK){
+			System.out.println("Make sure that option parameters start with -- " );
+			throw new IllegalArgumentException();
 		}
 		mapId = params.getMapid();
 		if (mapId > 99999999) {
@@ -456,10 +443,6 @@ public class Main {
 		if (keepComplete){
 			if (filenames.size() > 1){
 				System.err.println("warning: --keep-complete is only used for the first input file.");
-			}
-			if (filenames.isEmpty()){
-				System.err.println("stdin cannot be used with --keep-complete because multiple read passes are needed.");
-				throw new IllegalArgumentException();
 			}
 			if (overlapAmount > 0){
 				System.err.println("Warning: --overlap is used in combination with --keep-complete=true ");
@@ -875,19 +858,6 @@ public class Main {
 	}
 	
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
-		if (useStdIn) {
-			System.out.println("Reading osm data from stdin...");
-			
-			try (Reader reader = new InputStreamReader(System.in,
-					Charset.forName("UTF-8"));) {
-				OSMParser parser = new OSMParser(processor, mixed);
-				parser.setReader(reader);
-				parser.parse();
-			} catch (IOException e) {
-				e.printStackTrace();
-				throw new SplitFailedException("Could not read input file");
-			}
-		}
 		boolean done = processOSMFiles(processor, filenames);
 		return done;
 	}
@@ -1407,13 +1377,17 @@ public class Main {
 					}
 				}
 			} catch (FileNotFoundException e) {
-				System.out.printf("ERROR: file %s was not found%n", filename);
+				System.out.println(e);
+				throw new SplitFailedException("ERROR: file " + filename + " was not found");
 			} catch (XmlPullParserException e) {
-				System.out.printf("ERROR: file %s is not a valid OSM XML file%n", filename);
+				System.out.println(e);
+				throw new SplitFailedException("ERROR: file " + filename + " is not a valid OSM XML file");
 			} catch (IllegalArgumentException e) {
-				System.out.printf("ERROR: file %s contains unexpected data%n", filename);
+				System.out.println(e);
+				throw new SplitFailedException("ERROR: file " + filename + " contains unexpected data");
 			} catch (IOException e) {
-				e.printStackTrace();
+				System.out.println(e);
+				throw new SplitFailedException("ERROR: file " + filename + " caused I/O exception");
 			}
 		}
 		boolean done = processor.endMap();
