@@ -45,17 +45,12 @@ public class CityLoader {
 		this.useAsciiNames = useAsciiNames;
 	}
 
-	public List<City> load(String geoNamesFile) throws IOException {
-		BufferedReader r = new BufferedReader(Utils.openFile(geoNamesFile, true));
-		List<City> result;
-		try {
+	public List<City> load(String geoNamesFile) {
+		List<City> result = null;
+		try(BufferedReader r = new BufferedReader(Utils.openFile(geoNamesFile, true))){
 			result = load(r);
-		}
-		finally {
-			try {
-				r.close();
-			} catch (IOException ignore) {
-			}
+		} catch (IOException ignore) {
+			System.out.println("Warning: Could not read geonames file " + geoNamesFile + " processing continous");
 		}
 		return result;
 	}

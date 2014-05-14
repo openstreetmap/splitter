@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 import java.awt.geom.PathIterator;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.Locale;
 /**
  * A helper class to create kml files from java areas.
@@ -113,9 +114,53 @@ public class KmlWriter {
 			} 			
 
 			writeKmlFooter(pw);
-			pw.close();
 		} catch (IOException e) {
 			System.err.println("Could not write KML file " + filePath);
 		}
 	}
+	
+	/**
+	 * Write out a KML file containing the areas that we calculated. This KML file
+	 * can be opened in Google Earth etc to see the areas that were split.
+	 *
+	 * @param filename The KML filename to write to.
+	 */
+	public static void writeKml(String filename, List<Area> areas) {
+		try (PrintWriter pw = new PrintWriter(filename);) {
+			writeKmlHeader(pw);
+			for (Area area : areas) {
+				double south = Utils.toDegrees(area.getMinLat());
+				double west = Utils.toDegrees(area.getMinLong());
+				double north = Utils.toDegrees(area.getMaxLat());
+				double east = Utils.toDegrees(area.getMaxLong());
+
+				String name = area.getName() == null ? String.valueOf(area.getMapId()) : area.getName();
+				pw.format(Locale.ROOT,
+								  "  <Placemark>\n" +
+									"    <name>%1$d</name>\n" +
+									"    <styleUrl>#transWhitePoly</styleUrl>\n" +
+									"      <description>\n" +
+									"        <![CDATA[%2$s]]>\n" +
+									"      </description>\n" +
+									"    <Polygon>\n" +
+									"      <outerBoundaryIs>\n" +
+									"        <LinearRing>\n" +
+									"          <coordinates>\n" +
+									"            %4$f,%3$f\n" +
+									"            %4$f,%5$f\n" +
+									"            %6$f,%5$f\n" +
+									"            %6$f,%3$f\n" +
+									"            %4$f,%3$f\n" +
+									"          </coordinates>\n" +
+									"        </LinearRing>\n" +
+									"      </outerBoundaryIs>\n" +
+									"    </Polygon>\n" +
+									"  </Placemark>\n", area.getMapId(), name, south, west, north, east);
+			}
+			writeKmlFooter(pw);
+		} catch (IOException e) {
+			System.err.println("Could not write KML file " + filename);
+		}
+	}
+	
 }

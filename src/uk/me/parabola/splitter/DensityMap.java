@@ -215,14 +215,14 @@ public class DensityMap {
 	}
 
 	/**
-	 * For debugging, to be removed. 
-	 * @param fileName
-	 * @param detailBounds
+	 * Write content of density map to file. Serves for easier debugging,
+	 * but may also be used to manipulate the map with other tools.
+	 * @param fileName the name of the output file
+	 * @param detailBounds 
 	 * @param collectorBounds
 	 */
 	public void saveMap(String fileName, Area detailBounds, Area collectorBounds) {
-		try {
-			FileWriter f = new FileWriter(new File(fileName));
+		try (FileWriter f = new FileWriter(new File(fileName))){
 			f.write(detailBounds.getMinLat() + "," + detailBounds.getMinLong() + "," + detailBounds.getMaxLat() + "," + detailBounds.getMaxLong() + '\n');
 			f.write(collectorBounds.getMinLat() + "," + collectorBounds.getMinLong() + "," + collectorBounds.getMaxLat() + "," + collectorBounds.getMaxLong() + '\n');
 			//f.write(bounds.getMinLat() + "," + bounds.getMinLong() + "," + bounds.getMaxLat() + "," + bounds.getMaxLong() + '\n');
@@ -234,10 +234,9 @@ public class DensityMap {
 					}
 				}
 			}
-			f.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
+			System.err.println("Warning: Could not write " + fileName + " processing continues.");
 		}
 	}
 
@@ -254,44 +253,40 @@ public class DensityMap {
 			System.out.println("Error: map file doesn't exist: " + mapFile);  
 			return null;
 		}
-		try {
-			InputStream fileStream = new FileInputStream(mapFile);
-			LineNumberReader problemReader = new LineNumberReader(
-					new InputStreamReader(fileStream));
+		try (InputStream fileStream = new FileInputStream(mapFile);
+				LineNumberReader problemReader = new LineNumberReader(
+						new InputStreamReader(fileStream));) {
 			Pattern csvSplitter = Pattern.compile(Pattern.quote(","));
 			
-			String problemLine;
+			String inLine;
 			String[] items;
-			problemLine = problemReader.readLine();
-			if (problemLine != null){
-				items = csvSplitter.split(problemLine);
+			inLine = problemReader.readLine();
+			if (inLine != null){
+				items = csvSplitter.split(inLine);
 				if (items.length != 4){
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
-							+ problemLine);
-					problemReader.close();
+							+ inLine);
 					return null;
 				}
 				details.addToBounds(Integer.parseInt(items[0]), Integer.parseInt(items[1]));
 				details.addToBounds(Integer.parseInt(items[2]),Integer.parseInt(items[3]));
 			}
-			problemLine = problemReader.readLine();
-			if (problemLine != null){
-				items = csvSplitter.split(problemLine);
+			inLine = problemReader.readLine();
+			if (inLine != null){
+				items = csvSplitter.split(inLine);
 				if (items.length != 4){
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
-							+ problemLine);
-					problemReader.close();
+							+ inLine);
 					return null;
 				}
 				collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
 						Integer.parseInt(items[2]),Integer.parseInt(items[3]));
 			}
-			while ((problemLine = problemReader.readLine()) != null) {
-				items = csvSplitter.split(problemLine);
+			while ((inLine = problemReader.readLine()) != null) {
+				items = csvSplitter.split(inLine);
 				if (items.length != 3) {
 					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
-							+ problemLine);
-					problemReader.close();
+							+ inLine);
 					return null;
 				}
 				int x,y,sum;
@@ -302,7 +297,7 @@ public class DensityMap {
 				
 					if (x < 0 || x >= width || y < 0 || y>=height){
 						System.out.println("Error: Invalid data in map file, line number " + + problemReader.getLineNumber() + ": "   
-								+ problemLine);
+								+ inLine);
 
 					}
 					else{
@@ -313,17 +308,14 @@ public class DensityMap {
 					}
 				}
 				catch(NumberFormatException exp){
-					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
-							+ problemLine + exp);
-					problemReader.close();
-					return null;
+					System.out.println("Error: Invalid number format in density file " + fileName + 
+							", line " + problemReader.getLineNumber() + ": " + inLine);
+					System.out.println(exp);
+					throw new SplitFailedException("Error: Cannot read density file " + mapFile);
 				}
 			}
-			problemReader.close();
 		} catch (IOException exp) {
-			System.out.println("Error: Cannot read problem file " + mapFile +  
-					exp);
-			return null;
+			throw new SplitFailedException("Error: Cannot read density file " + mapFile);
 		}
 		return collectorBounds;
 	}

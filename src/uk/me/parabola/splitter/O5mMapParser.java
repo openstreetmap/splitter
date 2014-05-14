@@ -115,25 +115,22 @@ public class O5mMapParser implements MapReader{
 
 	/**
 	 * parse the input stream
+	 * @throws IOException 
 	 */
-	public void parse(){
-		try {
-			int start = is.read();
-			++countBytes;
-			if (start != RESET_FLAG) 
-				throw new IOException("wrong header byte " + start);
-			if (skipArray != null){
-				if (skipNodes ){
-					if (skipWays)
-						skip(skipArray[REL_DATASET]-countBytes); // jump to first relation
-					else
-						skip(skipArray[WAY_DATASET]-countBytes); // jump to first way
-				}
+	public void parse() throws IOException{
+		int start = is.read();
+		++countBytes;
+		if (start != RESET_FLAG) 
+			throw new IOException("wrong header byte " + start);
+		if (skipArray != null){
+			if (skipNodes ){
+				if (skipWays)
+					skip(skipArray[REL_DATASET]-countBytes); // jump to first relation
+				else
+					skip(skipArray[WAY_DATASET]-countBytes); // jump to first way
 			}
-			readFile();
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
+		readFile();
 	}
 	
 	private void readFile() throws IOException{

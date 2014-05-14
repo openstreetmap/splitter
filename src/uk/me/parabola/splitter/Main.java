@@ -24,8 +24,6 @@ import uk.me.parabola.splitter.geo.City;
 import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
-import uk.me.parabola.splitter.geo.DummyCityFinder;
-
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
@@ -565,7 +563,7 @@ public class Main {
 	 * Calculate the areas that we are going to split into by getting the total area and
 	 * then subdividing down until each area has at most max-nodes nodes in it.
 	 */
-	private AreaList calculateAreas() throws IOException, XmlPullParserException {
+	private AreaList calculateAreas() throws XmlPullParserException {
 
 		DensityMapCollector pass1Collector = new DensityMapCollector(resolution); 
 		MapProcessor processor = pass1Collector;
@@ -620,16 +618,15 @@ public class Main {
 		return new AreaList(areas);
 	}
 	
-	private void nameAreas() throws IOException {
-		CityFinder cityFinder;
-		if (geoNamesFile != null) {
-			CityLoader cityLoader = new CityLoader(true);
-			List<City> cities = cityLoader.load(geoNamesFile);
-			cityFinder = new DefaultCityFinder(cities);
-		} else {
-			cityFinder = new DummyCityFinder();
-		}
-
+	private void nameAreas() {
+		if (geoNamesFile == null) 
+			return;
+		CityLoader cityLoader = new CityLoader(true);
+		List<City> cities = cityLoader.load(geoNamesFile);
+		if (cities == null)
+			return;
+		
+		CityFinder cityFinder = new DefaultCityFinder(cities);
 		for (Area area : areaList.getAreas()) {
 			// Decide what to call the area
 			Set<City> found = cityFinder.findCities(area);
@@ -878,73 +875,21 @@ public class Main {
 	}
 	
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
-		// Create both an XML reader and a binary reader, Dispatch each input to the
-		// Appropriate parser.
-		OSMParser parser = new OSMParser(processor, mixed);
 		if (useStdIn) {
 			System.out.println("Reading osm data from stdin...");
-			Reader reader = new InputStreamReader(System.in, Charset.forName("UTF-8"));
-			parser.setReader(reader);
-			try {
-				try {
-					parser.parse();
-				} finally {
-					reader.close();
-				}
+			
+			try (Reader reader = new InputStreamReader(System.in,
+					Charset.forName("UTF-8"));) {
+				OSMParser parser = new OSMParser(processor, mixed);
+				parser.setReader(reader);
+				parser.parse();
 			} catch (IOException e) {
 				e.printStackTrace();
+				throw new SplitFailedException("Could not read input file");
 			}
 		}
 		boolean done = processOSMFiles(processor, filenames);
 		return done;
-	}
-	
-	/**
-	 * Write a file that can be given to mkgmap that contains the correct arguments
-	 * for the split file pieces.  You are encouraged to edit the file and so it
-	 * contains a template of all the arguments that you might want to use.
-	 */
-	protected void writeArgsFile(List<Area> areas) {
-		PrintWriter w;
-		try {
-			w = new PrintWriter(new FileWriter(new File(fileOutputDir, "template.args")));
-		} catch (IOException e) {
-			System.err.println("Could not write template.args file");
-			return;
-		}
-
-		w.println("#");
-		w.println("# This file can be given to mkgmap using the -c option");
-		w.println("# Please edit it first to add a description of each map.");
-		w.println("#");
-		w.println();
-
-		w.println("# You can set the family id for the map");
-		w.println("# family-id: 980");
-		w.println("# product-id: 1");
-
-		w.println();
-		w.println("# Following is a list of map tiles.  Add a suitable description");
-		w.println("# for each one.");
-		for (Area a : areas) {
-			w.println();
-			w.format("mapname: %08d%n", a.getMapId());
-			if (a.getName() == null)
-				w.println("# description: OSM Map");
-			else
-				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
-			String ext;
-			if("pbf".equals(outputType))
-				ext = ".osm.pbf";
-			else if("o5m".equals(outputType))
-				ext = ".o5m";
-			else
-				ext = ".osm.gz";
-			w.format("input-file: %08d%s%n", a.getMapId(), ext);
-		}
-
-		w.println();
-		w.close();
 	}
 	
 	/** Read user defined problematic relations and ways */
@@ -956,10 +901,9 @@ public class Main {
 			System.out.println("Error: problem file doesn't exist: " + problemFile);  
 			return false;
 		}
-		try {
-			InputStream fileStream = new FileInputStream(problemFile);
-			LineNumberReader problemReader = new LineNumberReader(
-					new InputStreamReader(fileStream));
+		try (InputStream fileStream = new FileInputStream(problemFile);
+				LineNumberReader problemReader = new LineNumberReader(
+						new InputStreamReader(fileStream));) {
 			Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
 			Pattern commentSplitter = Pattern.compile(Pattern.quote("#"));
 			String problemLine;
@@ -996,7 +940,6 @@ public class Main {
 					ok = false;
 				}
 			}
-			problemReader.close();
 		} catch (IOException exp) {
 			System.out.println("Error: Cannot read problem file " + problemFile +  
 					exp);
@@ -1013,35 +956,32 @@ public class Main {
 	 * @param problemWaysThisPass 
 	 */
 	protected void writeProblemList(String fname, List<Long> pWays, List<Long> pRels) {
-		PrintWriter w;
-		try {
-			w = new PrintWriter(new FileWriter(new File(fileOutputDir, fname)));
+		try (PrintWriter w = new PrintWriter(new FileWriter(new File(
+				fileOutputDir, fname)));) {
+
+			w.println("#");
+			w.println("# This file can be given to splitter using the --problem-file option");
+			w.println("#");
+			w.println("# List of relations and ways that are known to cause problems");
+			w.println("# in splitter or mkgmap");
+			w.println("# Objects listed here are specially treated by splitter to assure"); 
+			w.println("# that complete data is written to all related tiles");  
+			w.println("# Format:");
+			w.println("# way:<id>");
+			w.println("# rel:<id>");
+			w.println("# ways");
+			for (long id: pWays){
+				w.println("way: " + id + " #");
+			}
+			w.println("# rels");
+			for (long id: pRels){
+				w.println("rel: " + id + " #");
+			}
+
+			w.println();
 		} catch (IOException e) {
-			System.err.println("Could not write problem-list file " + fname);
-			return;
+			System.err.println("Warning: Could not write problem-list file " + fname + ", processing continous");
 		}
-
-		w.println("#");
-		w.println("# This file can be given to splitter using the --problem-file option");
-		w.println("#");
-		w.println("# List of relations and ways that are known to cause problems");
-		w.println("# in splitter or mkgmap");
-		w.println("# Objects listed here are specially treated by splitter to assure"); 
-		w.println("# that complete data is written to all related tiles");  
-		w.println("# Format:");
-		w.println("# way:<id>");
-		w.println("# rel:<id>");
-		w.println("# ways");
-		for (long id: pWays){
-			w.println("way: " + id + " #");
-		}
-		w.println("# rels");
-		for (long id: pRels){
-			w.println("rel: " + id + " #");
-		}
-
-		w.println();
-		w.close();
 	}
 	
 	/**
@@ -1461,12 +1401,9 @@ public class Main {
 					}
 				} else {
 					// No, try XML.
-					Reader reader = Utils.openFile(filename, maxThreads > 1);
-					parser.setReader(reader);
-					try {
+					try (Reader reader = Utils.openFile(filename, maxThreads > 1)){
+						parser.setReader(reader);
 						parser.parse();
-					} finally {
-						reader.close();
 					}
 				}
 			} catch (FileNotFoundException e) {

@@ -92,38 +92,38 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	public void switchToSeqAccess(File directory) throws IOException {
 		tmpFile = File.createTempFile(name,null,directory);
 		tmpFile.deleteOnExit();
-		FileOutputStream fos = new FileOutputStream(tmpFile);
-		BufferedOutputStream stream = new BufferedOutputStream(fos);
-		DataOutputStream dos = new DataOutputStream(stream);
-		long lastKey = Long.MIN_VALUE;
-		for (int indexPos = 0; indexPos < index.size(); indexPos++){
-			long topId = index.getLong(indexPos);
-			int lowerBound = bounds.getInt(indexPos);
-			int upperBound = size;
-			if (indexPos+1 < index.size())
-				upperBound = bounds.getInt(indexPos+1);
-			long topVal = topId << TOP_ID_SHIFT;
-			for (int i = lowerBound; i <  upperBound; i++){
-				long key = topVal | (keys[i] & LOW_ID_MASK);
-				int val = vals[i];
-				assert i == 0  || lastKey < key;
-				lastKey = key;
-				if (val != unassigned){
-					dos.writeLong(key);
-					dos.writeInt(val);
+		try (FileOutputStream fos = new FileOutputStream(tmpFile);
+				BufferedOutputStream stream = new BufferedOutputStream(fos);
+				DataOutputStream dos = new DataOutputStream(stream)) {
+			long lastKey = Long.MIN_VALUE;
+			for (int indexPos = 0; indexPos < index.size(); indexPos++){
+				long topId = index.getLong(indexPos);
+				int lowerBound = bounds.getInt(indexPos);
+				int upperBound = size;
+				if (indexPos+1 < index.size())
+					upperBound = bounds.getInt(indexPos+1);
+				long topVal = topId << TOP_ID_SHIFT;
+				for (int i = lowerBound; i <  upperBound; i++){
+					long key = topVal | (keys[i] & LOW_ID_MASK);
+					int val = vals[i];
+					assert i == 0  || lastKey < key;
+					lastKey = key;
+					if (val != unassigned){
+						dos.writeLong(key);
+						dos.writeInt(val);
+					}
 				}
 			}
+			// write sentinel
+			dos.writeLong(Long.MAX_VALUE);
+			dos.writeInt(Integer.MAX_VALUE);
+			keys = null;
+			vals = null;
+			index = null;
+			bounds = null;
+			currentKey = Long.MIN_VALUE;
+			System.out.println("Wrote " + size + " " + name + " pairs to " + tmpFile.getAbsolutePath());
 		}
-		// write sentinel
-		dos.writeLong(Long.MAX_VALUE);
-		dos.writeInt(Integer.MAX_VALUE);
-		dos.close();
-		keys = null;
-		vals = null;
-		index = null;
-		bounds = null;
-		currentKey = Long.MIN_VALUE;
-		System.out.println("Wrote " + size + " " + name + " pairs to " + tmpFile.getAbsolutePath());
 	}
 
 	@Override

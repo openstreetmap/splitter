@@ -88,13 +88,11 @@ public class PrecompSeaReader {
 						}
 					} else {
 						// No, try XML.
-						OSMParser parser = new OSMParser(processor, true);
-						Reader reader = new InputStreamReader(is, Charset.forName("UTF-8"));
-						parser.setReader(reader);
-						try {
+						try (Reader reader = new InputStreamReader(is,
+								Charset.forName("UTF-8"));) {
+							OSMParser parser = new OSMParser(processor, true);
+							parser.setReader(reader);
 							parser.parse();
-						} finally {
-							reader.close();
 						}
 					}
 				} catch (IOException e) {
