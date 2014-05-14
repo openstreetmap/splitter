@@ -19,7 +19,6 @@ import java.awt.geom.Area;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -27,16 +26,13 @@ import java.util.List;
  * Class to read a polygon description file.
  * Expected input are nodes and ways. Ways with
  * tag name=* and mapid=nnnnnnnn should describe polygons
- * which are used to calculate a combined polygon and
- * area lists.  
+ * which are used to calculate area lists.  
  * @author GerdP
  *
  */
 class PolygonDescProcessor extends AbstractMapProcessor {
 	private Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
 	private final List<PolygonDesc> polygonDescriptions = new ArrayList<>();
-	private HashMap<Integer,Double> latValues = new HashMap<>();
-	private HashMap<Integer,Double> lonValues = new HashMap<>();
 	final int resolution;
 
 	public PolygonDescProcessor(int resolution) {
@@ -45,20 +41,11 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 
 	@Override
 	public void processNode(Node n){
+		// round all coordinates to be on the used grid. 
 		int lat = getRoundedCoord(n.getMapLat());
 		int lon = getRoundedCoord(n.getMapLon());
 		double roundedLat = Utils.toDegrees(lat);
 		double roundedLon = Utils.toDegrees(lon);
-		Double reusedLat = latValues.get(lat);
-		Double reusedLon = lonValues.get(lon);
-		if (reusedLat == null)
-			latValues.put(lat, roundedLat);
-		else 
-			roundedLat = reusedLat;
-		if (reusedLon == null)
-			lonValues.put(lon, roundedLon);
-		else 
-			reusedLon = roundedLon;
 		
 		Node rNode = new Node();
 		rNode.set(n.getId(),roundedLat,roundedLon);
@@ -103,8 +90,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 	@Override
 	public boolean endMap(){
 		nodes = null;
-		latValues = null;
-		lonValues = null;
 		System.out.println("found " + polygonDescriptions.size() + " named polygons");
 		return true;
 	}
