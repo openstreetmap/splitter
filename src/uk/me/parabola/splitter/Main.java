@@ -162,7 +162,7 @@ public class Main {
 		try{
 			readArgs(args);
 		} catch (IllegalArgumentException e) {
-			if (e != null)
+			if (e.getMessage() != null)
 				System.out.println("Error: " + e.getMessage());
 			return 1;
 		}
@@ -192,6 +192,9 @@ public class Main {
 			if (e.getMessage() != null)
 				System.out.println(e.getMessage());
 			// nothing to do
+		} catch (RuntimeException e) {
+			e.printStackTrace();
+			return 1;
 		}
 		System.out.println("Time finished: " + new Date());
 		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
