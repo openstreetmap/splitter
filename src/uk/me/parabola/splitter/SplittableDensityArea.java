@@ -97,7 +97,7 @@ public class SplittableDensityArea {
 	 * @return a list of areas, each containing no more than {@code maxNodes} nodes.
 	 * Each area returned must be aligned to the appropriate overview map resolution.
 	 */ 	
-	public List<Area> split(long maxNodes) {
+	private List<Area> split(long maxNodes) {
 		this.maxNodes = maxNodes; 
 		
 		if (allDensities == null || allDensities.getNodeCount() == 0)
@@ -144,10 +144,17 @@ public class SplittableDensityArea {
 		return fullSolution.getAreas(null);
 	}
 
+	/**
+	 * Split with a given polygon and max nodes threshold. If the polygon
+	 * is not singular, it is divided into singular areas.
+	 * @param maxNodes
+	 * @param polygonArea
+	 * @return
+	 */
 	private List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
-		this.maxNodes = maxNodes;
 		if (polygonArea == null)
 			return split(maxNodes);
+		this.maxNodes = maxNodes;
 		if (polygonArea.isSingular()){
 			java.awt.geom.Area rasteredArea = allDensities.rasterPolygon(polygonArea);
 			if (rasteredArea.isEmpty()){
@@ -168,8 +175,8 @@ public class SplittableDensityArea {
 
 	/**
 	 * Split a list of named polygons. Overlapping areas of the polygons are
-	 * extracted. 
-	 * @param maxNodes
+	 * extracted and each one is split for itself. A polygon may not be singular. 
+	 * @param maxNodes 
 	 * @param namedPolygons
 	 * @return
 	 */
@@ -247,6 +254,14 @@ public class SplittableDensityArea {
 		return result;
 	}
 
+	/**
+	 * Split a list of named polygons into a given number of tiles.
+	 * This is probably only useful with an empty list of polygons
+	 * or a list containing one polygon.
+	 * @param namedPolygons
+	 * @param wantedTiles
+	 * @return
+	 */
 	public List<Area> split(List<PolygonDesc> namedPolygons, int wantedTiles) {
 		long currMaxNodes = this.allDensities.getNodeCount() / wantedTiles;
 		class Pair {
@@ -540,6 +555,7 @@ public class SplittableDensityArea {
 		}
 		return null;
 	}
+	
 	/**
 	 * Try to split the tile into nice parts recursively. 
 	 * @param depth the recursion depth
