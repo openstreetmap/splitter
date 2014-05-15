@@ -236,7 +236,7 @@ public class DensityMap {
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			System.err.println("Warning: Could not write " + fileName + " processing continues.");
+			System.err.println("Warning: Could not write " + fileName + ", processing continues.");
 		}
 	}
 
