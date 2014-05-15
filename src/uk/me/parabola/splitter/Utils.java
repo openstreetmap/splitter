@@ -41,8 +41,13 @@ import org.apache.tools.bzip2.CBZip2InputStream;
  * @author Steve Ratcliffe
  */
 public class Utils {
-
+	
 	private static final NumberFormat FORMATTER = NumberFormat.getIntegerInstance();
+	
+	public static final int MIN_LAT_MAP_UNITS = toMapUnit(-90);
+	public static final int MAX_LAT_MAP_UNITS = toMapUnit(90);
+	public static final int MIN_LON_MAP_UNITS = toMapUnit(-180);
+	public static final int MAX_LON_MAP_UNITS = toMapUnit(180);
 
 	public static String format(int number) {
 		return FORMATTER.format(number);
@@ -129,7 +134,7 @@ public class Utils {
 	 * @return a list of closed polygons
 	 */
 	public static List<List<Point>> areaToShapes(java.awt.geom.Area area) {
-		List<List<Point>> outputs = new ArrayList<List<Point>>(4);
+		List<List<Point>> outputs = new ArrayList<>();
 
 		float[] res = new float[6];
 		PathIterator pit = area.getPathIterator(null);
@@ -167,7 +172,7 @@ public class Utils {
 					}
 				}
 				if (type == PathIterator.SEG_MOVETO){
-					points = new ArrayList<Point>();
+					points = new ArrayList<>();
 					points.add(new Point(iLon,iLat));
 					iPrevLat = iLat;
 					iPrevLong = iLon;
