@@ -27,6 +27,10 @@ public class Node extends Element {
 		this.lon = lon;
 		this.mapLat = Utils.toMapUnit(lat);
 		this.mapLon = Utils.toMapUnit(lon);
+		if (mapLat < Utils.MIN_LAT_MAP_UNITS || mapLat > Utils.MAX_LAT_MAP_UNITS)
+			throw new IllegalArgumentException("invalid lattitude value " + lat);
+		if (mapLon < Utils.MIN_LON_MAP_UNITS || mapLon > Utils.MAX_LON_MAP_UNITS)
+			throw new IllegalArgumentException("invalid longitude value " + lon);
 	}
 
 	public double getLat() {
