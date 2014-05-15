@@ -67,7 +67,7 @@ public class Main {
 	private int maxAreasPerPass;
 
 	// A list of the OSM files to parse.
-	private List<String> filenames;
+	private List<String> fileNameList;
 
 	// The description to write into the template.args file.
 	private String description;
@@ -125,16 +125,16 @@ public class Main {
 	
 	private LongArrayList problemWays = new LongArrayList();
 	private LongArrayList problemRels = new LongArrayList();
-	private TreeSet<Long> calculatedProblemWays = new TreeSet<Long>();
-	private TreeSet<Long> calculatedProblemRels = new TreeSet<Long>();
+	private TreeSet<Long> calculatedProblemWays = new TreeSet<>();
+	private TreeSet<Long> calculatedProblemRels = new TreeSet<>();
 	
 	// map with relations that should be complete and are written to only one tile 
-	private final OSMId2ObjectMap<Short> oneTileOnlyRels = new OSMId2ObjectMap<Short>();
+	private final OSMId2ObjectMap<Short> oneTileOnlyRels = new OSMId2ObjectMap<>();
 
 	// for faster access on blocks in pbf files
-	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<String, ShortArrayList>(); 
+	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<>(); 
 	// for faster access on blocks in o5m files
-	private final HashMap<String, long[]> skipArrayMap = new HashMap<String, long[]>();
+	private final HashMap<String, long[]> skipArrayMap = new HashMap<>();
 
 	private String stopAfter;
 
@@ -238,7 +238,7 @@ public class Main {
 			fileOutputDir = new File(DEFAULT_DIR);
 		}
 
-		if (filenames.isEmpty()) {
+		if (fileNameList.isEmpty()) {
 			throw new IllegalArgumentException("No input files were supplied");
 		}
 
@@ -338,12 +338,12 @@ public class Main {
 			Object value = entry.getValue();
 			System.out.println(name + '=' + (value == null ? "" : value));
 		}
-		filenames = parser.getAdditionalParams();
-		if (filenames.isEmpty()){
+		fileNameList = parser.getAdditionalParams();
+		if (fileNameList.isEmpty()){
 			throw new IllegalArgumentException("No file name(s) given");
 		}
 		boolean filesOK = true;
-		for (String fileName: filenames){
+		for (String fileName: fileNameList){
 			if (testAndReportFname(fileName, "input file") == false){
 				filesOK = false;
 			}
@@ -444,7 +444,7 @@ public class Main {
 
 		// plausibility checks and default handling 
 		if (keepComplete){
-			if (filenames.size() > 1){
+			if (fileNameList.size() > 1){
 				System.err.println("warning: --keep-complete is only used for the first input file.");
 			}
 			if (overlapAmount > 0){
@@ -524,7 +524,7 @@ public class Main {
 			}
 		}
 		if (polygons.isEmpty() == false){
-			if (checkPolygon(polygons) == false){
+			if (checkPolygons() == false){
 				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 			}
 		}
@@ -564,7 +564,7 @@ public class Main {
 			densityOutData = new File(fileOutputDir,"densities-out.txt");
 			processMap(processor);
 		}
-		System.out.println("in " + filenames.size() + (filenames.size() == 1 ? " file" : " files"));
+		System.out.println("in " + fileNameList.size() + (fileNameList.size() == 1 ? " file" : " files"));
 		System.out.println("Time: " + new Date());
 		if (densityOutData != null )
 			pass1Collector.saveMap(densityOutData.getAbsolutePath());
@@ -659,7 +659,7 @@ public class Main {
 		}
 
 		OSMWriter [] writers = new OSMWriter[workAreas.size()];
-		ArrayList<Area> allAreas = new ArrayList<Area>();
+		ArrayList<Area> allAreas = new ArrayList<>();
 
 		System.out.println("Pseudo-Writers:");
 		for (int j = 0;j < writers.length; j++){
@@ -705,15 +705,15 @@ public class Main {
 	private void partitionAreasForProblemListGenerator(List<Area> realAreas) throws IOException, XmlPullParserException{
 		long startProblemListGenerator = System.currentTimeMillis();
 
-		List<Area> remainingAreas = new ArrayList<Area>(realAreas);
+		List<Area> remainingAreas = new ArrayList<>(realAreas);
 		List<Area> distinctAreas;
 		int partition = 0;
 		while (remainingAreas.size() > 0){
 			++partition;
-			List<Area> workingSet = new ArrayList<Area>(remainingAreas);
+			List<Area> workingSet = new ArrayList<>(remainingAreas);
 			distinctAreas = getNonOverlappingAreas(workingSet, true);
 			if (distinctAreas.size() * 1.25 > maxAreasPerPass){
-				workingSet = new ArrayList<Area>(remainingAreas);
+				workingSet = new ArrayList<>(remainingAreas);
 				distinctAreas = getNonOverlappingAreas(workingSet, false);
 			}
 			System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
@@ -730,8 +730,8 @@ public class Main {
 		}
 		if (problemReport != null){
 			writeProblemList(problemReport, 
-					new ArrayList<Long>(calculatedProblemWays),
-					new ArrayList<Long>(calculatedProblemRels));
+					calculatedProblemWays,
+					calculatedProblemRels);
 		}
 	}
 
@@ -746,14 +746,14 @@ public class Main {
 		Map<String, byte[]> wellKnownTagKeys = null;
 		Map<String, byte[]> wellKnownTagVals = null;
 		if ("o5m".equals(outputType)){
-			wellKnownTagKeys = new HashMap<String, byte[]>();
-			wellKnownTagVals = new HashMap<String, byte[]>();
+			wellKnownTagKeys = new HashMap<>();
+			wellKnownTagVals = new HashMap<>();
 			
-			String[] tagKeys = { "1", "1outer", "1inner", // relation specific  
+			String[] tagKeys = { "1", "1outer", "1inner", "type", // relation specific  
 					// 50 most often used keys (taken from taginfo 2014-05-19)
 					"source", "building",
 					"highway", "name", "addr:housenumber", "addr:street",
-					"addr:city", "addr:postcode", "created_by", "addr:country", 
+					"addr:city", "addr:postcode", /*"created_by", */"addr:country", 
 					"natural", "source:date", "tiger:cfcc", "tiger:county", 
 					"tiger:reviewed", "landuse", "waterway", "wall", "surface", 
 					"attribution", "power", "tiger:source", "tiger:tlid",
@@ -763,7 +763,7 @@ public class Main {
 					"note", "source_ref", "tiger:zip_right", "access",
 					"yh:STRUCTURE", "yh:TYPE", "yh:TOTYUMONO", "yh:WIDTH_RANK",  
 					"maxspeed", "lanes", "service", "barrier", "source:addr",
-					"tracktype", "is_in", "layer" };
+					"tracktype", "is_in", "layer" , "place"};
 
 			for (String s:tagKeys){
 				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
@@ -861,20 +861,20 @@ public class Main {
 	}
 	
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
-		boolean done = processOSMFiles(processor, filenames);
+		boolean done = processOSMFiles(processor, fileNameList);
 		return done;
 	}
 	
 	/** Read user defined problematic relations and ways */
 	private boolean readProblemIds(String problemFileName) {
-		File problemFile = new File(problemFileName);
+		File fProblem = new File(problemFileName);
 		boolean ok = true;
 
-		if (!problemFile.exists()) {
-			System.out.println("Error: problem file doesn't exist: " + problemFile);  
+		if (!fProblem.exists()) {
+			System.out.println("Error: problem file doesn't exist: " + fProblem);  
 			return false;
 		}
-		try (InputStream fileStream = new FileInputStream(problemFile);
+		try (InputStream fileStream = new FileInputStream(fProblem);
 				LineNumberReader problemReader = new LineNumberReader(
 						new InputStreamReader(fileStream));) {
 			Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
@@ -914,7 +914,7 @@ public class Main {
 				}
 			}
 		} catch (IOException exp) {
-			System.out.println("Error: Cannot read problem file " + problemFile +  
+			System.out.println("Error: Cannot read problem file " + fProblem +  
 					exp);
 			return false;
 		}
@@ -928,7 +928,7 @@ public class Main {
 	 * @param problemRelsThisPass 
 	 * @param problemWaysThisPass 
 	 */
-	protected void writeProblemList(String fname, List<Long> pWays, List<Long> pRels) {
+	protected void writeProblemList(String fname, Set<Long> pWays, Set<Long> pRels) {
 		try (PrintWriter w = new PrintWriter(new FileWriter(new File(
 				fileOutputDir, fname)));) {
 
@@ -964,7 +964,7 @@ public class Main {
 	 * @return
 	 */
 	private static List<Area> addPseudoWriters(List<Area> realAreas){
-		ArrayList<Area> areas = new ArrayList<Area>(realAreas);
+		ArrayList<Area> areas = new ArrayList<>(realAreas);
 		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
 
 		while (!checkIfCovered(planetBounds, areas)){
@@ -1020,7 +1020,7 @@ public class Main {
 	 */
 	private static ArrayList<Area> getNonOverlappingAreas(List<Area> realAreas, boolean makeDisjoint){
 		java.awt.geom.Area covered = new java.awt.geom.Area();
-		ArrayList<Area> splitList = new ArrayList<Area>();
+		ArrayList<Area> splitList = new ArrayList<>();
 		int artificialId = -99999999;
 		boolean foundOverlap = false;
 		Iterator<Area> realAreaIter = realAreas.iterator();
@@ -1047,7 +1047,7 @@ public class Main {
 				realAreaIter.remove();
 				//String msg = "splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size() + " overlapping ";	
 				// find intersecting areas in the already covered part
-				ArrayList<Area> splitAreas = new ArrayList<Area>();
+				ArrayList<Area> splitAreas = new ArrayList<>();
 				
 				for (int j = 0; j < splitList.size(); j++){
 					Area area2 = splitList.get(j);
@@ -1281,7 +1281,7 @@ public class Main {
 	 * @param polygon
 	 * @return
 	 */
-	private boolean checkPolygon(List<PolygonDesc> polygons) {
+	private boolean checkPolygons() {
 		for (PolygonDesc pd : polygons){
 			if (checkPolygon(pd.area) == false)
 				return false;
@@ -1346,13 +1346,14 @@ public class Main {
 			try {
 				if (filename.endsWith(".o5m")) {
 					File file = new File(filename);
-					InputStream stream = new FileInputStream(file);
-					long[] skipArray = skipArrayMap.get(filename);
-					O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
-					o5mParser.parse();
-					if (skipArray == null){
-						skipArray = o5mParser.getSkipArray();
-						skipArrayMap.put(filename, skipArray);
+					try(InputStream stream = new FileInputStream(file)){
+						long[] skipArray = skipArrayMap.get(filename);
+						O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
+						o5mParser.parse();
+						if (skipArray == null){
+							skipArray = o5mParser.getSkipArray();
+							skipArrayMap.put(filename, skipArray);
+						}
 					}
 				}
 				else if (filename.endsWith(".pbf")) {
@@ -1360,12 +1361,9 @@ public class Main {
 					File file = new File(filename);
 					ShortArrayList blockTypes = blockTypeMap.get(filename);
 					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
-					BlockInputStream blockinput = (new BlockInputStream(
-							new FileInputStream(file), binParser));
-					try {
+					try(InputStream stream = new FileInputStream(file)){
+						BlockInputStream blockinput = (new BlockInputStream(stream, binParser));
 						blockinput.process();
-					} finally {
-						blockinput.close();
 						if (blockTypes == null){
 							// remember this file 
 							blockTypes = binParser.getBlockList();
