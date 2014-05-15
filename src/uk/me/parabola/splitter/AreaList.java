@@ -197,7 +197,7 @@ public class AreaList {
 			}
 			pw.println("END");
 		} catch (IOException e) {
-			System.err.println("Could not write polygon file " + filename);
+			System.err.println("Could not write polygon file " + filename + ", processing continues");
 		}
 	}
 	

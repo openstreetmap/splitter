@@ -112,15 +112,17 @@ public class KmlWriter {
 					writeLineFooter(pw);
 					break;
 				default:
+					// should not happen
 					System.err.println("Unsupported path iterator type " + type
 							+ ". This is an mkgmap error.");
+					throw new IOException(); 
 				}
 				pit.next();
 			} 			
 
 			writeKmlFooter(pw);
 		} catch (IOException e) {
-			System.err.println("Could not write KML file " + filePath);
+			System.err.println("Could not write KML file " + filePath + ", processing continues");
 		}
 	}
 	
@@ -150,7 +152,7 @@ public class KmlWriter {
 			}
 			writeKmlFooter(pw);
 		} catch (IOException e) {
-			System.err.println("Could not write KML file " + filename);
+			System.err.println("Could not write KML file " + filename + ", processing continues");
 		}
 	}
 	
