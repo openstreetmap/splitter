@@ -77,17 +77,11 @@ public class Area {
 	}
 
 	public boolean verify(){
-		if (minLat > maxLat)
-			return false;
-		if (minLong > maxLong)
-			return false;
-		if (minLong < Utils.toMapUnit(-180))
-			return false;
-		if (maxLong > Utils.toMapUnit(180))
-			return false;
-		if (minLat < Utils.toMapUnit(-90))
-			return false;
-		if (maxLat > Utils.toMapUnit(90))
+		if (minLat > maxLat || minLong > maxLong
+				|| minLong < Utils.MIN_LON_MAP_UNITS
+				|| maxLong > Utils.MAX_LON_MAP_UNITS
+				|| minLat < Utils.MIN_LAT_MAP_UNITS
+				|| maxLat > Utils.MAX_LAT_MAP_UNITS)
 			return false;
 		return true;
 	}
