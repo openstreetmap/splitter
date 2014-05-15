@@ -100,7 +100,7 @@ public class AreaList {
 	 * Obviously other tools could create the file too.
 	 */
 	private void readList(String filename) throws IOException {
-		areas = new ArrayList<Area>();
+		areas = new ArrayList<>();
 
 		Pattern pattern = Pattern.compile("([0-9]{8}):" +
 		" ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
@@ -124,13 +124,12 @@ public class AreaList {
 						Integer.decode(matcher.group(4)),
 						Integer.decode(matcher.group(5)));
 				if (!area.verify())
-					throw new IllegalArgumentException("invalid area in file "+ filename+ ": " + line);
+					throw new IllegalArgumentException("Invalid area in file "+ filename+ ": " + line);
 				area.setMapId(Integer.parseInt(mapid));
 				areas.add(area);
 			}
 		} catch (NumberFormatException e) {
-			areas = Collections.emptyList();
-			System.err.println("Bad number in areas list file");
+			throw new IllegalArgumentException("Bad number in areas list file");
 		}
 	}
 
@@ -245,7 +244,7 @@ public class AreaList {
 			}
 			w.println();
 		} catch (IOException e) {
-			System.err.println("Could not write template.args file");
+			throw new SplitFailedException("Could not write template.args file " + filename, e.getCause());
 		}
 	}
 
