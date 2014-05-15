@@ -67,7 +67,7 @@ public class SplittableDensityArea {
 	enum sides {TOP,RIGHT,BOTTOM,LEFT}
 	
 	public SplittableDensityArea(DensityMap densities) {
-		knownTileCounts = new HashMap<Rectangle, Long>();
+		knownTileCounts = new HashMap<>();
 		this.shift = densities.getShift();
 		maxTileHeight = Utils.toMapUnit(MAX_LAT_DEGREES) / (1 << shift);
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
@@ -76,6 +76,11 @@ public class SplittableDensityArea {
 	public void setMapId(int mapId) {
 		currMapId = mapId;
 	}
+
+	public void setMaxNodes(long maxNodes) {
+		this.maxNodes = maxNodes;
+	}
+
 
 	public void setTrim(boolean trim) {
 		this.trimShape = trim;
@@ -97,9 +102,7 @@ public class SplittableDensityArea {
 	 * @return a list of areas, each containing no more than {@code maxNodes} nodes.
 	 * Each area returned must be aligned to the appropriate overview map resolution.
 	 */ 	
-	private List<Area> split(long maxNodes) {
-		this.maxNodes = maxNodes; 
-		
+	private List<Area> split() {
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
 		prepare(null);
@@ -151,10 +154,9 @@ public class SplittableDensityArea {
 	 * @param polygonArea
 	 * @return
 	 */
-	private List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
+	private List<Area> split(java.awt.geom.Area polygonArea) {
 		if (polygonArea == null)
-			return split(maxNodes);
-		this.maxNodes = maxNodes;
+			return split();
 		if (polygonArea.isSingular()){
 			java.awt.geom.Area rasteredArea = allDensities.rasterPolygon(polygonArea);
 			if (rasteredArea.isEmpty()){
@@ -180,9 +182,9 @@ public class SplittableDensityArea {
 	 * @param namedPolygons
 	 * @return
 	 */
-	public List<Area> split(long maxNodes, List<PolygonDesc> namedPolygons) {
+	public List<Area> split(List<PolygonDesc> namedPolygons) {
 		if (namedPolygons.isEmpty())
-			return split(maxNodes);
+			return split();
 		List<Area> result = new ArrayList<>();
 		class ShareInfo {
 			java.awt.geom.Area area;
@@ -216,7 +218,7 @@ public class SplittableDensityArea {
 					System.out.println("splitting distinct part of " + namedPart.name);
 				else 
 					System.out.println("splitting " + namedPart.name);
-				result.addAll(split(maxNodes, distinctPart));
+				result.addAll(split(distinctPart));
 			}
 		}
 		
@@ -248,7 +250,7 @@ public class SplittableDensityArea {
 				desc = desc.substring(0,desc.lastIndexOf(" and"));
 				System.out.println("splitting area shared by exactly " + si.sharedBy.size() + " polygons: " + desc);
 //				KmlWriter.writeKml("e:/ld_sp/shared_"+desc.replace(" " , "_"), desc, si.area);
-				result.addAll(split(maxNodes, si.area));
+				result.addAll(split(si.area));
 			}
 		}
 		return result;
@@ -277,11 +279,12 @@ public class SplittableDensityArea {
 		Pair bestAbove = null;
 		beQuiet = true;
 		while (true) {
+			setMaxNodes(currMaxNodes);
 			System.out.println("Trying a max-nodes value of " + currMaxNodes + " to split " + allDensities.getNodeCount() + " nodes into " + wantedTiles + " areas");
-			List<Area> res = split(currMaxNodes, namedPolygons);
+			List<Area> res = split(namedPolygons);
 			if (res.isEmpty() || res.size() == wantedTiles){
 				beQuiet = false;
-				res = split(currMaxNodes, namedPolygons);
+				res = split(namedPolygons);
 				return res;
 			}
 			Pair pair = new Pair(currMaxNodes, res.size());
@@ -425,7 +428,7 @@ public class SplittableDensityArea {
 				}
 			}
 		}
-		ArrayList<Tile> clusters = new ArrayList<Tile>();
+		ArrayList<Tile> clusters = new ArrayList<>();
 		if (depth == 0 && area.isSingular()){
 			// try also the other split axis 
 			clusters.addAll(checkForEmptyClusters(depth + 1, tile.trim(), !splitHoriz ));
@@ -452,7 +455,7 @@ public class SplittableDensityArea {
 	 * @return a list of areas that cover the polygon
 	 */
 	private List<Area> splitPolygon(final java.awt.geom.Area polygonArea) {
-		List<Area> result = new ArrayList<Area>();
+		List<Area> result = new ArrayList<>();
 		List<List<Point>> shapes = Utils.areaToShapes(polygonArea);
 		for (int i = 0; i < shapes.size(); i++){
 			List<Point> shape = shapes.get(i);
@@ -473,7 +476,7 @@ public class SplittableDensityArea {
 				//result.add(shapeBounds);
 				continue;
 			}
-			List<Area> partResult = splittableArea.split(maxNodes, shapeArea);
+			List<Area> partResult = splittableArea.split(shapeArea);
 			if (partResult != null)
 				result.addAll(partResult);
 		}
@@ -743,7 +746,7 @@ public class SplittableDensityArea {
 			double saveMaxAspectRatio = maxAspectRatio; 
 			double saveMinNodes = minNodes;
 			boolean foundBetter = false;
-			cache = new HashSet<SplittableDensityArea.Tile>();
+			cache = new HashSet<>();
 			System.out.println("searching for split with spread " + spread + " and min-nodes " + minNodes);
 			Solution solution = findSolution(0, startTile);
 			if (solution != null){
@@ -1229,7 +1232,7 @@ public class SplittableDensityArea {
 		private final int spread;
 		
 		public Solution(int spread) {
-			tiles = new ArrayList<Tile>();
+			tiles = new ArrayList<>();
 			this.spread = spread;
 		}
 		
@@ -1302,8 +1305,7 @@ public class SplittableDensityArea {
 		 * @return list of areas
 		 */
 		public List<Area> getAreas(java.awt.geom.Area polygonArea) {
-			List<Area> result = new ArrayList<Area>();
-			int shift = allDensities.getShift();
+			List<Area> result = new ArrayList<>();
 			int minLat = allDensities.getBounds().getMinLat();
 			int minLon = allDensities.getBounds().getMinLong();
 			String note;

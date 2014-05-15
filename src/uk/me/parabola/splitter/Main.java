@@ -597,7 +597,8 @@ public class Main {
 		}
 		else {
 			System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
-			areas = splittableArea.split(maxNodes, polygons);
+			splittableArea.setMaxNodes(maxNodes);
+			areas = splittableArea.split(polygons);
 		}
 		if (areas != null && areas.isEmpty() == false)
 			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
