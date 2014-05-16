@@ -728,6 +728,7 @@ public class Main {
 			for (Long id: calculatedProblemRels){
 				oneTileOnlyRels.remove(id);
 			}
+			System.err.println("Waring: The areas given in --split-file are overlapping. Support for this will be removed in future versions.");
 		}
 		if (problemReport != null){
 			writeProblemList(problemReport, 
