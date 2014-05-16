@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.awt.Point;
@@ -20,7 +21,6 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
@@ -53,8 +53,7 @@ public class SplittableDensityArea {
 	private long maxNodes;
 	private final int shift;
 	private HashSet<Tile> cache;
-	private HashMap<Integer, Long> badMinNodes = new HashMap<>();
-	private final HashMap<Rectangle,Long> knownTileCounts;
+	private Int2LongOpenHashMap badMinNodes; 
 	private int [][]yxMap;
 	private int [][]xyMap;
 	private final int maxTileHeight;
@@ -67,7 +66,6 @@ public class SplittableDensityArea {
 	enum sides {TOP,RIGHT,BOTTOM,LEFT}
 	
 	public SplittableDensityArea(DensityMap densities) {
-		knownTileCounts = new HashMap<>();
 		this.shift = densities.getShift();
 		maxTileHeight = Utils.toMapUnit(MAX_LAT_DEGREES) / (1 << shift);
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
@@ -566,8 +564,6 @@ public class SplittableDensityArea {
 	 * @return a solution instance or null 
 	 */
 	private Solution findSolution(int depth, final Tile tile){
-		if (cache.size() > MAX_CACHE_SIZE)
-			return null;
 		boolean addAndReturn = false;
 		if (tile.count == 0){
 			if (!allowEmptyPart)
@@ -644,6 +640,9 @@ public class SplittableDensityArea {
 		int currX = 0, currY = 0;
 		int splitX  =-1, splitY = -1;
 		while(numTests-- > 0){
+			if (cache.size() > MAX_CACHE_SIZE)
+				return null;
+			
 			Tile[] parts;
 			if (offsets.isEmpty() == false){
 				int offset;
@@ -736,7 +735,8 @@ public class SplittableDensityArea {
 		spread = 0;
 		minNodes = 0;
 		maxAspectRatio = 1L<<allDensities.getShift();
-		badMinNodes = new HashMap<>();
+		badMinNodes = new Int2LongOpenHashMap();
+		badMinNodes.defaultReturnValue(-1);
 		
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
@@ -779,12 +779,12 @@ public class SplittableDensityArea {
 				}
 			} 
 			else {
-				Long lastBad = badMinNodes.get(spread);
-				if (lastBad == null || lastBad > minNodes){
-					badMinNodes.put(spread, minNodes);
-					lastBad = minNodes;
-				}
 				if ((spread >= MAX_SPREAD && bestSolution.isEmpty() == false)){
+					long lastBad = badMinNodes.get(spread);
+					if (lastBad == badMinNodes.defaultReturnValue() || lastBad > minNodes){
+						badMinNodes.put(spread, minNodes);
+						lastBad = minNodes;
+					}
 					if (minNodes > bestSolution.getWorstMinNodes() + 1){
 						// reduce minNodes
 						minNodes = (bestSolution.getWorstMinNodes() + lastBad) / 2;
@@ -792,11 +792,11 @@ public class SplittableDensityArea {
 							minNodes = bestSolution.getWorstMinNodes() + 1;
 						if (bestSolution.spread < MAX_SPREAD)
 							spread = bestSolution.spread;
-						
+
 						System.out.println("restarting with min-nodes " + minNodes + " and spread " + spread);
 						continue;
 					}
-					
+
 					break; // no hope to find something better in a reasonable time
 				}
 			}
@@ -819,8 +819,8 @@ public class SplittableDensityArea {
 				
 				if (maxAspectRatio == saveMaxAspectRatio){
 					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
-						Long lastBad = badMinNodes.get(spread);
-						if (lastBad == null)
+						long lastBad = badMinNodes.get(spread);
+						if (lastBad == badMinNodes.defaultReturnValue())
 							minNodes = bestSolution.getWorstMinNodes() + (maxNodes - bestSolution.getWorstMinNodes() ) / 2;
 						else 
 							minNodes = bestSolution.getWorstMinNodes() + (lastBad - bestSolution.getWorstMinNodes() ) / 2;
@@ -866,13 +866,7 @@ public class SplittableDensityArea {
 		 */
 		public Tile(int x,int y, int width, int height) {
 			super(x,y,width,height);
-			Long knownCount = knownTileCounts.get(this);
-			if (knownCount == null){
-				count = calcCount();
-				knownTileCounts.put(this, this.count);
-			}
-			else
-				count = knownCount;
+			count = calcCount();
 		}
 
 		/**
@@ -889,7 +883,6 @@ public class SplittableDensityArea {
 			this.width = width;
 			this.height = height;
 			this.count = count; 
-			knownTileCounts.put(this, this.count);
 		}
 
 		/**
@@ -1094,21 +1087,14 @@ public class SplittableDensityArea {
 		public Tile[] splitHoriz(int splitX, long[] colSums) {
 			if (splitX <= 0 || splitX >= width)
 				return null;
-			Rectangle r = new Rectangle(x, y, splitX, height);
-			Long cachedCount = knownTileCounts.get(r);
-			long sum;
-			if (cachedCount != null)
-				sum = cachedCount;
-			else {
-				sum = 0;
-				assert colSums != null;
+			long sum = 0;
+			assert colSums != null;
 
-				for (int pos = 0; pos < splitX; pos++) {
-					if (colSums[pos] < 0){
-						colSums[pos] = getColSum(pos);
-					}
-					sum += colSums[pos];
+			for (int pos = 0; pos < splitX; pos++) {
+				if (colSums[pos] < 0){
+					colSums[pos] = getColSum(pos);
 				}
+				sum += colSums[pos];
 			}
 			if (sum == 0 || sum == count)
 				return null;
@@ -1128,20 +1114,13 @@ public class SplittableDensityArea {
 		public Tile[] splitVert(int splitY, long[] rowSums) {
 			if (splitY <= 0 || splitY >= height)
 				return null;
-			Rectangle r = new Rectangle(x, y, width, splitY);
-			Long cachedCount = knownTileCounts.get(r);
-			long sum;
-			if (cachedCount != null)
-				sum = cachedCount;
-			else {
-				assert rowSums != null;
-				sum = 0;
-				for (int pos = 0; pos < splitY; pos++) {
-					if (rowSums[pos] < 0){
-						rowSums[pos] = getRowSum(pos);
-					}
-					sum += rowSums[pos];
+			long sum = 0;
+			assert rowSums != null;
+			for (int pos = 0; pos < splitY; pos++) {
+				if (rowSums[pos] < 0){
+					rowSums[pos] = getRowSum(pos);
 				}
+				sum += rowSums[pos];
 			}
 			if (sum == 0 || sum == count)
 				return null;
