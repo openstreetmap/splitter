@@ -188,7 +188,7 @@ public class SplittableDensityArea {
 		List<Area> result = new ArrayList<>();
 		class ShareInfo {
 			java.awt.geom.Area area;
-			final List<Integer> sharedBy = new ArrayList<>();
+			final IntArrayList sharedBy = new IntArrayList();
 		}
 		List<ShareInfo> sharedParts = new ArrayList<>();
 		for (int i = 0; i < namedPolygons.size(); i++){
@@ -232,7 +232,7 @@ public class SplittableDensityArea {
 				test.intersect(namedPolygons.get(j).area);
 				if (test.isEmpty() == false){
 					si.area.subtract(test);
-					if (j > si.sharedBy.get(si.sharedBy.size()-1)){
+					if (j > si.sharedBy.getInt(si.sharedBy.size()-1)){
 						ShareInfo si2 = new ShareInfo();
 						si2.area = test;
 						si2.sharedBy.addAll(si.sharedBy);
@@ -245,7 +245,7 @@ public class SplittableDensityArea {
 			}
 			if (si.area.isEmpty() == false && si.area.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
 				String desc = "";
-				for (Integer pos : si.sharedBy)
+				for (int pos : si.sharedBy)
 					desc += namedPolygons.get(pos).name + " and ";
 				desc = desc.substring(0,desc.lastIndexOf(" and"));
 				System.out.println("splitting area shared by exactly " + si.sharedBy.size() + " polygons: " + desc);
@@ -492,7 +492,7 @@ public class SplittableDensityArea {
 	 * @param rasteredPolygonArea an area describing a rectilinear shape
 	 * @return a solution or null if splitting failed
 	 */
-	private int rectangles = 0;
+//	private int rectangles = 0;
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
 		if (rasteredPolygonArea.isRectangular()){
