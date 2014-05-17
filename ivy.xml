@@ -22,7 +22,7 @@
 								conf="compile->compile(*),master(*)"/>
 
 		<dependency org="it.unimi.dsi" name="fastutil"
-								rev="6.5.2-mkg.1"
+								rev="6.5.15-mkg.1b"
 								conf="compile->default(*)"/>
 
 		<dependency org="xpp3" name="xpp3" rev="1.1.4c"
