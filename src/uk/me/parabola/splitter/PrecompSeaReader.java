@@ -226,7 +226,6 @@ public class PrecompSeaReader {
 
     private InputStream getStream(String tileName){
     	InputStream is = null;
-    	tileName += "xx";
     	try{
     		if (zipFile != null){
     			ZipEntry entry = zipFile.getEntry(precompZipFileInternalPath + tileName);
