@@ -431,8 +431,7 @@ public class Main {
 				overlapAmount = Integer.valueOf(overlap);
 			} 
 			catch (NumberFormatException e){
-				System.err.println("Error: --overlap=" + overlap + " is not is not a valid option.");
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException("Error: --overlap=" + overlap + " is not is not a valid option.");
 			}
 		}
 		problemReport = params.getProblemReport();
@@ -488,8 +487,7 @@ public class Main {
 				File f = new File(polygonFile);
 
 				if (!f.exists()){
-					System.out.println("Error: polygon file doesn't exist: " + polygonFile);  
-					throw new IllegalArgumentException();
+					throw new IllegalArgumentException("Error: polygon file doesn't exist: " + polygonFile);
 				}
 				PolygonFileReader polyReader = new PolygonFileReader(f);
 				java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
@@ -530,16 +528,14 @@ public class Main {
 		}
 		stopAfter = params.getStopAfter();
 		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){
-			System.err.println("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
-			throw new IllegalArgumentException();
+			throw new IllegalArgumentException("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
 		}
 		
 		precompSeaDir = params.getPrecompSea();
 		if (precompSeaDir != null){
 			File dir = new File (precompSeaDir);
 			if (dir.exists() == false || dir.canRead() == false){
-				System.out.println("Error: precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException("Error: precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
 			}
 		}
 		
