@@ -131,6 +131,11 @@ class SplitProcessor extends AbstractMapProcessor {
 					if (oldclIndex != clIdx){ 
 						BitSet cl = writerDictionary.getBitSet(clIdx);
 						currentWayAreaSet.or(cl);
+						if (wayWriterMap != null){
+							// we can stop here because all other nodes
+							// will be in the same tile
+							break;
+						}
 						oldclIndex = clIdx;
 					}
 				}
