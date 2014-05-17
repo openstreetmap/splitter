@@ -165,9 +165,10 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 
 	@Override
 	public int getSeq(long id){
-		if (currentKey == Long.MIN_VALUE)
+		if (currentKey == Long.MIN_VALUE){
+			dis = null;
 			readPair();
-		
+		}
 		while(id > currentKey)
 			readPair();
 		if (id < currentKey || id == Long.MAX_VALUE){
@@ -185,7 +186,7 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 			currentVal = dis.readInt();
 		} catch (IOException e){
 			System.out.println(e);
-			throw new SplitFailedException("Failed to read from temp file" + tmpFile);
+			throw new SplitFailedException("Failed to read from temp file " + tmpFile);
 		}
 	}
 
