@@ -1,5 +1,6 @@
 package uk.me.parabola.splitter;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
@@ -103,7 +104,7 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 	private long[][][] maskStore; 
 	private int[] freePosInSore;
 	// maps chunks that can be reused  
-	private Long2ObjectOpenHashMap<LongArrayList> reusableChunks;
+	private Int2ObjectOpenHashMap<LongArrayList> reusableChunks;
 	
 	/**
 	 * A map that stores pairs of (OSM) IDs and short values identifying the
@@ -355,12 +356,12 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 	@Override
 	public void clear() {
 		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
-		topMap = new Long2ObjectOpenHashMap<long[]>();
+		topMap = new Long2ObjectOpenHashMap<>();
 		chunkStore = new short[CHUNK_SIZE+1][][];
 		maskStore = new long[CHUNK_SIZE+1][][];
 		freePosInSore = new int[CHUNK_SIZE+1];
 		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
-		reusableChunks = new Long2ObjectOpenHashMap<LongArrayList>();
+		reusableChunks = new Int2ObjectOpenHashMap<>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -414,13 +415,10 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 			maskStore[x] = new long[2][];
 		}
 		LongArrayList reusableChunk = reusableChunks.get(x); 
-		Long reusedIdx = null; 
 		int y,z;
 		short []store;
 		if (reusableChunk != null && reusableChunk.isEmpty() == false){
-			reusedIdx = reusableChunk.remove(reusableChunk.size()-1);
-		}
-		if (reusedIdx != null){
+			long reusedIdx = reusableChunk.removeLong(reusableChunk.size()-1);
 			y = (int) ((reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK);
 			z = (int) ((reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK);
 			store = chunkStore[x][y];

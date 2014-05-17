@@ -357,12 +357,12 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	@Override
 	public void clear() {
 		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
-		topMap = new Long2ObjectOpenHashMap<int[]>();
+		topMap = new Long2ObjectOpenHashMap<>();
 		chunkStore = new short[CHUNK_SIZE+1][][];
 		maskStore = new long[CHUNK_SIZE+1][][];
 		freePosInSore = new int[CHUNK_SIZE+1];
 		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
-		reusableChunks = new Int2ObjectOpenHashMap<IntArrayList>();
+		reusableChunks = new Int2ObjectOpenHashMap<>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -416,13 +416,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			maskStore[x] = new long[2][];
 		}
 		IntArrayList reusableChunk = reusableChunks.get(x); 
-		Integer reusedIdx = null; 
 		int y,z;
 		short []store;
 		if (reusableChunk != null && reusableChunk.isEmpty() == false){
-			reusedIdx = reusableChunk.remove(reusableChunk.size()-1);
-		}
-		if (reusedIdx != null){
+			int reusedIdx = reusableChunk.removeInt(reusableChunk.size()-1);
 			y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 			z = (reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 			store = chunkStore[x][y];
