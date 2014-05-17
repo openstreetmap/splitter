@@ -779,12 +779,12 @@ public class SplittableDensityArea {
 				}
 			} 
 			else {
+				long lastBad = badMinNodes.get(spread);
+				if (lastBad == badMinNodes.defaultReturnValue() || lastBad > minNodes){
+					badMinNodes.put(spread, minNodes);
+					lastBad = minNodes;
+				}
 				if ((spread >= MAX_SPREAD && bestSolution.isEmpty() == false)){
-					long lastBad = badMinNodes.get(spread);
-					if (lastBad == badMinNodes.defaultReturnValue() || lastBad > minNodes){
-						badMinNodes.put(spread, minNodes);
-						lastBad = minNodes;
-					}
 					if (minNodes > bestSolution.getWorstMinNodes() + 1){
 						// reduce minNodes
 						minNodes = (bestSolution.getWorstMinNodes() + lastBad) / 2;
