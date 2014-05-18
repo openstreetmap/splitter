@@ -771,7 +771,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			return null;
 		}
 
-		return new Rectangle(minLon, minLat, maxLon-minLon, maxLat-minLat);
+		return new Rectangle(minLon, minLat, Math.max(1, maxLon-minLon), Math.max(1,maxLat-minLat));
 	}
 
 	/**
