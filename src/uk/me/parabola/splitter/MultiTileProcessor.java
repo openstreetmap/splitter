@@ -225,7 +225,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			}
 			problemRels = null;
 			// reallocate to the needed size
-			relMap = new Long2ObjectLinkedOpenHashMap<>();
+			relMap = new Long2ObjectLinkedOpenHashMap<>(relMap);
 			mpWayEndNodesMap = new OSMId2ObjectMap<>();
 			//System.out.println("Finished adding parents and members of problem relations to problem lists.");
 			System.out.println("Finished adding members of problem relations to problem lists.");
