@@ -1321,9 +1321,6 @@ public class SplittableDensityArea {
 						note = " but is already at the minimum size so can't be split further";
 					else
 						note = "";
-					if (maxNodes == 0){
-						long dd = 4;
-					}
 					long percentage = 100 * tile.count / maxNodes;
 					System.out.println("Area " + currMapId++ + " covers " + area 
 							+ " and contains " + tile.count + " nodes (" + percentage + " %)" + note);
