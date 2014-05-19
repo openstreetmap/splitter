@@ -30,8 +30,8 @@ public class SparseBitSet{
 	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);  
 	private static final int MID_ID_SHIFT = Integer.numberOfTrailingZeros(~LOW_MASK);  
 
-	private Long2ObjectOpenHashMap<Int2LongOpenHashMap> topMap = new Long2ObjectOpenHashMap<Int2LongOpenHashMap>();
-	private int setBits;
+	private Long2ObjectOpenHashMap<Int2LongOpenHashMap> topMap = new Long2ObjectOpenHashMap<>();
+	private long bitCount;
   
   public void set(long key){
       long topId = key >> TOP_ID_SHIFT;
@@ -50,7 +50,7 @@ public class SparseBitSet{
           val |= chunk;
       }
       midMap.put(midId, val); 
-      ++setBits;
+      ++bitCount;
   }
 
   public void clear(long key){
@@ -75,7 +75,7 @@ public class SparseBitSet{
       }
       else 
     	  midMap.put(midId, chunk);
-      --setBits;
+      --bitCount;
   }
   
   public boolean get(long key){
@@ -94,11 +94,13 @@ public class SparseBitSet{
 
   public void clear(){
 	  topMap.clear();
-	  setBits = 0;
+	  bitCount = 0;
   }
   
   public int cardinality(){
-	  return setBits;
+	  if (bitCount > Integer.MAX_VALUE)
+		  throw new SplitFailedException("cardinality too high for int " + bitCount);
+	  return (int) bitCount;
   }
 }
 

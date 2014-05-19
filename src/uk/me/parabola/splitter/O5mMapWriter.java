@@ -299,21 +299,19 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		    	writeUnsignedNum(ref, stream);  // write just the reference
 		    	return;
 		    }  // end   we found the string (pair) in the table
-		    else {  // we did not find the string (pair) in the table
-		    	// write string data
+			// write string data
+			stream.write(0x00); 
+			stream.write(s1Bytes);
+			stream.write(0x00); 
+			if (s2Bytes != null){
+				stream.write(s2Bytes);
 				stream.write(0x00); 
-				stream.write(s1Bytes);
-				stream.write(0x00); 
-				if (s2Bytes != null){
-					stream.write(s2Bytes);
-					stream.write(0x00); 
-				}
-		    	
-				if(hash < 0){  // string (pair) too long,
-					// cannot be stored in string table
-					return;
-				}
-		    }  // end   we did not find the string (pair) in the table
+			}
+			
+			if(hash < 0){  // string (pair) too long,
+				// cannot be stored in string table
+				return;
+			}
 		}  // end   try to find a matching string (pair) in string table
 		// here: there is no matching string (pair) in the table
 

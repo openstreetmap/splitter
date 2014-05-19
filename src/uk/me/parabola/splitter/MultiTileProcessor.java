@@ -15,7 +15,10 @@ package uk.me.parabola.splitter;
 import uk.me.parabola.splitter.Relation.Member;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
+
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -23,8 +26,6 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * Analyzes elements that should be written to multiple tiles 
@@ -48,7 +49,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private int phase = PHASE1_RELS_ONLY;
 	private final DataStorer dataStorer;
 	private final WriterDictionaryInt multiTileDictionary;
-	private Long2ObjectLinkedOpenHashMap<MTRelation> relMap = new Long2ObjectLinkedOpenHashMap<MultiTileProcessor.MTRelation>();
+	private Long2ObjectLinkedOpenHashMap<MTRelation> relMap = new Long2ObjectLinkedOpenHashMap<>();
 	private Long2IntClosedMapFunction nodeWriterMap;
 	private Long2IntClosedMapFunction wayWriterMap;
 	private Long2IntClosedMapFunction relWriterMap;
@@ -215,17 +216,18 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				markParentRels();
 			}
 			// free memory for rels that are not causing any trouble
-			Iterator<Entry<Long, MTRelation>> it = relMap.entrySet().iterator();
+			ObjectIterator<Entry<MTRelation>> it = relMap.long2ObjectEntrySet().fastIterator();
 			while (it.hasNext()) {
-				Map.Entry<Long,MTRelation> pairs = it.next();
-				if (!problemRels.get(pairs.getKey())){
+				Entry<MTRelation> pairs = it.next();
+				if (!problemRels.get(pairs.getLongKey())){
 					it.remove(); 
 				}
 			}
 			problemRels = null;
 			// reallocate to the needed size
-			relMap = new Long2ObjectLinkedOpenHashMap<MultiTileProcessor.MTRelation>(relMap);
-			mpWayEndNodesMap = new OSMId2ObjectMap<MultiTileProcessor.JoinedWay>();
+			relMap = new Long2ObjectLinkedOpenHashMap<>(relMap);
+			
+			mpWayEndNodesMap = new OSMId2ObjectMap<>();
 			//System.out.println("Finished adding parents and members of problem relations to problem lists.");
 			System.out.println("Finished adding members of problem relations to problem lists.");
 			stats("starting to collect ids of needed way nodes ...");
@@ -239,7 +241,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			// critical part: we have to allocate possibly large arrays here
 			nodeWriterMap = new Long2IntClosedMap("node", neededNodesCount, WriterDictionaryInt.UNASSIGNED);
 			wayWriterMap = new Long2IntClosedMap("way", foundWays, WriterDictionaryInt.UNASSIGNED);
-			wayBboxMap = new OSMId2ObjectMap<Rectangle>();
+			wayBboxMap = new OSMId2ObjectMap<>();
 			dataStorer.setWriterMap(DataStorer.NODE_TYPE, nodeWriterMap);
 			dataStorer.setWriterMap(DataStorer.WAY_TYPE, wayWriterMap);
 			nodeLons = new int[neededNodesCount];
@@ -268,11 +270,12 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 			wayBboxMap = null;
 			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), WriterDictionaryInt.UNASSIGNED);
-			for (Map.Entry<Long, MTRelation> entry: relMap.entrySet()) {
+			
+			for (Entry<MTRelation> entry : relMap.long2ObjectEntrySet()){
 				int val = entry.getValue().getMultiTileWriterIndex();
 				if (val != WriterDictionaryInt.UNASSIGNED){
 					try{
-						relWriterMap.add(entry.getKey(), val);
+						relWriterMap.add(entry.getLongKey(), val);
 					}catch (IllegalArgumentException e){
 						System.err.println(e);
 						throw new SplitFailedException(NOT_SORTED_MSG); 
@@ -295,7 +298,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * Mark all members of given problem relations as problem cases. 
 	 */
 	private void markProblemMembers() {
-		ArrayList<MTRelation> visited = new ArrayList<MultiTileProcessor.MTRelation>();
+		ArrayList<MTRelation> visited = new ArrayList<>();
 		for (MTRelation rel: relMap.values()){
 			if (!problemRels.get(rel.getId()))
 				continue;
@@ -424,7 +427,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 */
 	private void calcWritersOfMultiPolygonRels() {
 		// recurse thru sub relations
-		ArrayList<MTRelation> visited = new ArrayList<MultiTileProcessor.MTRelation>();
+		ArrayList<MTRelation> visited = new ArrayList<>();
 		
 		for (MTRelation rel: relMap.values()){
 			BitSet relWriters = new BitSet();
@@ -452,7 +455,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 */
 	private void mergeRelMemWriters() {
 		// or combine the writers of sub-relations with the parent relation 
-		ArrayList<MTRelation> visited = new ArrayList<MultiTileProcessor.MTRelation>();
+		ArrayList<MTRelation> visited = new ArrayList<>();
 		for (MTRelation rel: relMap.values()){
 			incVisitID();
 			visited.clear();
@@ -780,7 +783,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (visitId == Integer.MAX_VALUE){
 			// unlikely
 			visitId = 0;
-			for (Map.Entry<Long, MTRelation> entry : relMap.entrySet()){
+			for (Entry<MTRelation> entry : relMap.long2ObjectEntrySet()){
 				entry.getValue().setVisitId(visitId);
 			}
 		}
@@ -790,7 +793,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	/*
 	 * Report a loop in a relation 
 	 */
-	void loopAction(MTRelation rel, MTRelation subRel, ArrayList<MTRelation> visited){
+	static void loopAction(MTRelation rel, MTRelation subRel, ArrayList<MTRelation> visited){
 		if (subRel.isOnLoop())
 			return; // don't complain again
 		if (rel.getId() == subRel.getId()){
@@ -820,7 +823,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 */
 	private void checkSpecialMP(BitSet relWriters, MTRelation rel) {
 		long[] joinedWays = null;
-		List<Long> wayMembers = new LinkedList<Long>();
+		List<Long> wayMembers = new LinkedList<>();
 		LongArrayList polygonWays = new LongArrayList();
 		for (int i = 0; i < rel.numMembers; i++){
 			long memId = rel.memRefs[i];
@@ -846,30 +849,28 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						hasMissingWays = true;
 						continue;
 					}
-					else {
-						long mpWayStart = mpWay.startNode;
-						long mpWayEnd = mpWay.endNode;
-						added = true;
-						if (joinedWays == null){
-							joinedWays = new long[2];
-							joinedWays[0] = mpWayStart;
-							joinedWays[1] = mpWayEnd; 
-						}
-						else if (joinedWays[0] == mpWayStart){
-							joinedWays[0] = mpWayEnd;
-						}
-						else if (joinedWays[0] == mpWayEnd){
-							joinedWays[0] = mpWayStart;
-						}
-						else if (joinedWays[1] == mpWayStart){
-							joinedWays[1] = mpWayEnd;
-						}
-						else if (joinedWays[1] == mpWayEnd){
-							joinedWays[1] = mpWayStart;
-						}
-						else 
-							added = false;
+					long mpWayStart = mpWay.startNode;
+					long mpWayEnd = mpWay.endNode;
+					added = true;
+					if (joinedWays == null){
+						joinedWays = new long[2];
+						joinedWays[0] = mpWayStart;
+						joinedWays[1] = mpWayEnd; 
 					}
+					else if (joinedWays[0] == mpWayStart){
+						joinedWays[0] = mpWayEnd;
+					}
+					else if (joinedWays[0] == mpWayEnd){
+						joinedWays[0] = mpWayStart;
+					}
+					else if (joinedWays[1] == mpWayStart){
+						joinedWays[1] = mpWayEnd;
+					}
+					else if (joinedWays[1] == mpWayEnd){
+						joinedWays[1] = mpWayStart;
+					}
+					else 
+						added = false;
 					if (added){
 						changed = true;
 						wayMembers.remove(i);

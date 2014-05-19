@@ -97,22 +97,21 @@ public class ParamConverter {
 			int cpuCores = Runtime.getRuntime().availableProcessors();
 			if ("auto".equals(value)) {
 				return new ThreadCount(cpuCores, true);
-			} else {
-				int threads = 0;
-				boolean valid = false;
-				try {
-					threads = Integer.valueOf(value);
-					if (threads >= 1) {
-						valid = true;
-					}
-				} catch (NumberFormatException e) {
-				}
-				if (!valid) {
-					throw new IllegalArgumentException(
-							'\'' + value + "' should be a number >= 1, or 'auto' to use all available CPU cores.");
-				}
-				return new ThreadCount(threads, false);
 			}
+			int threads = 0;
+			boolean valid = false;
+			try {
+				threads = Integer.valueOf(value);
+				if (threads >= 1) {
+					valid = true;
+				}
+			} catch (NumberFormatException e) {
+			}
+			if (!valid) {
+				throw new IllegalArgumentException(
+						'\'' + value + "' should be a number >= 1, or 'auto' to use all available CPU cores.");
+			}
+			return new ThreadCount(threads, false);
 		}
 	}
 }

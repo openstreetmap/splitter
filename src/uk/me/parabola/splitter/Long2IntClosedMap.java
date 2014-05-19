@@ -21,6 +21,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -92,38 +93,38 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	public void switchToSeqAccess(File directory) throws IOException {
 		tmpFile = File.createTempFile(name,null,directory);
 		tmpFile.deleteOnExit();
-		FileOutputStream fos = new FileOutputStream(tmpFile);
-		BufferedOutputStream stream = new BufferedOutputStream(fos);
-		DataOutputStream dos = new DataOutputStream(stream);
-		long lastKey = Long.MIN_VALUE;
-		for (int indexPos = 0; indexPos < index.size(); indexPos++){
-			long topId = index.getLong(indexPos);
-			int lowerBound = bounds.getInt(indexPos);
-			int upperBound = size;
-			if (indexPos+1 < index.size())
-				upperBound = bounds.getInt(indexPos+1);
-			long topVal = topId << TOP_ID_SHIFT;
-			for (int i = lowerBound; i <  upperBound; i++){
-				long key = topVal | (keys[i] & LOW_ID_MASK);
-				int val = vals[i];
-				assert i == 0  || lastKey < key;
-				lastKey = key;
-				if (val != unassigned){
-					dos.writeLong(key);
-					dos.writeInt(val);
+		try (FileOutputStream fos = new FileOutputStream(tmpFile);
+				BufferedOutputStream stream = new BufferedOutputStream(fos);
+				DataOutputStream dos = new DataOutputStream(stream)) {
+			long lastKey = Long.MIN_VALUE;
+			for (int indexPos = 0; indexPos < index.size(); indexPos++){
+				long topId = index.getLong(indexPos);
+				int lowerBound = bounds.getInt(indexPos);
+				int upperBound = size;
+				if (indexPos+1 < index.size())
+					upperBound = bounds.getInt(indexPos+1);
+				long topVal = topId << TOP_ID_SHIFT;
+				for (int i = lowerBound; i <  upperBound; i++){
+					long key = topVal | (keys[i] & LOW_ID_MASK);
+					int val = vals[i];
+					assert i == 0  || lastKey < key;
+					lastKey = key;
+					if (val != unassigned){
+						dos.writeLong(key);
+						dos.writeInt(val);
+					}
 				}
 			}
+			// write sentinel
+			dos.writeLong(Long.MAX_VALUE);
+			dos.writeInt(Integer.MAX_VALUE);
+			keys = null;
+			vals = null;
+			index = null;
+			bounds = null;
+			currentKey = Long.MIN_VALUE;
+			System.out.println("Wrote " + size + " " + name + " pairs to " + tmpFile.getAbsolutePath());
 		}
-		// write sentinel
-		dos.writeLong(Long.MAX_VALUE);
-		dos.writeInt(Integer.MAX_VALUE);
-		dos.close();
-		keys = null;
-		vals = null;
-		index = null;
-		bounds = null;
-		currentKey = Long.MIN_VALUE;
-		System.out.println("Wrote " + size + " " + name + " pairs to " + tmpFile.getAbsolutePath());
 	}
 
 	@Override
@@ -165,11 +166,7 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public int getSeq(long id){
 		if (currentKey == Long.MIN_VALUE){
-			try{
-				open();
-			} catch (IOException e) {
-				// TODO: handle exception
-			}
+			dis = null;
 			readPair();
 		}
 		while(id > currentKey)
@@ -187,13 +184,13 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 				open();
 			currentKey = dis.readLong();
 			currentVal = dis.readInt();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (IOException e){
+			System.out.println(e);
+			throw new SplitFailedException("Failed to read from temp file " + tmpFile);
 		}
 	}
 
-	void open() throws IOException{
+	private void open() throws FileNotFoundException{
 		FileInputStream fis = new FileInputStream(tmpFile);
 		BufferedInputStream stream = new BufferedInputStream(fis);
 		dis = new DataInputStream(stream);
@@ -202,22 +199,23 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public void finish() {
 		if (tmpFile != null && tmpFile.exists()){
-			try {
-				close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			close();
 			tmpFile.delete();
 			System.out.println("temporary file " + tmpFile.getAbsolutePath() + " was deleted");
 		}
 	}
 
 	@Override
-	public void close() throws IOException {
+	public void close() {
 		currentKey = Long.MIN_VALUE;
 		currentVal = unassigned;
 		if (dis != null)
-			dis.close();
+			try {
+				dis.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 	}
 
 	@Override
@@ -236,7 +234,6 @@ class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public void stats(String prefix) {
 		System.out.println(prefix + name + "WriterMap contains " + Utils.format(size) + " pairs.");
-		
 	}
 }
 

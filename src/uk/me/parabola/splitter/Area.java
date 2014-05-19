@@ -76,6 +76,16 @@ public class Area {
 		maxLong = 0;
 	}
 
+	public boolean verify(){
+		if (minLat > maxLat || minLong > maxLong
+				|| minLong < Utils.MIN_LON_MAP_UNITS
+				|| maxLong > Utils.MAX_LON_MAP_UNITS
+				|| minLat < Utils.MIN_LAT_MAP_UNITS
+				|| maxLat > Utils.MAX_LAT_MAP_UNITS)
+			return false;
+		return true;
+	}
+	
 	
 	public Rectangle getRect(){
 		if (javaRect == null)

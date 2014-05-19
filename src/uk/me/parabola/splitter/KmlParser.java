@@ -118,6 +118,9 @@ public class KmlParser extends AbstractXppParser {
 			int maxLat = currentCoords[5];
 			int maxLon = currentCoords[4];
 			Area a = new Area(minLat, minLon, maxLat, maxLon);
+			if (!a.verify())
+				throw new IllegalArgumentException("invalid area " + currentId + " in split file: " + a);
+			
 			a.setMapId(currentId);
 			areas.add(a);
 			state = State.None;

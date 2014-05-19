@@ -229,6 +229,8 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 					Utils.toMapUnit(leftf),
 					Utils.toMapUnit(topf),
 					Utils.toMapUnit(rightf));
+			if (!area.verify())
+				throw new IllegalArgumentException("invalid bbox area in pbf file: " + area);
 			processor.boundTag(area);
 		}
 	}

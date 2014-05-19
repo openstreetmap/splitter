@@ -37,7 +37,7 @@ interface Long2IntClosedMapFunction {
 	 * Get the value for the key from a map that was written to temporary
 	 * file. 
 	 * @param key the key
-	 * @return unassigned if the current key is higher, the vaue if the key matches  
+	 * @return unassigned if the current key is higher, the value if the key matches  
 	 */
 	public int getSeq(long key);
 	
@@ -49,7 +49,7 @@ interface Long2IntClosedMapFunction {
 	void finish();
 	
 	/** 
-	 * Cclose the temp file, reset the current values. Use this to start
+	 * Close the temp file, reset the current values. Use this to start
 	 * from the beginning.
 	 * @throws IOException
 	 */

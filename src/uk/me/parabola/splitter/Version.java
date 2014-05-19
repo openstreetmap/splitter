@@ -47,35 +47,34 @@ public class Version {
 	 * cannot be found.
 	 */
 	private static String getSvnVersion() {
-		InputStream is = Version.class.getResourceAsStream("/splitter-version.properties");
-		if (is == null)
-			return DEFAULT_VERSION;
+		try (InputStream is = Version.class
+				.getResourceAsStream("/splitter-version.properties")) {
+			if (is == null)
+				return DEFAULT_VERSION;
 
-		Properties props = new Properties();
-		try {
+			Properties props = new Properties();
 			props.load(is);
+			String version = props.getProperty("svn.version", DEFAULT_VERSION);
+			if (version.matches("[1-9]+.*"))
+				return version;
+			return DEFAULT_VERSION;
 		} catch (IOException e) {
 			return DEFAULT_VERSION;
 		}
-		String version = props.getProperty("svn.version", DEFAULT_VERSION);
-		if (version.matches("[1-9]+.*"))
-			return version;
-		else 
-			return DEFAULT_VERSION;
 	}
 	private static String getTimeStamp() {
-		InputStream is = Version.class.getResourceAsStream("/splitter-version.properties");
-		if (is == null)
-			return DEFAULT_TIMESTAMP;
+		try (InputStream is = Version.class
+				.getResourceAsStream("/splitter-version.properties")) {
+			if (is == null)
+				return DEFAULT_TIMESTAMP;
 
-		Properties props = new Properties();
-		try {
+			Properties props = new Properties();
 			props.load(is);
+
+			return props.getProperty("build.timestamp", DEFAULT_TIMESTAMP);
 		} catch (IOException e) {
 			return DEFAULT_TIMESTAMP;
 		}
-
-		return props.getProperty("build.timestamp", DEFAULT_TIMESTAMP);
 	}
 }
 

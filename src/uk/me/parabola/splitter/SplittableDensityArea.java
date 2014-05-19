@@ -13,6 +13,7 @@
 
 package uk.me.parabola.splitter;
 
+import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.awt.Point;
@@ -20,7 +21,6 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
@@ -53,8 +53,7 @@ public class SplittableDensityArea {
 	private long maxNodes;
 	private final int shift;
 	private HashSet<Tile> cache;
-	private HashMap<Integer, Long> badMinNodes = new HashMap<>();
-	private final HashMap<Rectangle,Long> knownTileCounts;
+	private Int2LongOpenHashMap badMinNodes; 
 	private int [][]yxMap;
 	private int [][]xyMap;
 	private final int maxTileHeight;
@@ -67,7 +66,6 @@ public class SplittableDensityArea {
 	enum sides {TOP,RIGHT,BOTTOM,LEFT}
 	
 	public SplittableDensityArea(DensityMap densities) {
-		knownTileCounts = new HashMap<Rectangle, Long>();
 		this.shift = densities.getShift();
 		maxTileHeight = Utils.toMapUnit(MAX_LAT_DEGREES) / (1 << shift);
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
@@ -76,6 +74,11 @@ public class SplittableDensityArea {
 	public void setMapId(int mapId) {
 		currMapId = mapId;
 	}
+
+	public void setMaxNodes(long maxNodes) {
+		this.maxNodes = maxNodes;
+	}
+
 
 	public void setTrim(boolean trim) {
 		this.trimShape = trim;
@@ -97,9 +100,7 @@ public class SplittableDensityArea {
 	 * @return a list of areas, each containing no more than {@code maxNodes} nodes.
 	 * Each area returned must be aligned to the appropriate overview map resolution.
 	 */ 	
-	public List<Area> split(long maxNodes) {
-		this.maxNodes = maxNodes; 
-		
+	private List<Area> split() {
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
 		prepare(null);
@@ -120,8 +121,7 @@ public class SplittableDensityArea {
 				// don't try again to find a solution
 				if (startSolution == null)
 					return Collections.emptyList();
-				else 
-					return startSolution.getAreas(null);
+				return startSolution.getAreas(null);
 			}
 		}			
 		if (!beQuiet)
@@ -145,10 +145,16 @@ public class SplittableDensityArea {
 		return fullSolution.getAreas(null);
 	}
 
-	private List<Area> split(long maxNodes, java.awt.geom.Area polygonArea) {
-		this.maxNodes = maxNodes;
+	/**
+	 * Split with a given polygon and max nodes threshold. If the polygon
+	 * is not singular, it is divided into singular areas.
+	 * @param maxNodes
+	 * @param polygonArea
+	 * @return
+	 */
+	private List<Area> split(java.awt.geom.Area polygonArea) {
 		if (polygonArea == null)
-			return split(maxNodes);
+			return split();
 		if (polygonArea.isSingular()){
 			java.awt.geom.Area rasteredArea = allDensities.rasterPolygon(polygonArea);
 			if (rasteredArea.isEmpty()){
@@ -160,30 +166,27 @@ public class SplittableDensityArea {
 			Tile tile = new Tile(rasteredArea.getBounds().x,rasteredArea.getBounds().y,rasteredArea.getBounds().width,rasteredArea.getBounds().height);
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
 			return solution.getAreas(polygonArea);
-		} else {
-			if (polygonArea.intersects(Utils.area2Rectangle(allDensities.getBounds(),0)))
-				return splitPolygon(polygonArea);
-			else {
-				System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
-				return Collections.emptyList();
-			}
 		}
+		if (polygonArea.intersects(Utils.area2Rectangle(allDensities.getBounds(),0)))
+			return splitPolygon(polygonArea);
+		System.err.println("Bounding polygon doesn't intersect with the bounding box of the input file(s)");
+		return Collections.emptyList();
 	}
 
 	/**
 	 * Split a list of named polygons. Overlapping areas of the polygons are
-	 * extracted. 
-	 * @param maxNodes
+	 * extracted and each one is split for itself. A polygon may not be singular. 
+	 * @param maxNodes 
 	 * @param namedPolygons
 	 * @return
 	 */
-	public List<Area> split(long maxNodes, List<PolygonDesc> namedPolygons) {
+	public List<Area> split(List<PolygonDesc> namedPolygons) {
 		if (namedPolygons.isEmpty())
-			return split(maxNodes);
+			return split();
 		List<Area> result = new ArrayList<>();
 		class ShareInfo {
 			java.awt.geom.Area area;
-			final List<Integer> sharedBy = new ArrayList<>();
+			final IntArrayList sharedBy = new IntArrayList();
 		}
 		List<ShareInfo> sharedParts = new ArrayList<>();
 		for (int i = 0; i < namedPolygons.size(); i++){
@@ -213,7 +216,7 @@ public class SplittableDensityArea {
 					System.out.println("splitting distinct part of " + namedPart.name);
 				else 
 					System.out.println("splitting " + namedPart.name);
-				result.addAll(split(maxNodes, distinctPart));
+				result.addAll(split(distinctPart));
 			}
 		}
 		
@@ -227,7 +230,7 @@ public class SplittableDensityArea {
 				test.intersect(namedPolygons.get(j).area);
 				if (test.isEmpty() == false){
 					si.area.subtract(test);
-					if (j > si.sharedBy.get(si.sharedBy.size()-1)){
+					if (j > si.sharedBy.getInt(si.sharedBy.size()-1)){
 						ShareInfo si2 = new ShareInfo();
 						si2.area = test;
 						si2.sharedBy.addAll(si.sharedBy);
@@ -240,17 +243,25 @@ public class SplittableDensityArea {
 			}
 			if (si.area.isEmpty() == false && si.area.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
 				String desc = "";
-				for (Integer pos : si.sharedBy)
+				for (int pos : si.sharedBy)
 					desc += namedPolygons.get(pos).name + " and ";
 				desc = desc.substring(0,desc.lastIndexOf(" and"));
 				System.out.println("splitting area shared by exactly " + si.sharedBy.size() + " polygons: " + desc);
 //				KmlWriter.writeKml("e:/ld_sp/shared_"+desc.replace(" " , "_"), desc, si.area);
-				result.addAll(split(maxNodes, si.area));
+				result.addAll(split(si.area));
 			}
 		}
 		return result;
 	}
 
+	/**
+	 * Split a list of named polygons into a given number of tiles.
+	 * This is probably only useful with an empty list of polygons
+	 * or a list containing one polygon.
+	 * @param namedPolygons
+	 * @param wantedTiles
+	 * @return
+	 */
 	public List<Area> split(List<PolygonDesc> namedPolygons, int wantedTiles) {
 		long currMaxNodes = this.allDensities.getNodeCount() / wantedTiles;
 		class Pair {
@@ -266,42 +277,41 @@ public class SplittableDensityArea {
 		Pair bestAbove = null;
 		beQuiet = true;
 		while (true) {
+			setMaxNodes(currMaxNodes);
 			System.out.println("Trying a max-nodes value of " + currMaxNodes + " to split " + allDensities.getNodeCount() + " nodes into " + wantedTiles + " areas");
-			List<Area> res = split(currMaxNodes, namedPolygons);
+			List<Area> res = split(namedPolygons);
 			if (res.isEmpty() || res.size() == wantedTiles){
 				beQuiet = false;
-				res = split(currMaxNodes, namedPolygons);
+				res = split(namedPolygons);
 				return res;
 			}
-			else {
-				Pair pair = new Pair(currMaxNodes, res.size());
-				if (res.size() > wantedTiles){
-					if (bestAbove == null)
-						bestAbove = pair;
-					else if (bestAbove.numTiles > pair.numTiles)
-						bestAbove = pair;
-					else  if (bestAbove.numTiles == pair.numTiles && pair.maxNodes < bestAbove.maxNodes)
-						bestAbove = pair;
-				} else {
-					if (bestBelow == null)
-						bestBelow = pair;
-					else if (bestBelow.numTiles < pair.numTiles)
-						bestBelow = pair;
-					else  if (bestBelow.numTiles == pair.numTiles && pair.maxNodes > bestBelow.maxNodes)
-						bestBelow = pair;
-				}
-				long testMaxNodes;
-				if (bestBelow == null || bestAbove == null)
-					testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
-				else 
-					testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
-				
-				if (testMaxNodes == currMaxNodes){
-					System.err.println("Cannot find split with exactly " + wantedTiles + " areas");
-					return res;
-				}
-				currMaxNodes = testMaxNodes;
+			Pair pair = new Pair(currMaxNodes, res.size());
+			if (res.size() > wantedTiles){
+				if (bestAbove == null)
+					bestAbove = pair;
+				else if (bestAbove.numTiles > pair.numTiles)
+					bestAbove = pair;
+				else  if (bestAbove.numTiles == pair.numTiles && pair.maxNodes < bestAbove.maxNodes)
+					bestAbove = pair;
+			} else {
+				if (bestBelow == null)
+					bestBelow = pair;
+				else if (bestBelow.numTiles < pair.numTiles)
+					bestBelow = pair;
+				else  if (bestBelow.numTiles == pair.numTiles && pair.maxNodes > bestBelow.maxNodes)
+					bestBelow = pair;
 			}
+			long testMaxNodes;
+			if (bestBelow == null || bestAbove == null)
+				testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
+			else 
+				testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
+			
+			if (testMaxNodes == currMaxNodes){
+				System.err.println("Cannot find split with exactly " + wantedTiles + " areas");
+				return res;
+			}
+			currMaxNodes = testMaxNodes;
 		} 
 	}
 
@@ -416,7 +426,7 @@ public class SplittableDensityArea {
 				}
 			}
 		}
-		ArrayList<Tile> clusters = new ArrayList<Tile>();
+		ArrayList<Tile> clusters = new ArrayList<>();
 		if (depth == 0 && area.isSingular()){
 			// try also the other split axis 
 			clusters.addAll(checkForEmptyClusters(depth + 1, tile.trim(), !splitHoriz ));
@@ -443,7 +453,7 @@ public class SplittableDensityArea {
 	 * @return a list of areas that cover the polygon
 	 */
 	private List<Area> splitPolygon(final java.awt.geom.Area polygonArea) {
-		List<Area> result = new ArrayList<Area>();
+		List<Area> result = new ArrayList<>();
 		List<List<Point>> shapes = Utils.areaToShapes(polygonArea);
 		for (int i = 0; i < shapes.size(); i++){
 			List<Point> shape = shapes.get(i);
@@ -459,12 +469,13 @@ public class SplittableDensityArea {
 			int resolution = 24-allDensities.getShift();
 			shapeBounds  = RoundingUtils.round(shapeBounds, resolution);
 			SplittableDensityArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds));
+			splittableArea.setMaxNodes(maxNodes);
 			if (splittableArea.hasData() == false){
 				System.out.println("Warning: a part of the bounding polygon would be empty and is ignored:" + shapeBounds);
 				//result.add(shapeBounds);
 				continue;
 			}
-			List<Area> partResult = splittableArea.split(maxNodes, shapeArea);
+			List<Area> partResult = splittableArea.split(shapeArea);
 			if (partResult != null)
 				result.addAll(partResult);
 		}
@@ -480,7 +491,7 @@ public class SplittableDensityArea {
 	 * @param rasteredPolygonArea an area describing a rectilinear shape
 	 * @return a solution or null if splitting failed
 	 */
-	private int rectangles = 0;
+//	private int rectangles = 0;
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
 		if (rasteredPolygonArea.isRectangular()){
@@ -488,65 +499,65 @@ public class SplittableDensityArea {
 			Tile part = new Tile(r.x, r.y, r.width, r.height);
 //			KmlWriter.writeKml("e:/ld_sp/rect"+rectangles, "rect", allDensities.getArea(r.x,r.y,r.width,r.height).getJavaArea());
 			return solveRectangularArea(part);
-		} else {
-			List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
-			List<Point> shape = shapes.get(0);
-			
-			if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
-				Rectangle r = rasteredPolygonArea.getBounds();
-				Tile part = new Tile(r.x, r.y, r.width, r.height);
-				System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
-				return solveRectangularArea(part);
-			}
-			
-			Rectangle pBounds = rasteredPolygonArea.getBounds();
-			int lastPoint = shape.size() - 1;
-			if (shape.get(0).equals(shape.get(lastPoint)))
-				--lastPoint;
-			for (int i = 0; i <= lastPoint; i++){
-				Point point = shape.get(i);
-				if (i > 0 && point.equals(shape.get(0)))
-					continue;
-				int cutX = point.x;
-				int cutY = point.y;
-				Solution part0Sol = null,part1Sol = null;
-				for (int axis = 0; axis < 2; axis++){
-					Rectangle r1,r2;
-					if (axis == AXIS_HOR){
-						r1 = new Rectangle(pBounds.x,pBounds.y,cutX-pBounds.x,pBounds.height);
-						r2 = new Rectangle(cutX,pBounds.y,(int)(pBounds.getMaxX()-cutX),pBounds.height);
-					} else {
-						r1 = new Rectangle(pBounds.x,pBounds.y,pBounds.width,cutY-pBounds.y);
-						r2 = new Rectangle(pBounds.x,cutY,pBounds.width,(int)(pBounds.getMaxY()-cutY));
-					}
-
-					if (r1.width * r1.height> r2.width * r2.height){
-						Rectangle help = r1;
-						r1 = r2;
-						r2 = help;
-					}
-					if (r1.isEmpty() == false && r2.isEmpty() == false){
-						java.awt.geom.Area area = new java.awt.geom.Area(r1);
-						area.intersect(rasteredPolygonArea);
-						
-						part0Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
-						if (part0Sol != null && part0Sol.isEmpty() == false){
-							area = new java.awt.geom.Area(r2);
-							area.intersect(rasteredPolygonArea);
-							part1Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
-							if (part1Sol != null && part1Sol.isEmpty() == false)
-								break;
-						}
-					}
-				}
-				if (part1Sol != null){
-					part0Sol.merge(part1Sol);
-					return part0Sol;
-				}
-			}
-			return null;
 		}
+		List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
+		List<Point> shape = shapes.get(0);
+		
+		if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
+			Rectangle r = rasteredPolygonArea.getBounds();
+			Tile part = new Tile(r.x, r.y, r.width, r.height);
+			System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
+			return solveRectangularArea(part);
+		}
+		
+		Rectangle pBounds = rasteredPolygonArea.getBounds();
+		int lastPoint = shape.size() - 1;
+		if (shape.get(0).equals(shape.get(lastPoint)))
+			--lastPoint;
+		for (int i = 0; i <= lastPoint; i++){
+			Point point = shape.get(i);
+			if (i > 0 && point.equals(shape.get(0)))
+				continue;
+			int cutX = point.x;
+			int cutY = point.y;
+			Solution part0Sol = null,part1Sol = null;
+			for (int axis = 0; axis < 2; axis++){
+				Rectangle r1,r2;
+				if (axis == AXIS_HOR){
+					r1 = new Rectangle(pBounds.x,pBounds.y,cutX-pBounds.x,pBounds.height);
+					r2 = new Rectangle(cutX,pBounds.y,(int)(pBounds.getMaxX()-cutX),pBounds.height);
+				} else {
+					r1 = new Rectangle(pBounds.x,pBounds.y,pBounds.width,cutY-pBounds.y);
+					r2 = new Rectangle(pBounds.x,cutY,pBounds.width,(int)(pBounds.getMaxY()-cutY));
+				}
+
+				if (r1.width * r1.height> r2.width * r2.height){
+					Rectangle help = r1;
+					r1 = r2;
+					r2 = help;
+				}
+				if (r1.isEmpty() == false && r2.isEmpty() == false){
+					java.awt.geom.Area area = new java.awt.geom.Area(r1);
+					area.intersect(rasteredPolygonArea);
+					
+					part0Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
+					if (part0Sol != null && part0Sol.isEmpty() == false){
+						area = new java.awt.geom.Area(r2);
+						area.intersect(rasteredPolygonArea);
+						part1Sol = findSolutionWithSinglePolygon(depth+1, tile, area);
+						if (part1Sol != null && part1Sol.isEmpty() == false)
+							break;
+					}
+				}
+			}
+			if (part1Sol != null){
+				part0Sol.merge(part1Sol);
+				return part0Sol;
+			}
+		}
+		return null;
 	}
+	
 	/**
 	 * Try to split the tile into nice parts recursively. 
 	 * @param depth the recursion depth
@@ -554,16 +565,13 @@ public class SplittableDensityArea {
 	 * @return a solution instance or null 
 	 */
 	private Solution findSolution(int depth, final Tile tile){
-		if (cache.size() > MAX_CACHE_SIZE)
-			return null;
 		boolean addAndReturn = false;
 		if (tile.count == 0){
 			if (!allowEmptyPart)
 				return null;
 			if  (tile.width * tile.height <= 4) 
 				return null;
-			else 
-				return new Solution(spread); // allow empty part of the world
+			return new Solution(spread); // allow empty part of the world
 		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
 			addAndReturn = true;  // can't split further
 		} else if (tile.count < minNodes && depth == 0) {
@@ -633,6 +641,9 @@ public class SplittableDensityArea {
 		int currX = 0, currY = 0;
 		int splitX  =-1, splitY = -1;
 		while(numTests-- > 0){
+			if (cache.size() > MAX_CACHE_SIZE)
+				return null;
+			
 			Tile[] parts;
 			if (offsets.isEmpty() == false){
 				int offset;
@@ -725,7 +736,8 @@ public class SplittableDensityArea {
 		spread = 0;
 		minNodes = 0;
 		maxAspectRatio = 1L<<allDensities.getShift();
-		badMinNodes = new HashMap<>();
+		badMinNodes = new Int2LongOpenHashMap();
+		badMinNodes.defaultReturnValue(-1);
 		
 		if (!beQuiet)
 			System.out.println("Trying to find nice split for " + startTile);
@@ -735,7 +747,7 @@ public class SplittableDensityArea {
 			double saveMaxAspectRatio = maxAspectRatio; 
 			double saveMinNodes = minNodes;
 			boolean foundBetter = false;
-			cache = new HashSet<SplittableDensityArea.Tile>();
+			cache = new HashSet<>();
 			System.out.println("searching for split with spread " + spread + " and min-nodes " + minNodes);
 			Solution solution = findSolution(0, startTile);
 			if (solution != null){
@@ -768,8 +780,8 @@ public class SplittableDensityArea {
 				}
 			} 
 			else {
-				Long lastBad = badMinNodes.get(spread);
-				if (lastBad == null || lastBad > minNodes){
+				long lastBad = badMinNodes.get(spread);
+				if (lastBad == badMinNodes.defaultReturnValue() || lastBad > minNodes){
 					badMinNodes.put(spread, minNodes);
 					lastBad = minNodes;
 				}
@@ -781,11 +793,11 @@ public class SplittableDensityArea {
 							minNodes = bestSolution.getWorstMinNodes() + 1;
 						if (bestSolution.spread < MAX_SPREAD)
 							spread = bestSolution.spread;
-						
+
 						System.out.println("restarting with min-nodes " + minNodes + " and spread " + spread);
 						continue;
 					}
-					
+
 					break; // no hope to find something better in a reasonable time
 				}
 			}
@@ -808,8 +820,8 @@ public class SplittableDensityArea {
 				
 				if (maxAspectRatio == saveMaxAspectRatio){
 					if (maxAspectRatio == NICE_MAX_ASPECT_RATIO) {
-						Long lastBad = badMinNodes.get(spread);
-						if (lastBad == null)
+						long lastBad = badMinNodes.get(spread);
+						if (lastBad == badMinNodes.defaultReturnValue())
 							minNodes = bestSolution.getWorstMinNodes() + (maxNodes - bestSolution.getWorstMinNodes() ) / 2;
 						else 
 							minNodes = bestSolution.getWorstMinNodes() + (lastBad - bestSolution.getWorstMinNodes() ) / 2;
@@ -855,13 +867,7 @@ public class SplittableDensityArea {
 		 */
 		public Tile(int x,int y, int width, int height) {
 			super(x,y,width,height);
-			Long knownCount = knownTileCounts.get(this);
-			if (knownCount == null){
-				count = calcCount();
-				knownTileCounts.put(this, this.count);
-			}
-			else
-				count = knownCount;
+			count = calcCount();
 		}
 
 		/**
@@ -878,7 +884,6 @@ public class SplittableDensityArea {
 			this.width = width;
 			this.height = height;
 			this.count = count; 
-			knownTileCounts.put(this, this.count);
 		}
 
 		/**
@@ -1083,21 +1088,14 @@ public class SplittableDensityArea {
 		public Tile[] splitHoriz(int splitX, long[] colSums) {
 			if (splitX <= 0 || splitX >= width)
 				return null;
-			Rectangle r = new Rectangle(x, y, splitX, height);
-			Long cachedCount = knownTileCounts.get(r);
-			long sum;
-			if (cachedCount != null)
-				sum = cachedCount;
-			else {
-				sum = 0;
-				assert colSums != null;
+			long sum = 0;
+			assert colSums != null;
 
-				for (int pos = 0; pos < splitX; pos++) {
-					if (colSums[pos] < 0){
-						colSums[pos] = getColSum(pos);
-					}
-					sum += colSums[pos];
+			for (int pos = 0; pos < splitX; pos++) {
+				if (colSums[pos] < 0){
+					colSums[pos] = getColSum(pos);
 				}
+				sum += colSums[pos];
 			}
 			if (sum == 0 || sum == count)
 				return null;
@@ -1117,20 +1115,13 @@ public class SplittableDensityArea {
 		public Tile[] splitVert(int splitY, long[] rowSums) {
 			if (splitY <= 0 || splitY >= height)
 				return null;
-			Rectangle r = new Rectangle(x, y, width, splitY);
-			Long cachedCount = knownTileCounts.get(r);
-			long sum;
-			if (cachedCount != null)
-				sum = cachedCount;
-			else {
-				assert rowSums != null;
-				sum = 0;
-				for (int pos = 0; pos < splitY; pos++) {
-					if (rowSums[pos] < 0){
-						rowSums[pos] = getRowSum(pos);
-					}
-					sum += rowSums[pos];
+			long sum = 0;
+			assert rowSums != null;
+			for (int pos = 0; pos < splitY; pos++) {
+				if (rowSums[pos] < 0){
+					rowSums[pos] = getRowSum(pos);
 				}
+				sum += rowSums[pos];
 			}
 			if (sum == 0 || sum == count)
 				return null;
@@ -1221,7 +1212,7 @@ public class SplittableDensityArea {
 		private final int spread;
 		
 		public Solution(int spread) {
-			tiles = new ArrayList<Tile>();
+			tiles = new ArrayList<>();
 			this.spread = spread;
 		}
 		
@@ -1294,8 +1285,7 @@ public class SplittableDensityArea {
 		 * @return list of areas
 		 */
 		public List<Area> getAreas(java.awt.geom.Area polygonArea) {
-			List<Area> result = new ArrayList<Area>();
-			int shift = allDensities.getShift();
+			List<Area> result = new ArrayList<>();
 			int minLat = allDensities.getBounds().getMinLat();
 			int minLon = allDensities.getBounds().getMinLong();
 			String note;

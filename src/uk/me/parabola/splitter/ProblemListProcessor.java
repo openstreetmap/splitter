@@ -99,8 +99,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	public boolean skipTags() {
 		if (phase == PHASE1_NODES_AND_WAYS)
 			return true;
-		else
-			return false;
+		return false;
 	}
 
 	@Override
@@ -365,7 +364,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	 * @param writerCombis
 	 * @return true if the combination of writers can contain a problem polygon
 	 */
-	boolean checkIfMultipleWriters(BitSet writerCombis){
+	static boolean checkIfMultipleWriters(BitSet writerCombis){
 		// this returns a few false positives for those cases
 		// where a way or rel crosses two pseudo-areas at a 
 		// place that is far away from the real writers

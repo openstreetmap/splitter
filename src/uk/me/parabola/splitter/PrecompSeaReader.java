@@ -14,7 +14,6 @@ package uk.me.parabola.splitter;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -81,24 +80,20 @@ public class PrecompSeaReader {
 					if (tileName.endsWith(".pbf")){
 						BinaryMapParser binParser = new BinaryMapParser(processor, null);
 						BlockInputStream blockinput = (new BlockInputStream(is, binParser));
-						try {
-							blockinput.process();
-						} finally {
-							blockinput.close();
-						}
+						blockinput.process();
+						blockinput.close();
 					} else {
 						// No, try XML.
-						OSMParser parser = new OSMParser(processor, true);
-						Reader reader = new InputStreamReader(is, Charset.forName("UTF-8"));
-						parser.setReader(reader);
-						try {
+						try (Reader reader = new InputStreamReader(is,
+								Charset.forName("UTF-8"));) {
+							OSMParser parser = new OSMParser(processor, true);
+							parser.setReader(reader);
 							parser.parse();
-						} finally {
-							reader.close();
 						}
 					}
-				} catch (IOException e) {
+				} catch (Exception e) {
 					e.printStackTrace();
+		    		throw new SplitFailedException(e.getMessage());
 				}
 			}
 		}
@@ -111,9 +106,7 @@ public class PrecompSeaReader {
 	 */
 	private void init() {
 		if (precompSeaDir.exists()){
-
 			String internalPath = null;    	
-			InputStream indexStream = null;
 			String indexFileName = "index.txt.gz";
 			try{
 				if (precompSeaDir.isDirectory()){
@@ -124,8 +117,11 @@ public class PrecompSeaReader {
 						indexFile = new File(precompSeaDir, indexFileName);
 					}
 					if (indexFile.exists()) {
-						indexStream = new FileInputStream(indexFile);
-					}
+						try(InputStream indexStream = new FileInputStream(indexFile)){
+							loadIndex(indexStream, indexFileName);
+						}
+					} else 
+						throw new IllegalArgumentException("Cannot find required index.txt[.gz] in " + precompSeaDir);
 				} else if (precompSeaDir.getName().endsWith(".zip")){
 					zipFile = new ZipFile(precompSeaDir);
 					internalPath = "sea/";
@@ -140,45 +136,41 @@ public class PrecompSeaReader {
 						entry = zipFile.getEntry(internalPath + indexFileName);
 					}
 					if (entry != null){
-						indexStream = zipFile.getInputStream(entry);
+						try (InputStream indexStream = zipFile.getInputStream(entry)){
+							precompZipFileInternalPath = internalPath;
+							loadIndex(indexStream, indexFileName);
+						}
 					} else 
-						System.err.println("Don't know how to read " + precompSeaDir);
+						throw new SplitFailedException("Don't know how to read " + precompSeaDir);
 				} 
 				else {
-					System.err.println("Don't know how to read " + precompSeaDir);
-				}
-				if (indexStream != null){
-					if (indexFileName.endsWith(".gz")) {
-						indexStream = new GZIPInputStream(indexStream);
-					}
-					try{
-						loadIndex(indexStream);
-					} catch (IOException exp) {
-						System.err.println("Cannot read index file " + indexFileName + " " + 
-								exp);
-					}
-
-					if (zipFile != null){
-						precompZipFileInternalPath = internalPath;
-					}
-					indexStream.close();
+					throw new SplitFailedException("Don't know how to read " + precompSeaDir);
 				}
 			} catch (IOException exp) {
-				System.err.println("Cannot read index file " + indexFileName + " " + 
-						exp);
-
-			}
+				exp.printStackTrace();
+				throw new SplitFailedException("Cannot read index file " + indexFileName); 
+			} 
 		} else {
-			System.err.println("Directory or zip file with precompiled sea does not exist: "
+			throw new SplitFailedException("Directory or zip file with precompiled sea does not exist: "
 					+ precompSeaDir.getName());
 		}
+	}
+	
+	private void loadIndex(InputStream indexStream, String indexFileName) throws IOException{
+		if (indexFileName.endsWith(".gz")) {
+			try(InputStream stream = new GZIPInputStream(indexStream)){
+				loadIndexFromStream(stream);
+				return;
+			}
+		} 
+		loadIndexFromStream(indexStream);
 	}
 	
     /**
      * Read the index from stream and populate the index grid. 
      * @param fileStream already opened stream
      */
-    private void loadIndex(InputStream fileStream) throws IOException{
+    private void loadIndexFromStream(InputStream fileStream) throws IOException{
 		int indexWidth = (PrecompSeaReader.getPrecompTileStart(MAX_LON) - PrecompSeaReader.getPrecompTileStart(MIN_LON)) / PrecompSeaReader.PRECOMP_RASTER;
 		int indexHeight = (PrecompSeaReader.getPrecompTileStart(MAX_LAT) - PrecompSeaReader.getPrecompTileStart(MIN_LAT)) / PrecompSeaReader.PRECOMP_RASTER;
 		LineNumberReader indexReader = new LineNumberReader(
@@ -199,16 +191,12 @@ public class PrecompSeaReader {
 			}
 			String[] items = csvSplitter.split(indexLine);
 			if (items.length != 2) {
-				System.out.println("Invalid format in index file name: " + 
-						indexLine);
-				continue;
+				throw new IllegalArgumentException("Invalid format in index file name: " + indexLine);
 			}
 			String precompKey = items[0];
 			byte type = updatePrecompSeaTileIndex(precompKey, items[1], indexGrid);
 			if (type == '?'){
-				System.out.println("Invalid format in index file name: " + 
-						indexLine);
-				continue;
+				throw new IllegalArgumentException("Invalid format in index file name: " + indexLine); 
 			}
 			if (type == MIXED_TILE){
 				// make sure that all file names are using the same name scheme
@@ -223,8 +211,7 @@ public class PrecompSeaReader {
 						sb.append(precompKey);
 						sb.append(ext);												
 						if (items[1].equals(sb.toString()) == false){
-							System.out.println("Unexpected file name in index file: " + 
-									indexLine);
+							throw new IllegalArgumentException("Unexpected file name in index file: "  + indexLine);
 						}
 					}
 				}
@@ -245,17 +232,15 @@ public class PrecompSeaReader {
     			if (entry != null){
     				is = zipFile.getInputStream(entry);
     			} else {
-    				System.err.println("Preompiled sea tile " + tileName + " not found."); 								
+    				throw new IOException("Preompiled sea tile " + tileName + " not found."); 								
     			}
     		} else {
     			File precompTile = new File(precompSeaDir,tileName);
     			is = new FileInputStream(precompTile);
     		}
-    	} catch (FileNotFoundException exp) {
-    		System.err.println("Preompiled sea tile " + tileName + " not found."); 
     	} catch (Exception exp) {
-    		System.err.println(exp);
     		exp.printStackTrace();
+    		throw new SplitFailedException(exp.getMessage());
     	}
 		return is;
     }
@@ -298,7 +283,7 @@ public class PrecompSeaReader {
 	 * @return the key names for the bounding box
 	 */
 	private List<String> getPrecompKeyNames() {
-		List<String> precompKeys = new ArrayList<String>();
+		List<String> precompKeys = new ArrayList<>();
 		for (int lat = getPrecompTileStart(bounds.getMinLat()); lat < getPrecompTileEnd(bounds
 				.getMaxLat()); lat += PRECOMP_RASTER) {
 			for (int lon = getPrecompTileStart(bounds.getMinLong()); lon < getPrecompTileEnd(bounds

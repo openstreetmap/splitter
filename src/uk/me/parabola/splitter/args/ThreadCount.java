@@ -22,10 +22,8 @@ public class ThreadCount {
 
 	@Override
 	public String toString() {
-		if (auto) {
+		if (auto) 
 			return count + " (auto)";
-		} else {
-			return String.valueOf(count);
-		}
+		return String.valueOf(count);
 	}
 }

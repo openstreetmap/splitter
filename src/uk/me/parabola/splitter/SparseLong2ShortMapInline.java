@@ -157,8 +157,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			RLEWork[0] = unassigned; // signal a normal compressed record
 			return opos;
 		}
-		else 
-			return -1;
+		return -1;
 	}
 	
 	/**
@@ -335,41 +334,35 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		long elementmask = 1L << chunkoffset;
 		if ((chunkMask & elementmask) == 0) 
 			return unassigned; // not in chunk 
-		else {
-			int startOfChunk = z * chunkLen + 1;
-			// the map contains the key, extract the value
-			short firstAfterMask = store[startOfChunk];
-			if (chunkLen == ONE_VALUE_CHUNK_SIZE)
-				return firstAfterMask;
-			else {
-				int index = countUnder(chunkMask, chunkoffset);
-				if (firstAfterMask == unassigned){
-					// extract from compressed chunk 
-					short len; 
-					for (int j=1; j < chunkLen; j+=2){
-						len =  store[j+startOfChunk];
-						index -= len;
-						if (index < 0) return store[j+startOfChunk+1];
-					}
-					return unassigned; // should not happen
-				}
-				else {
-					// extract from uncompressed chunk
-					return store[index +  startOfChunk];
-				}
+		int startOfChunk = z * chunkLen + 1;
+		// the map contains the key, extract the value
+		short firstAfterMask = store[startOfChunk];
+		if (chunkLen == ONE_VALUE_CHUNK_SIZE)
+			return firstAfterMask;
+		int index = countUnder(chunkMask, chunkoffset);
+		if (firstAfterMask == unassigned){
+			// extract from compressed chunk 
+			short len; 
+			for (int j=1; j < chunkLen; j+=2){
+				len =  store[j+startOfChunk];
+				index -= len;
+				if (index < 0) return store[j+startOfChunk+1];
 			}
+			return unassigned; // should not happen
 		}
+		// extract from uncompressed chunk
+		return store[index +  startOfChunk];
 	}
 
 	@Override
 	public void clear() {
 		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
-		topMap = new Long2ObjectOpenHashMap<int[]>();
+		topMap = new Long2ObjectOpenHashMap<>();
 		chunkStore = new short[CHUNK_SIZE+1][][];
 		maskStore = new long[CHUNK_SIZE+1][][];
 		freePosInSore = new int[CHUNK_SIZE+1];
 		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
-		reusableChunks = new Int2ObjectOpenHashMap<IntArrayList>();
+		reusableChunks = new Int2ObjectOpenHashMap<>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
@@ -423,13 +416,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			maskStore[x] = new long[2][];
 		}
 		IntArrayList reusableChunk = reusableChunks.get(x); 
-		Integer reusedIdx = null; 
 		int y,z;
 		short []store;
 		if (reusableChunk != null && reusableChunk.isEmpty() == false){
-			reusedIdx = reusableChunk.remove(reusableChunk.size()-1);
-		}
-		if (reusedIdx != null){
+			int reusedIdx = reusableChunk.removeInt(reusableChunk.size()-1);
 			y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 			z = (reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 			store = chunkStore[x][y];

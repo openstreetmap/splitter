@@ -53,13 +53,9 @@ public class AreaList {
 	 *
 	 * @param filename The filename to write to.
 	 */
-	public void write(String filename) throws IOException {
-
-		Writer w = null;
-		try {
-			w = new FileWriter(filename);
-			PrintWriter pw = new PrintWriter(w);
-
+	public void write(String filename) {
+		try (Writer w = new FileWriter(filename);
+				PrintWriter pw = new PrintWriter(w);) {
 			pw.println("# List of areas");
 			pw.format("# Generated %s%n", new Date());
 			pw.println("#");
@@ -74,13 +70,9 @@ public class AreaList {
 						Utils.toDegrees(area.getMaxLat()), Utils.toDegrees(area.getMaxLong()));
 				pw.println();
 			}
-			pw.close();
 
 		} catch (IOException e) {
-			System.err.println("Could not write areas.list file");
-		} finally {
-			if (w != null)
-				w.close();
+			System.err.println("Could not write areas.list file, processing continues");
 		}
 	}
 
@@ -90,62 +82,8 @@ public class AreaList {
 	 *
 	 * @param filename The KML filename to write to.
 	 */
-	public void writeKml(String filename) throws IOException {
-
-		Writer w = null;
-		try {
-			w = new FileWriter(filename);
-			PrintWriter pw = new PrintWriter(w);
-
-			pw.format("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-								 "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
-								 "<Document>\n" +
-								 "  <Style id=\"transWhitePoly\">\n" +
-								 "    <LineStyle>\n" +
-								 "      <width>1.5</width>\n" +
-								 "    </LineStyle>\n" +
-								 "    <PolyStyle>\n" +
-								 "      <color>00ffffff</color>\n" +
-								 "      <colorMode>normal</colorMode>\n" +
-								 "    </PolyStyle>\n" +
-								 "  </Style>\n\n");
-			for (Area area : areas) {
-				double south = Utils.toDegrees(area.getMinLat());
-				double west = Utils.toDegrees(area.getMinLong());
-				double north = Utils.toDegrees(area.getMaxLat());
-				double east = Utils.toDegrees(area.getMaxLong());
-
-				String name = area.getName() == null ? String.valueOf(area.getMapId()) : area.getName();
-				pw.format(Locale.ROOT,
-								  "  <Placemark>\n" +
-									"    <name>%1$d</name>\n" +
-									"    <styleUrl>#transWhitePoly</styleUrl>\n" +
-									"      <description>\n" +
-									"        <![CDATA[%2$s]]>\n" +
-									"      </description>\n" +
-									"    <Polygon>\n" +
-									"      <outerBoundaryIs>\n" +
-									"        <LinearRing>\n" +
-									"          <coordinates>\n" +
-									"            %4$f,%3$f\n" +
-									"            %4$f,%5$f\n" +
-									"            %6$f,%5$f\n" +
-									"            %6$f,%3$f\n" +
-									"            %4$f,%3$f\n" +
-									"          </coordinates>\n" +
-									"        </LinearRing>\n" +
-									"      </outerBoundaryIs>\n" +
-									"    </Polygon>\n" +
-									"  </Placemark>\n", area.getMapId(), name, south, west, north, east);
-			}
-			pw.format("</Document>\n</kml>\n");
-			pw.close();
-		} catch (IOException e) {
-			System.err.println("Could not write KML file " + filename);
-		} finally {
-			if (w != null)
-				w.close();
-		}
+	public void writeKml(String filename) {
+		KmlWriter.writeKml(filename, areas);
 	}
 
 	public void read(String filename) throws IOException {
@@ -162,17 +100,14 @@ public class AreaList {
 	 * Obviously other tools could create the file too.
 	 */
 	private void readList(String filename) throws IOException {
-		Reader r = null;
-		areas = new ArrayList<Area>();
+		areas = new ArrayList<>();
 
 		Pattern pattern = Pattern.compile("([0-9]{8}):" +
 		" ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
 		" to ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)");
 
-		try {
-			r = new FileReader(filename);
-			BufferedReader br = new BufferedReader(r);
-
+		try (Reader r = new FileReader(filename);
+				BufferedReader br = new BufferedReader(r)) {			
 			String line;
 			while ((line = br.readLine()) != null) {
 				line = line.trim();
@@ -188,16 +123,13 @@ public class AreaList {
 						Integer.decode(matcher.group(3)),
 						Integer.decode(matcher.group(4)),
 						Integer.decode(matcher.group(5)));
+				if (!area.verify())
+					throw new IllegalArgumentException("Invalid area in file "+ filename+ ": " + line);
 				area.setMapId(Integer.parseInt(mapid));
 				areas.add(area);
 			}
-			br.close();
 		} catch (NumberFormatException e) {
-			areas = Collections.emptyList();
-			System.err.println("Bad number in areas list file");
-		} finally {
-			if (r != null)
-				r.close();
+			throw new IllegalArgumentException("Bad number in areas list file");
 		}
 	}
 
@@ -229,7 +161,7 @@ public class AreaList {
 	 *
 	 * @param filename The poly filename to write to.
 	 */
-	public void writePoly(String filename) throws IOException {
+	public void writePoly(String filename) {
 		java.awt.geom.Area polygonArea = new java.awt.geom.Area();
 		for (Area area : areas) {
 			polygonArea.add(new java.awt.geom.Area(Utils.area2Rectangle(area, 0)));
@@ -238,10 +170,7 @@ public class AreaList {
 		// start with outer polygons
 		Collections.reverse(shapes);
 		
-		Writer w = null;
-		try {
-			w = new FileWriter(filename);
-			PrintWriter pw = new PrintWriter(w);
+		try (PrintWriter pw = new PrintWriter(filename)) {
 			pw.println("area");
 			for (int i = 0; i < shapes.size(); i++){
 				List<Point> shape = shapes.get(i);
@@ -267,12 +196,8 @@ public class AreaList {
 				pw.println("END");
 			}
 			pw.println("END");
-			pw.close();
 		} catch (IOException e) {
-			System.err.println("Could not write polygon file " + filename);
-		} finally {
-			if (w != null)
-				w.close();
+			System.err.println("Could not write polygon file " + filename + ", processing continues");
 		}
 	}
 	
@@ -282,50 +207,45 @@ public class AreaList {
 	 * contains a template of all the arguments that you might want to use.
 	 */
 	public void writeArgsFile(String filename, String outputType, int startMapId) {
-		PrintWriter w;
-		try {
-			w = new PrintWriter(new FileWriter(filename));
-		} catch (IOException e) {
-			System.err.println("Could not write template.args file");
-			return;
-		}
+		try (PrintWriter w = new PrintWriter(new FileWriter(filename))){
 
-		w.println("#");
-		w.println("# This file can be given to mkgmap using the -c option");
-		w.println("# Please edit it first to add a description of each map.");
-		w.println("#");
-		w.println();
-
-		w.println("# You can set the family id for the map");
-		w.println("# family-id: 980");
-		w.println("# product-id: 1");
-
-		w.println();
-		w.println("# Following is a list of map tiles.  Add a suitable description");
-		w.println("# for each one.");
-		int mapId = startMapId;
-		if (mapId % 100 == 0)
-			mapId++;
-		for (Area a : areas) {
+			w.println("#");
+			w.println("# This file can be given to mkgmap using the -c option");
+			w.println("# Please edit it first to add a description of each map.");
+			w.println("#");
 			w.println();
-			
-			w.format("mapname: %08d%n", (startMapId <0) ? a.getMapId() : mapId++);
-			if (a.getName() == null)
-				w.println("# description: OSM Map");
-			else
-				w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
-			String ext;
-			if("pbf".equals(outputType))
-				ext = ".osm.pbf";
-			else if("o5m".equals(outputType))
-				ext = ".o5m";
-			else
-				ext = ".osm.gz";
-			w.format("input-file: %08d%s%n", a.getMapId(), ext);
-		}
 
-		w.println();
-		w.close();
+			w.println("# You can set the family id for the map");
+			w.println("# family-id: 980");
+			w.println("# product-id: 1");
+
+			w.println();
+			w.println("# Following is a list of map tiles.  Add a suitable description");
+			w.println("# for each one.");
+			int mapId = startMapId;
+			if (mapId % 100 == 0)
+				mapId++;
+			for (Area a : areas) {
+				w.println();
+
+				w.format("mapname: %08d%n", (startMapId <0) ? a.getMapId() : mapId++);
+				if (a.getName() == null)
+					w.println("# description: OSM Map");
+				else
+					w.println("description: " + (a.getName().length() > 50 ? a.getName().substring(0, 50) : a.getName()));
+				String ext;
+				if("pbf".equals(outputType))
+					ext = ".osm.pbf";
+				else if("o5m".equals(outputType))
+					ext = ".o5m";
+				else
+					ext = ".osm.gz";
+				w.format("input-file: %08d%s%n", a.getMapId(), ext);
+			}
+			w.println();
+		} catch (IOException e) {
+			throw new SplitFailedException("Could not write template.args file " + filename, e.getCause());
+		}
 	}
 
 }
