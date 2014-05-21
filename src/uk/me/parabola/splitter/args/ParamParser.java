@@ -33,10 +33,10 @@ import uk.me.parabola.splitter.Version;
 public class ParamParser {
 
 	private final ParamConverter converter = new ParamConverter();
-	private final Map<String, Param> paramMap = new TreeMap<String, Param>();
-	private final Map<String, Object> convertedParamMap = new TreeMap<String, Object>();
-	private final List<String> additionalParams = new ArrayList<String>();
-	private final List<String> errors = new ArrayList<String>();
+	private final Map<String, Param> paramMap = new TreeMap<>();
+	private final Map<String, Object> convertedParamMap = new TreeMap<>();
+	private final List<String> additionalParams = new ArrayList<>();
+	private final List<String> errors = new ArrayList<>();
 	private boolean wantHelp;
 	private boolean wantVersion;
 	private int maxParamLength;
@@ -66,7 +66,7 @@ public class ParamParser {
 
 	private <P> P createProxy(Class<P> paramInterface, String... args) {
 
-		Map<String, MethodParamPair> params = new HashMap<String, MethodParamPair>();
+		Map<String, MethodParamPair> params = new HashMap<>();
 		paramMap.clear();
 		convertedParamMap.clear();
 		wantHelp = false;
@@ -110,7 +110,7 @@ public class ParamParser {
 	}
 
 	private Map<Method, Object> convert(Map<String, MethodParamPair> paramMap, String[] args) {
-		Map<Method, Object> result = new HashMap<Method, Object>(10);
+		Map<Method, Object> result = new HashMap<>(10);
 
 		// First set up the defaults
 		for (MethodParamPair pair : paramMap.values()) {
@@ -125,7 +125,7 @@ public class ParamParser {
 		}
 
 		// Now override these with any parameters that were specified on the command line
-		HashMap<String,String> parsedArgs = new HashMap<String, String>();
+		HashMap<String,String> parsedArgs = new HashMap<>();
 		for (String arg : args) {
 			if (arg.startsWith("--")) {
 				String name;
@@ -181,11 +181,20 @@ public class ParamParser {
 		System.out.println("Usage: java [JAVA_OPTIONS] -jar splitter.jar [OPTIONS] input_file (*.osm or *.pbf or *.o5m)");
 		System.out.println("Options:");
 		
+		String lastName = null;
 		int leftColWidth = maxParamLength + 5;
-		for (Param param : paramMap.values()) {
+		for(Param param : paramMap.values()){
 			String desc = param.getDescription();
 			if (param.getDefaultValue() != null) {
 				desc += " Default is " + param.getDefaultValue() + ".";
+			}
+			if ("help".compareTo(param.getName()) < 0 && lastName != null && "help".compareTo(lastName) >= 0){
+				String ln = padRight(" --help", leftColWidth) + "Print this help.";
+				System.out.println(ln);
+			}
+			if ("version".compareTo(param.getName()) < 0 && lastName != null && "version".compareTo(lastName) >= 0){
+				String ln = padRight(" --version", leftColWidth) + "Just write program version and build timestamp.";
+				System.out.println(ln);
 			}
 			String ln = padRight(" --" + param.getName(), leftColWidth);
 			String[] descWords = desc.split(" ");
@@ -197,6 +206,7 @@ public class ParamParser {
 				ln += word + " ";
 			}
 			System.out.println(ln);
+			lastName = param.getName();
 		}
 	}
 
