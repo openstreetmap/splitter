@@ -310,7 +310,13 @@
 	</target>
 
 	<!-- Main -->
-	<target name="build" depends="compile,compile.tests,run.tests" />
+  <target name="build" depends="compile,compile.tests,run.tests">
+    <copy todir="${build.classes}">
+      <fileset dir="${resources}">
+        <include name="*.properties"/>
+      </fileset>
+    </copy>
+  </target>
 
   <target name="rebuild" depends="clean, build"/>
 </project>
