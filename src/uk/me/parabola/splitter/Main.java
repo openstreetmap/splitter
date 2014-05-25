@@ -18,8 +18,6 @@ import crosby.binary.file.BlockInputStream;
 import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 import org.xmlpull.v1.XmlPullParserException;
 
-import com.sun.org.apache.bcel.internal.generic.GETSTATIC;
-
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.geo.City;
