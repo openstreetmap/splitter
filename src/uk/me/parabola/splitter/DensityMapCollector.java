@@ -76,9 +76,9 @@ class DensityMapCollector extends AbstractMapProcessor{
 		}
 		return details.getBounds();
 	}
-	public SplittableDensityArea getRoundedArea(int resolution) {
+	public SplittableDensityArea getRoundedArea(int resolution, int searchLimit) {
 		Area roundedBounds = RoundingUtils.round(getExactArea(), resolution);
-		return new SplittableDensityArea(densityMap.subset(roundedBounds));
+		return new SplittableDensityArea(densityMap.subset(roundedBounds), searchLimit);
 	} 
 
 	public void mergeSeaData(DensityMapCollector seaData, boolean trim) {

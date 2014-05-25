@@ -106,4 +106,7 @@ public interface SplitterParams {
 			+ "Used to filter multipolygon and boundary relations for problem-list processing.")
 	String getBoundaryTags();
 
+	@Option(defaultValue = "1000000", description = "Search limit in split algo. Higher values may find better splits, but will take longer.")
+	int getSearchLimit();
+
 }

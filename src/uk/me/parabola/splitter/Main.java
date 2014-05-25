@@ -18,6 +18,8 @@ import crosby.binary.file.BlockInputStream;
 import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 import org.xmlpull.v1.XmlPullParserException;
 
+import com.sun.org.apache.bcel.internal.generic.GETSTATIC;
+
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.geo.City;
@@ -142,6 +144,8 @@ public class Main {
 
 	private String polygonDescFile;
 	private PolygonDescProcessor polygonDescProcessor;
+
+	private int searchLimit;
 	
 	public static void main(String[] args) {
 		Main m = new Main();
@@ -268,19 +272,8 @@ public class Main {
 		} else {
 			nameAreas();
 		}
+
 		List<Area> areas = areaList.getAreas();
-		System.out.println(areas.size() + " areas:");
-		for (Area area : areas) {
-			System.out.format("Area %08d: %d,%d to %d,%d covers %s",
-					area.getMapId(),
-					area.getMinLat(), area.getMinLong(),
-					area.getMaxLat(), area.getMaxLong(),
-					area.toHexString());
-			
-			if (area.getName() != null)
-				System.out.print(' ' + area.getName());
-			System.out.println();
-		}
 
 		if (kmlOutputFile != null) {
 			File out = new File(kmlOutputFile);
@@ -298,6 +291,20 @@ public class Main {
 			System.err.println("stopped after " + stopAfter); 
 			throw new StopNoErrorException("stopped after " + stopAfter);
 		}
+
+		System.out.println(areas.size() + " areas:");
+		for (Area area : areas) {
+			System.out.format("Area %08d: %d,%d to %d,%d covers %s",
+					area.getMapId(),
+					area.getMinLat(), area.getMinLong(),
+					area.getMaxLat(), area.getMaxLong(),
+					area.toHexString());
+			
+			if (area.getName() != null)
+				System.out.print(' ' + area.getName());
+			System.out.println();
+		}
+		
 		if (keepComplete){
 			partitionAreasForProblemListGenerator(areas);
 			if ("gen-problem-list".equals(stopAfter)){
@@ -538,7 +545,14 @@ public class Main {
 				throw new IllegalArgumentException("Error: precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
 			}
 		}
-		
+		if (polygons.isEmpty() == false && numTiles > 0){
+			System.out.println("Polygons are ignored because parameter --num-tiles is used");
+		}
+		searchLimit = params.getSearchLimit();
+		if (searchLimit < 1000){
+			searchLimit = 1000;
+			System.err.println("The --search-limit parameter must be 1000 or higher. Resetting to 1000.");
+		}
 	}
 
 	/**
@@ -576,7 +590,7 @@ public class Main {
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
 		}
 		
-		SplittableDensityArea splittableArea = pass1Collector.getRoundedArea(resolution);
+		SplittableDensityArea splittableArea = pass1Collector.getRoundedArea(resolution, searchLimit);
 		if (splittableArea.hasData() == false)
 			return new AreaList(new ArrayList<Area>());
 		System.out.println("Exact map coverage is " + exactArea);
@@ -589,7 +603,7 @@ public class Main {
 		List<Area> areas ;
 		if (numTiles >= 2){
 			System.out.println("Splitting nodes into " + numTiles + " areas");
-			areas = splittableArea.split(polygons, numTiles);
+			areas = splittableArea.split(numTiles);
 		}
 		else {
 			System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
