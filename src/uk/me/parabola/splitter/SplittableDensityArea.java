@@ -846,10 +846,8 @@ public class SplittableDensityArea {
 			maxAspectRatio = 1 / maxAspectRatio;
 		if (maxAspectRatio < NICE_MAX_ASPECT_RATIO)
 			maxAspectRatio = NICE_MAX_ASPECT_RATIO;
-		if (goodSolutions == null){
-			goodSolutions = new HashMap<>();
-			goodRatio = 0.5;
-		}
+		goodSolutions = new HashMap<>();
+		goodRatio = 0.5;
 		long[] rowSums = new long[startTile.height];
 		long[] colSums = new long[startTile.width]; 
 		Arrays.fill(rowSums, -1);
@@ -862,6 +860,7 @@ public class SplittableDensityArea {
 			System.out.println("Trying to find nice split for " + startTile);
 		Solution bestSolution = new Solution(spread);
 		Solution prevBest = new Solution(spread);
+		
 		incomplete = new LinkedHashMap<>();
 		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			double saveMaxAspectRatio = maxAspectRatio; 
@@ -950,7 +949,7 @@ public class SplittableDensityArea {
 				else 
 					System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
 			}
-			if (solution.isNice() == false){
+			if (solution.isNice() == false && solution.tiles.size() > 3){
 				System.err.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
 				System.err.println("Try to increase the search-limit value by factor 10");
 			}
