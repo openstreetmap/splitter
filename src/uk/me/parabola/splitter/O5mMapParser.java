@@ -347,11 +347,14 @@ public class O5mMapParser implements MapReader{
 	 * set stringPair to the values referenced by given string reference
 	 * No checking is performed.
 	 * @param ref valid values are 1 .. STRING_TABLE_SIZE
+	 * @throws IOException 
 	 */
-	private void setStringRefPair(int ref){
+	private void setStringRefPair(int ref) throws IOException{
 		int pos = currStringTablePos - ref;
 		if (pos < 0) 
 			pos += STRING_TABLE_SIZE;
+		if (pos < 0 || pos >= STRING_TABLE_SIZE)
+			throw new IOException("invalid string table reference: " + ref); 
 		stringPair[0] = stringTable[0][pos];
 		stringPair[1] = stringTable[1][pos];
 	}

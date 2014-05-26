@@ -1391,13 +1391,13 @@ public class Main {
 				System.out.println(e);
 				throw new SplitFailedException("ERROR: file " + filename + " was not found");
 			} catch (XmlPullParserException e) {
-				System.out.println(e);
+				e.printStackTrace();
 				throw new SplitFailedException("ERROR: file " + filename + " is not a valid OSM XML file");
 			} catch (IllegalArgumentException e) {
-				System.out.println(e);
+				e.printStackTrace();
 				throw new SplitFailedException("ERROR: file " + filename + " contains unexpected data");
 			} catch (IOException e) {
-				System.out.println(e);
+				e.printStackTrace();
 				throw new SplitFailedException("ERROR: file " + filename + " caused I/O exception");
 			}
 		}
