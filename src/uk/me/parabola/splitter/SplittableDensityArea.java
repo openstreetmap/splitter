@@ -37,11 +37,11 @@ public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
 	private static final int MAX_LON_DEGREES = 90;
 	public static final int MAX_SINGLE_POLYGON_VERTICES = 40;
-	private static final int MAX_LOOPS = 200;	// number of loops to find better solution
+	private static final int MAX_LOOPS = 200;	// number of loops to find better solution for one rectangular area
 	private static final int AXIS_HOR = 0; 
 	private static final int AXIS_VERT = 1; 
 	private static final double NICE_MAX_ASPECT_RATIO = 4;
-//	private static final int MAX_FAILED_TRIALS = 10000000;
+	private static final double VERY_NICE_FILL_RATIO = 0.93;
 	
 	private double maxAspectRatio;
 	private long minNodes;
@@ -923,10 +923,10 @@ public class SplittableDensityArea {
 					factor = Math.min(1.30,(double)bestSolution.getWorstMinNodes() / prevBest.getWorstMinNodes());
 				minNodes = Math.max(maxNodes /3, (long) (bestSolution.getWorstMinNodes() * factor));
 			}
-			if (bestSolution.isEmpty() == false && bestSolution.getWorstMinNodes() > 0.93 * maxNodes)
+			if (bestSolution.isEmpty() == false && bestSolution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes)
 				break;
-			if (minNodes > 0.93 * maxNodes)
-				minNodes = (long) (0.93 * maxNodes);
+			if (minNodes > VERY_NICE_FILL_RATIO * maxNodes)
+				minNodes = (long) (VERY_NICE_FILL_RATIO * maxNodes);
 			if (saveMaxAspectRatio == maxAspectRatio && saveMinNodes == minNodes){
 				break;
 			}
@@ -944,7 +944,7 @@ public class SplittableDensityArea {
 	private void printFinishMsg(Solution solution){
 		if (!beQuiet){
 			if (solution.isEmpty() == false){
-				if (solution.getWorstMinNodes() > 0.93 * maxNodes && solution.isNice())
+				if (solution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes && solution.isNice())
 					System.out.println("Solution is very nice. No need to search for a better solution: " + solution.toString());
 				else 
 					System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
