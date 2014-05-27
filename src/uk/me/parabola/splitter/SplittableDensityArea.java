@@ -37,7 +37,7 @@ public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
 	private static final int MAX_LON_DEGREES = 90;
 	public static final int MAX_SINGLE_POLYGON_VERTICES = 40;
-	private static final int MAX_LOOPS = 200;	// number of loops to find better solution for one rectangular area
+	private static final int MAX_LOOPS = 100;	// number of loops to find better solution for one rectangular area
 	private static final int AXIS_HOR = 0; 
 	private static final int AXIS_VERT = 1; 
 	private static final double NICE_MAX_ASPECT_RATIO = 4;
@@ -53,7 +53,8 @@ public class SplittableDensityArea {
 	private double[] aspectRatioFactor;
 	int minAspectRatioFactorPos = Integer.MAX_VALUE;
 	
-	private static final int[] SPREAD_VALUES = { 0, 7 };  
+	private static final int[] SPREAD_VALUES = { 0, 7, 14, 28};  // empirically found
+	
 	private static final int MAX_SPREAD = SPREAD_VALUES[SPREAD_VALUES.length-1];
 	
 	private boolean beQuiet = false;
@@ -385,6 +386,11 @@ public class SplittableDensityArea {
 		}
 	}
 
+	/**
+	 * Get next higher spread value
+	 * @param currSpread
+	 * @return
+	 */
 	private static int getNextSpread(int currSpread) {
 		for (int i = 0; i < SPREAD_VALUES.length; i++){
 			if (currSpread == SPREAD_VALUES[i]){
@@ -394,6 +400,11 @@ public class SplittableDensityArea {
 		return currSpread;
 	}
 
+	/**
+	 * Check if the solution should be stored in the map of partial good solutions 
+	 * @param tile the tile for which the solution was found
+	 * @param sol the solution for the tile
+	 */
 	private void checkIfGood(Tile tile, Solution sol){
 		if (sol.isNice() == false || sol.tiles.size() < 2)
 			return;
@@ -407,6 +418,11 @@ public class SplittableDensityArea {
 		}
 	}
 
+	/**
+	 * Remove entries from the map of partial good solutions which
+	 * cannot help to improve the best solution. 
+	 * @param best the best known solution
+	 */
 	private void filterGoodSolutions(Solution best){
 		if (best == null || best.isEmpty())
 			return;
@@ -419,6 +435,11 @@ public class SplittableDensityArea {
 		goodRatio = Math.max(0.5, (double) best.getWorstMinNodes() / maxNodes);
 	}
 
+	/**
+	 * Search a solution for the given tile in the map of partial good solutions 
+	 * @param tile the tile to split
+	 * @return a copy of the best known solution or null
+	 */
 	private Solution searchGoodSolutions(Tile tile){
 		Solution sol = goodSolutions.get(tile);
 		if (sol != null){
@@ -623,7 +644,7 @@ public class SplittableDensityArea {
 	 * @param tile the tile to be split
 	 * @return a solution instance or null 
 	 */
-	private Solution findSolution(int depth, final Tile tile, long[] parentRowSums, long[] parentColSums, Tile parent){
+	private Solution findSolution(int depth, final Tile tile, Tile parent, SplitMetaInfo smiParent){
 		boolean addAndReturn = false;
 		if (tile.count == 0){
 			if (!allowEmptyPart)
@@ -647,11 +668,14 @@ public class SplittableDensityArea {
 				addAndReturn = true;
 		} else if (tile.width < 2 && tile.height < 2) {
 			return null;
-		}
+		} 
 		if (addAndReturn){
 			Solution solution = new Solution(spread);
 			solution.add(tile);  // can't split further
 			return solution;
+		}
+		if (tile.count < minNodes * 2){
+			return null;
 		}
 		Solution cached = searchGoodSolutions(tile);
 		if (cached != null){
@@ -662,6 +686,8 @@ public class SplittableDensityArea {
 		Integer alreadyDone = null;
 		if (countBad == 0 && incomplete.size() > 0){
 			alreadyDone = incomplete.remove(tile);
+			if (alreadyDone == null)
+				incomplete.clear(); // rest is not useful
 		}
 		
 		if (alreadyDone == null && depth > 0 && tile.width * tile.height > 100){
@@ -671,35 +697,26 @@ public class SplittableDensityArea {
 
 		// copy the existing density info from parent 
 		// typically, at least one half can be re-used
-		long[] rowSums = new long[tile.height];
-		long[] colSums = new long[tile.width]; 
-		if (parent.width == tile.width){
-			int srcPos = tile.y - parent.y;
-			System.arraycopy(parentRowSums, srcPos, rowSums, 0, rowSums.length);
-		} else 
-			Arrays.fill(rowSums, -1);
-		if (parent.height == tile.height){
-			int srcPos = tile.x - parent.x;
-			System.arraycopy(parentColSums, srcPos, colSums, 0, colSums.length);
-		} else 
-			Arrays.fill(colSums, -1);
+		SplitMetaInfo smi = new SplitMetaInfo(tile, parent, smiParent);
+		
 		// we have to split the tile
 		IntArrayList offsets = null;
 		IntArrayList splitXPositions = null;
 		IntArrayList splitYPositions = null;
-
+		
 		int axis = (tile.getAspectRatio() >= 1.0) ? AXIS_HOR:AXIS_VERT;
 		if (searchAll){
-			splitXPositions = tile.genXTests(colSums);
-			splitYPositions = tile.genYTests(rowSums);
+			splitXPositions = tile.genXTests(smi);
+			splitYPositions = tile.genYTests(smi);
 		} else {
 			if (spread == 0){
 				offsets = new IntArrayList(1);
 				offsets.add(0);
 			}else {
-				if (tile.count > maxNodes * 4 ){
+				if (tile.count > maxNodes * 8 ){
 					splitXPositions = new IntArrayList();
 					splitYPositions = new IntArrayList();
+					
 					// jump around
 					int step = tile.width / spread;
 					int pos = step;
@@ -707,6 +724,7 @@ public class SplittableDensityArea {
 						splitXPositions.add(pos);
 						pos+= step;
 					}
+					
 					step = tile.height / spread;
 					pos = step;
 					while (pos + spread < tile.height){
@@ -714,15 +732,40 @@ public class SplittableDensityArea {
 						pos+= step;
 					}
 				} else {
-					offsets = new IntArrayList(2*spread+1);
-					offsets.add(0);
-					for (int i = 1; i < spread; i++) {
-						offsets.add(i * spread);
-						offsets.add(-i * spread);
+					long nMax = tile.count / minNodes;
+					if (nMax * minNodes < tile.count)
+						nMax++;
+					long nMin = tile.count / maxNodes;
+					if (nMin * maxNodes < tile.count)
+						nMin++;
+					splitXPositions = new IntArrayList();
+					splitYPositions = new IntArrayList();
+					if (smi.horMidPos < 0)
+						tile.findHorizontalMiddle(smi);
+					if (smi.vertMidPos < 0)
+						tile.findVerticalMiddle(smi);
+					if (nMax == 2 || nMin == 2){
+						splitXPositions.add(smi.horMidPos);
+						splitYPositions.add(smi.vertMidPos);
+					} else {
+						if (nMax == 3){
+							splitXPositions.add(tile.findValidStartX(smi));
+							splitXPositions.add(tile.findValidEndX(smi));
+							splitYPositions.add(tile.findValidStartY(smi));
+							splitYPositions.add(tile.findValidEndY(smi));
+						} else {
+							splitXPositions.add(smi.horMidPos);
+							splitXPositions.add(tile.findValidStartX(smi));
+							splitXPositions.add(tile.findValidEndX(smi));
+							splitYPositions.add(smi.vertMidPos);
+							splitYPositions.add(tile.findValidStartY(smi));
+							splitYPositions.add(tile.findValidEndY(smi));
+						}
 					}
 				}
 			}
 		}
+		
 		int currX = 0, currY = 0;
 		int usedX = -1, usedY = -1;
 		Solution res = null;
@@ -738,12 +781,19 @@ public class SplittableDensityArea {
 		while(true){
 			if (currX >= maxX && currY >= maxY)
 				break;
-			if (axis == AXIS_HOR || currY >= maxY){
-				if (currX >= maxX)
-					break;
+			if (axis == AXIS_HOR){
+				if (currX >= maxX){
+					axis = AXIS_VERT;
+					continue;
+				}
 				usedX = currX++;
-			} else 
+			} else {
+				if (currY >= maxY){
+					axis = AXIS_HOR;
+					continue;
+				}
 				usedY = currY++;
+			}
 			countDone++;
 
 			if (alreadyDone != null && countDone <= alreadyDone.intValue()){
@@ -751,30 +801,31 @@ public class SplittableDensityArea {
 			}
 			
 			// create the two parts of the tile 
-			Tile[] parts;
-			if (offsets != null){
-				int offset;
-				if (usedX >= 0){
-					offset = offsets.getInt(usedX);
-					parts = tile.splitHorizWithOffset(offset, colSums);
-				} else {
-					offset = offsets.getInt(usedY);
-					parts = tile.splitVertWithOffset(offset, rowSums);
-				}
+			boolean ok = false;
+			int usedOffset = 0;
 
+			if (offsets != null){
+				if (usedX >= 0){
+					usedOffset = offsets.getInt(usedX);
+					ok = tile.splitHorizWithOffset(usedOffset, smi);
+				} else {
+					usedOffset = offsets.getInt(usedY);
+					ok = tile.splitVertWithOffset(usedOffset, smi);
+				}
 			} else {
 				int splitPos;
 				if (usedX >= 0){
 					splitPos = splitXPositions.getInt(usedX);
-					parts = tile.splitHoriz(splitPos, colSums);
+					ok = tile.splitHoriz(splitPos, smi);
 				} else {
 					splitPos = splitYPositions.getInt(usedY);
-					parts = tile.splitVert(splitPos, rowSums);
+					ok = tile.splitVert(splitPos, smi);
 				}
 			}
-			if (parts == null)
+			if (!ok)
 				continue;
 
+			Tile[] parts = smi.parts;
 			if (parts[0].count > parts[1].count){
 				// first try the less populated part
 				Tile help = parts[0];
@@ -789,7 +840,7 @@ public class SplittableDensityArea {
 			int countOK = 0;
 			for (int i = 0; i < 2; i++){
 				// depth first recursive search
-				sols[i] = findSolution(depth + 1, parts[i], rowSums, colSums, tile);
+				sols[i] = findSolution(depth + 1, parts[i], tile, smi);
 				if (sols[i] == null){
 					countBad++;
 //					if (countBad >= searchLimit){
@@ -814,15 +865,8 @@ public class SplittableDensityArea {
 			}
 		}
 		
-		// propagate the density info back to the parent
-		if (parent.width == tile.width){
-			int destPos = tile.y - parent.y;
-			System.arraycopy(rowSums, 0, parentRowSums, destPos, rowSums.length);
-		} 
-		if (parent.height == tile.height){
-			int destPos = tile.x - parent.x;
-			System.arraycopy(colSums, 0, parentColSums, destPos, colSums.length);
-		}
+		smi.propagateToParent(smiParent, tile, parent);
+			
 		if (res == null && countBad < searchLimit && depth > 0 && tile.width * tile.height > 100){
 			knownBad.add(tile);
 		}
@@ -839,7 +883,7 @@ public class SplittableDensityArea {
 	private Solution solveRectangularArea(Tile startTile){
 		// start values for optimization process (they make sure that we find a solution)
 		spread = 0;
-		minNodes = 1;
+		minNodes = maxNodes / 100;
 		
 		maxAspectRatio = startTile.getAspectRatio();
 		if (maxAspectRatio < 1)
@@ -848,10 +892,8 @@ public class SplittableDensityArea {
 			maxAspectRatio = NICE_MAX_ASPECT_RATIO;
 		goodSolutions = new HashMap<>();
 		goodRatio = 0.5;
-		long[] rowSums = new long[startTile.height];
-		long[] colSums = new long[startTile.width]; 
-		Arrays.fill(rowSums, -1);
-		Arrays.fill(colSums, -1);
+		SplitMetaInfo smiStart = new SplitMetaInfo(startTile, null, null);
+
 		if (startTile.checkSize()){
 			searchAll = true;
 		}
@@ -860,7 +902,7 @@ public class SplittableDensityArea {
 			System.out.println("Trying to find nice split for " + startTile);
 		Solution bestSolution = new Solution(spread);
 		Solution prevBest = new Solution(spread);
-		
+		long t1 = System.currentTimeMillis();
 		incomplete = new LinkedHashMap<>();
 		for (int numLoops = 0; numLoops < MAX_LOOPS; numLoops++){
 			double saveMaxAspectRatio = maxAspectRatio; 
@@ -875,14 +917,19 @@ public class SplittableDensityArea {
 				else
 					System.out.println("searching for split with spread " + spread + " and min-nodes " + minNodes + ", learned " + goodSolutions.size() + " good partial solutions");
 			}
-			solution = findSolution(0, startTile, rowSums, colSums, startTile);
+			solution = findSolution(0, startTile, startTile, smiStart);
 			if (solution != null){
 				foundBetter = bestSolution.compareTo(solution) > 0;
 				if (foundBetter){
 					prevBest = bestSolution;
 					bestSolution = solution;
-					System.out.println("Best solution until now: " + bestSolution.toString());
+					System.out.println("Best solution until now: " + bestSolution.toString() + ", elapsed search time: " + (System.currentTimeMillis() - t1) / 1000 + " s");
 					filterGoodSolutions(bestSolution);
+					// change criteria to find a better(nicer) result
+					double factor = 1.10;
+					if (prevBest.isEmpty() == false && prevBest.isNice() )
+						factor = Math.min(1.30,(double)bestSolution.getWorstMinNodes() / prevBest.getWorstMinNodes());
+					minNodes = Math.max(maxNodes /3, (long) (bestSolution.getWorstMinNodes() * factor));
 				}
 
 				if (bestSolution.size() == 1){
@@ -896,33 +943,28 @@ public class SplittableDensityArea {
 					if (minNodes > bestSolution.getWorstMinNodes() + 1){
 						// reduce minNodes
 						minNodes = (bestSolution.getWorstMinNodes() + minNodes) / 2;
-						if (minNodes < bestSolution.getWorstMinNodes() * 1.01)
+						if (minNodes < bestSolution.getWorstMinNodes() * 1.001)
 							minNodes = bestSolution.getWorstMinNodes() + 1;
-						if (bestSolution.spread < MAX_SPREAD)
+						if (bestSolution.spread < MAX_SPREAD){
 							spread = bestSolution.spread;
-//						if (!beQuiet)
-//							System.out.println("restarting with min-nodes " + minNodes + (searchAll ? "": " and spread " + spread));
+							incomplete.clear();
+							continue;
+						}
 					}
-				} else {
-					minNodes = (long) (0.95 * minNodes);
 				}
 			}
 			if (!searchAll && foundBetter == false && spread < MAX_SPREAD){
 				// no (better) solution found for the criteria, search also with "non-natural" split lines
-				spread = getNextSpread(spread);
-				continue;
+				if (spread == 0 || minNodes > 0.66 * maxNodes){
+					spread = getNextSpread(spread);
+					incomplete.clear();
+					continue;
+				}
 			}
 			maxAspectRatio = Math.max(bestSolution.getWorstAspectRatio()/2, NICE_MAX_ASPECT_RATIO);
 			maxAspectRatio = Math.min(32,maxAspectRatio);
 			
 			
-			if (foundBetter){
-				// change criteria to find a better(nicer) result
-				double factor = 1.10;
-				if (prevBest.isEmpty() == false && prevBest.isNice() )
-					factor = Math.min(1.30,(double)bestSolution.getWorstMinNodes() / prevBest.getWorstMinNodes());
-				minNodes = Math.max(maxNodes /3, (long) (bestSolution.getWorstMinNodes() * factor));
-			}
 			if (bestSolution.isEmpty() == false && bestSolution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes)
 				break;
 			if (minNodes > VERY_NICE_FILL_RATIO * maxNodes)
@@ -949,10 +991,6 @@ public class SplittableDensityArea {
 				else 
 					System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
 			}
-			if (solution.isNice() == false && solution.tiles.size() > 3){
-				System.err.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
-				System.err.println("Try to increase the search-limit value by factor 10");
-			}
 		}
 		return;
 	}
@@ -978,15 +1016,15 @@ public class SplittableDensityArea {
 			count = calcCount();
 		}
 
-		public IntArrayList genXTests(long[] colSums) {
-			int start = this.findValidStartX(colSums);
-			int end = this.findValidEndX(colSums);
+		public IntArrayList genXTests(SplitMetaInfo smi) {
+			int start = this.findValidStartX(smi);
+			int end = this.findValidEndX(smi);
 			return genTests(start, end);
 		}
 
-		public IntArrayList genYTests(long[] rowSums) {
-			int start = this.findValidStartY(rowSums);
-			int end = this.findValidEndY(rowSums);
+		public IntArrayList genYTests(SplitMetaInfo smi) {
+			int start = this.findValidStartY(smi);
+			int end = this.findValidEndY(smi);
 			return genTests(start, end);
 		}
 		
@@ -994,11 +1032,14 @@ public class SplittableDensityArea {
 			if (end-start < 0)
 				return new IntArrayList(1);
 			int mid = (start + end) / 2;
-			IntArrayList list = new IntArrayList(end-start+1);
+			int toAdd = end-start+1;
+			IntArrayList list = new IntArrayList(toAdd);
 			for (int i = 0; i <= mid; i++){
 				int pos = mid + i;
 				if (pos >= start && pos <= end)
 					list.add(mid+i);
+				if (list.size() >= toAdd)
+					break;
 				if (i == 0)
 					continue;
 				pos = mid - i;
@@ -1025,6 +1066,7 @@ public class SplittableDensityArea {
 			this.height = height;
 			this.count = count; 
 //			if (count != calcCount()){
+//				System.err.println(count + " <> " + calcCount());
 //				assert false;
 //			}
 		}
@@ -1068,6 +1110,12 @@ public class SplittableDensityArea {
 			}
 			return sum;
 		}
+		private long getRowSum(int row, long []rowSums){
+			if (rowSums[row] < 0)
+				rowSums[row] = getRowSum(row);
+			return rowSums[row];
+		}
+		
 		/**
 		 * Calculate the sum of all grid elements within a column.
 		 * @param col the column within the tile
@@ -1085,6 +1133,11 @@ public class SplittableDensityArea {
 			}
 			return sum;
 		}
+		private long getColSum(int col, long[] colSums){
+			if (colSums[col] < 0)
+				colSums[col] = getColSum(col);
+			return colSums[col];
+		}
 
 		/**
 		 * Find the horizontal middle of the tile (using the node counts).
@@ -1092,75 +1145,67 @@ public class SplittableDensityArea {
 		 * If the tile is large, the real middle is used to avoid
 		 * time consuming calculations.
 		 * @param offset the desired offset
-		 * @param colSums an array of column sums, used as a cache
 		 * @return array with two parts or null in error cases
 		 */
-		public Tile[] splitHorizWithOffset(final int offset, long[] colSums) {
+		public boolean splitHorizWithOffset(final int offset, SplitMetaInfo smi) {
 			if (count == 0 || width < 2)
-				return null;
+				return false;
+			int middle = width / 2;
+			if(count > maxNodes * 16 && width > 256)
+				return splitHoriz(middle + offset, smi);
 			
 			int splitX = -1;
 			long sum = 0;
 			long lastSum = 0;
 			long target = count/2;
-			int middle = width / 2;
-			boolean stopInMiddle =  (count > maxNodes * 16 && width > 256);
-			boolean check = false;
-			for (int pos = 0; pos < width; pos++) {
-				lastSum = sum;
-				if (colSums != null){
-					if (colSums[pos] < 0){
-						colSums[pos] = getColSum(pos);
-					}
-					sum += colSums[pos];
-				}
-				else 
-					sum += getColSum(pos);
-				if (stopInMiddle){
-					if (pos == middle+offset){
-						splitX = pos;
-						break;		
-					}
-				} else if (sum > target){
-					if (splitX < 0){
-						if (pos == 0 )
-							splitX = 1;
-						else {
-							check = true;
-							splitX = pos;
-						}
-					}
-					if (offset <= 0 || pos >= splitX + offset)
-						break;
-				}
+			
+			if (smi.horMidPos < 0)
+				findHorizontalMiddle(smi);
+			splitX = smi.horMidPos;
+			lastSum = smi.horMidSum;
+			boolean checkMove = false;
+			if (splitX == 0)
+				lastSum += getColSum(splitX++, smi.colSums);
+			else 
+				checkMove = true;
 
-			}
-			if (sum > 0 && splitX < 0){
-				splitX = width-1;
-			}
+
+			int splitPos = splitX + offset;
+			if (splitPos <= 0 || splitPos >= width)
+				return false;
+			
+			if (offset > 0){
+				if (width - splitPos < offset)
+					return splitHoriz(splitPos, smi);
 				
-			if (splitX + offset <= 0 || splitX + offset >= width)
-				return null;
-			if (offset < 0){
+				for (int i = 0; i < offset; i++){
+					lastSum += getColSum(splitX + i, smi.colSums);
+				}
+				
+			} else if (offset < 0){
+				if (splitPos < -offset)
+					return splitHoriz(splitPos, smi);
 				int toGo = offset;
 				while (toGo != 0){
-					lastSum -= colSums[splitX+toGo];
-					toGo++;
+					// we can use the array here because we can be sure that all used fields are filled
+					// the loop should run forward as this seems to be faster
+					lastSum -= smi.colSums[splitX + toGo++]; 
 				}
-			} else if (check && splitX + 1 < width && target - lastSum > sum - target){
-				lastSum = sum;
-				splitX++;
 			}
-
-			if (lastSum <= 0)
-				return null;
-			splitX += offset;
+			sum = lastSum + getColSum(splitPos, smi.colSums); 
+			if (checkMove && offset >= 0 && splitPos + 1 < width  && target - lastSum > sum - target){
+				lastSum = sum;
+				splitPos++;
+			}
+			if (lastSum < minNodes || count - lastSum < minNodes)
+				return false;
 			assert splitX > 0 && splitX < width; 
-			Tile left = new Tile(x, y, splitX, height, lastSum);
-			Tile right = new Tile(x + splitX, y, width - splitX,height, count -left.count);
-			assert left.width+ right.width == width;
-			Tile[] result = { left, right };
-			return result;
+			smi.parts[0] = new Tile(x, y, splitPos, height, lastSum);
+			smi.parts[1] = new Tile(x + splitPos, y, width - splitPos,height, count -lastSum);
+			assert smi.parts[0].width + smi.parts[1].width == this.width; 
+			return true;
+			
+			
 		}
 		/**
 		 * Find the vertical middle of the tile (using the node counts).
@@ -1168,192 +1213,228 @@ public class SplittableDensityArea {
 		 * If the tile is large, the real middle is used to avoid
 		 * time consuming calculations.
 		 * @param offset the desired offset
-		 * @param rowSums an array of row sums, used as a cache
 		 * @return array with two parts or null in error cases
 		 */
-		public Tile[] splitVertWithOffset(int offset, long[] rowSums) {
+		public boolean splitVertWithOffset(int offset, SplitMetaInfo smi) {
 			if (count == 0 || height < 2)
-				return null;
+				return false;
+			int middle = height/2;
+			if (count > maxNodes * 16 && height > 128)
+				return splitVert(middle + offset, smi);
+			long target = count/2;
 			int splitY = -1;
 			long sum = 0;
 			long lastSum = 0;
-			long target = count/2;
-			int middle = height/2;
-			boolean stopInMiddle =  (count > maxNodes * 16 && height > 128);
-			boolean check = false;
-			for (int pos = 0; pos < height; pos++) {
-				lastSum = sum;
-				if (rowSums != null){
-					if (rowSums[pos] < 0)
-						rowSums[pos] = getRowSum(pos);
-					sum += rowSums[pos];
-				}
-				else 
-					sum += getRowSum(pos);
-				if (stopInMiddle){
-					if (pos == middle+offset){
-						splitY = pos;
-						break;		
-					}
-				} else if (sum > target){
-					if (splitY < 0){
-						if (pos == 0 )
-							splitY = 1;
-						else {
-							check = true;
-							splitY = pos;
-						}
-					}
-					if (offset <= 0 || pos >= splitY + offset)
-						break;
-				}
-			}
-			if (splitY < 0 && sum > 0){
-				splitY = height-1;
-			}
+			if (smi.vertMidPos < 0)
+				findVerticalMiddle(smi);
+			splitY = smi.vertMidPos;
+			lastSum = smi.vertMidSum;
+			boolean checkMove = false;
+			if (splitY == 0)
+				lastSum += getRowSum(splitY++, smi.rowSums);
+			else 
+				checkMove = true;
+
+			int splitPos = splitY + offset;
+			if (splitPos <= 0 || splitPos >= height)
+				return false;
 			
-			if (splitY + offset <= 0 || splitY + offset >= height)
-				return null;
-			if (offset < 0){
+			if (offset > 0){
+				if (height - splitPos < offset)
+					return splitVert(splitPos, smi);
+				
+				for (int i = 0; i < offset; i++){
+					lastSum += getRowSum(splitY + i, smi.rowSums);
+				}
+				
+			} else if (offset < 0){
+				if (splitPos < -offset)
+					return splitVert(splitPos, smi);
 				int toGo = offset;
 				while (toGo != 0){
-					lastSum -= rowSums[splitY+toGo];
-					toGo++;
+					// we can use the array here because we can be sure that all used fields are filled
+					// the loop should run forward as this seems to be faster
+					lastSum -= smi.rowSums[splitY + toGo++]; 
 				}
-			} else if (check && splitY + 1 < height  && target - lastSum > sum - target){
-				lastSum = sum;
-				splitY++;
 			}
-			if (lastSum <= 0)
-				return null;
+			sum = lastSum + getRowSum(splitPos, smi.rowSums); 
+			if (checkMove && offset >= 0 && splitPos + 1 < height  && target - lastSum > sum - target){
+				lastSum = sum;
+				splitPos++;
+			}
+			if (lastSum < minNodes || count - lastSum < minNodes)
+				return false;
+			smi.parts[0] = new Tile(x, y, width, splitPos, lastSum);
+			smi.parts[1] = new Tile(x, y + splitPos, width, height- splitPos, count- lastSum);
+			assert smi.parts[0].height + smi.parts[1].height == this.height;
+			return true;
 			
-			splitY += offset;
-			
-			assert splitY > 0 && splitY < height;
-			Tile bottom = new Tile(x, y, width, splitY, lastSum);
-			Tile top = new Tile(x, y + splitY, width, height- splitY, count-bottom.count);
-			assert bottom.height + top.height == height;
-			Tile[] result = { bottom, top };
-			
-			return result;
 		}
+		
+		/**
+		 * Find first y so that sums of columns for 0-y is > count/2
+		 * Update corresponding fields in smi.
+		 * 
+		 * @param smi fields firstNonZeroX, horMidPos and horMidSum may be updated
+		 * @return true if the above fields are usable 
+		 */
+		private boolean findHorizontalMiddle(SplitMetaInfo smi) {
+			if (count == 0 || width < 2)
+				return false;
+
+			int start = (smi.firstNonZeroX > 0) ? smi.firstNonZeroX : 0;
+			long sum = 0;
+			long lastSum = 0;
+			long target = count/2;
+			
+			for (int pos = start; pos <= width; pos++) {
+				lastSum = sum;
+				sum += getColSum(pos, smi.colSums);
+				if (lastSum <= 0 && sum > 0)
+					smi.firstNonZeroX = pos;
+				if (sum > target){
+					smi.horMidPos = pos;
+					smi.horMidSum = lastSum;
+					break;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * Find first x so that sums of rows for 0-x is > count/2. 
+		 * Update corresponding fields in smi.
+		 * @param smi fields firstNonZeroY, vertMidPos, and vertMidSum may be updated 
+		 * @return true if the above fields are usable 
+		 */
+		private boolean findVerticalMiddle(SplitMetaInfo smi) {
+			if (count == 0 || height < 2)
+				return false;
+			
+			long sum = 0;
+			long lastSum;
+			long target = count/2;
+			int start = (smi.firstNonZeroY > 0) ? smi.firstNonZeroY : 0;
+			for (int pos = start; pos <= height; pos++) {
+				lastSum = sum;
+				sum += getRowSum(pos, smi.rowSums);
+				if (lastSum <= 0 && sum > 0)
+					smi.firstNonZeroY = pos;
+				
+				if (sum > target){
+					smi.vertMidPos = pos;
+					smi.vertMidSum = lastSum;
+					return true;
+				}
+			}
+			return false; // should not happen
+		} 		
 
 		/**
 		 * Split at a desired horizontal position.
 		 * @param splitX the horizontal split line
-		 * @param colSums an array of column sums, used as a cache
 		 * @return array with two parts
 		 */
-		public Tile[] splitHoriz(int splitX, long[] colSums) {
+		public boolean splitHoriz(int splitX, SplitMetaInfo smi) {
 			if (splitX <= 0 || splitX >= width)
-				return null;
+				return false;
 			long sum = 0;
-			assert colSums != null;
+			
 			if (splitX <= width / 2){
-				for (int pos = 0; pos < splitX; pos++) {
-					if (colSums[pos] < 0){
-						colSums[pos] = getColSum(pos);
-					}
-					sum += colSums[pos];
+				int start = (smi.firstNonZeroX > 0) ? smi.firstNonZeroX : 0;
+				for (int pos = start; pos < splitX; pos++) {
+					sum += getColSum(pos, smi.colSums);
 				}
 			} else {
-				for (int pos = width-1; pos >= splitX; pos--) {
-					if (colSums[pos] < 0){
-						colSums[pos] = getColSum(pos);
-					}
-					sum += colSums[pos];
+				int end = (smi.lastNonZeroX > 0) ? smi.lastNonZeroX + 1: width;
+				for (int pos = splitX; pos < end; pos++) {
+					sum += getColSum(pos, smi.colSums);
 				}
 				sum = count - sum;
 			}
-			if (sum == 0 || sum == count)
-				return null;
-			Tile left = new Tile(x, y, splitX, height, sum);
-			Tile right = new Tile(x + splitX, y, width - splitX,height, count -left.count);
-			assert left.width+ right.width == width;
-			Tile[] result = { left, right };
-			return result;
+			if (sum < minNodes || count - sum < minNodes)
+				return false;
+			smi.parts[0] = new Tile(x, y, splitX, height, sum);
+			smi.parts[1] = new Tile(x + splitX, y, width - splitX,height, count - sum);
+			assert smi.parts[0].width + smi.parts[1].width == this.width; 
+			return true;
 		}
 
 		/**
 		 * Split at a desired vertical position.
 		 * @param splitY the vertical split line
-		 * @param rowSums an array of row sums, used as a cache
 		 * @return array with two parts
 		 */
-		public Tile[] splitVert(int splitY, long[] rowSums) {
+		public boolean splitVert(int splitY, SplitMetaInfo smi) {
 			if (splitY <= 0 || splitY >= height)
-				return null;
+				return false;
 			long sum = 0;
-			assert rowSums != null;
+			
 			if (splitY <= height / 2){
-				for (int pos = 0; pos < splitY; pos++) {
-					if (rowSums[pos] < 0){
-						rowSums[pos] = getRowSum(pos);
-					}
-					sum += rowSums[pos];
+				int start = (smi.firstNonZeroY > 0) ? smi.firstNonZeroY : 0; 
+				for (int pos = start; pos < splitY; pos++) {
+					sum += getRowSum(pos, smi.rowSums);
 				}
 			} else {
-				for (int pos = height-1; pos >= splitY; --pos) {
-					if (rowSums[pos] < 0){
-						rowSums[pos] = getRowSum(pos);
-					}
-					sum += rowSums[pos];
+				int end = (smi.lastNonZeroY > 0) ? smi.lastNonZeroY+1 : height; 
+				for (int pos = splitY; pos < end; pos++) {
+					sum += getRowSum(pos, smi.rowSums);
 				}
 				sum = count - sum;
 			}
 
-			if (sum == 0 || sum == count)
-				return null;
-			Tile bottom = new Tile(x, y, width, splitY, sum);
-			Tile top = new Tile(x, y + splitY, width, height- splitY, count-bottom.count);
-			assert bottom.height + top.height == height;
-			Tile[] result = { bottom, top };
-
-			return result;
+			if (sum < minNodes || count - sum < minNodes)
+				return false;
+			smi.parts[0] = new Tile(x, y, width, splitY, sum);
+			smi.parts[1] = new Tile(x, y + splitY, width, height - splitY, count - sum);
+			assert smi.parts[0].height + smi.parts[1].height == this.height; 
+			return true;
 		}
 
-		public int findValidStartX(long[] colSums) {
+		public int findValidStartX(SplitMetaInfo smi) {
+			if (smi.validStartX >= 0)
+				return smi.validStartX;
 			long sum = 0;
-			for (int i = 0; i < colSums.length; i++) {
-				if (colSums[i] == -1)
-					colSums[i] = getColSum(i);
-				sum += colSums[i];
-				if (sum >= minNodes)
+			for (int i = 0; i < smi.colSums.length; i++) {
+				sum += getColSum(i, smi.colSums);
+				if (sum >= minNodes){
+					smi.validStartX = i;
 					return i;
+				}
 			}
+			smi.validStartX = width;
 			return width;
 		}
 
-		public int findValidEndX(long[] colSums) {
+		public int findValidEndX(SplitMetaInfo smi) {
 			long sum = 0;
-			for (int i = colSums.length - 1; i >= 0; --i) {
-				if (colSums[i] == -1)
-					colSums[i] = getColSum(i);
-				sum += colSums[i];
+			for (int i = smi.colSums.length - 1; i >= 0; --i) {
+				sum += getColSum(i, smi.colSums);
 				if (sum >= minNodes)
 					return i;
 			}
 			return 0;
 		}
 
-		public int findValidStartY(long[] rowSums) {
+		public int findValidStartY(SplitMetaInfo smi) {
+			if (smi.validStartY > 0)
+				return smi.validStartY;
 			long sum = 0;
 			for (int i = 0; i < height; i++) {
-				if (rowSums[i] == -1)
-					rowSums[i] = getRowSum(i);
-				sum += rowSums[i];
-				if (sum >= minNodes)
+				sum += getRowSum(i, smi.rowSums);
+				if (sum >= minNodes){
+					smi.validStartY = i;
 					return i;
+				}
 			}
-			return rowSums.length;
+			smi.validStartY = height;
+			return height;
 		}
 
-		public int findValidEndY(long[] rowSums) {
+		public int findValidEndY(SplitMetaInfo smi) {
 			long sum = 0;
-			for (int i = rowSums.length - 1; i >= 0; --i) {
-				if (rowSums[i] == -1)
-					rowSums[i] = getRowSum(i);
-				sum += rowSums[i];
+			for (int i = height - 1; i >= 0; --i) {
+				sum += getRowSum(i, smi.rowSums);
 				if (sum >= minNodes)
 					return i;
 			}
@@ -1421,11 +1502,108 @@ public class SplittableDensityArea {
 		
 		@Override
 		public String toString(){
-			Area area = allDensities.getArea(x,y,width,height); 
-			return  (area.toString() + " with " + Utils.format(count) + " nodes");
-		}
+//			Area area = allDensities.getArea(x,y,width,height); 
+//			return  (area.toString() + " with " + Utils.format(count) + " nodes");
+			StringBuilder sb = new StringBuilder();
+			sb.append("(");
+			sb.append(x);
+			sb.append(",");
+			sb.append(y);
+			sb.append(",");
+			sb.append(width);
+			sb.append(",");
+			sb.append(height);
+			sb.append(") with ");
+			sb.append(Utils.format(count));
+			sb.append(" nodes");
+			return sb.toString(); 		}
 	}
 	
+	/**
+	 * A helper class to store all kind of
+	 * information which is CPU intensive
+	 *
+	 */
+	class SplitMetaInfo {
+		final long[] rowSums;
+		final long[] colSums;
+		final Tile[] parts = new Tile[2];
+		int validStartX = -1;
+		int validStartY = -1;
+		int firstNonZeroX = -1;
+		int firstNonZeroY = -1;
+		int lastNonZeroX = -1;
+		int lastNonZeroY = -1;
+		long vertMidSum = -1;
+		long horMidSum = -1;
+		int vertMidPos = -1;
+		int horMidPos = -1;
+		
+		/**
+		 * Copy information from parent tile to child. Reusing these values
+		 * saves a lot of time.
+		 * @param tile
+		 * @param parent
+		 * @param smiParent
+		 */
+		public SplitMetaInfo(Tile tile, Tile parent, SplitMetaInfo smiParent) {
+			rowSums = new long[tile.height];
+			colSums = new long[tile.width]; 
+			if (parent != null && parent.width == tile.width){
+				int srcPos = tile.y - parent.y;
+				System.arraycopy(smiParent.rowSums, srcPos, rowSums, 0, rowSums.length);
+				if (srcPos == 0)
+					firstNonZeroY = smiParent.firstNonZeroY;
+			} else 
+				Arrays.fill(rowSums, -1);
+			if (parent != null && parent.height == tile.height){
+				int srcPos = tile.x - parent.x;
+				System.arraycopy(smiParent.colSums, srcPos, colSums, 0, colSums.length);
+				if (srcPos == 0)
+					firstNonZeroX = smiParent.firstNonZeroX;
+					
+			} else 
+				Arrays.fill(colSums, -1);
+
+		}
+		
+		/**
+		 * Copy the information back from child to parent so that next child has more info.
+		 * @param smiParent
+		 * @param tile
+		 * @param parent
+		 */
+		void propagateToParent(SplitMetaInfo smiParent, Tile tile, Tile parent){
+			if (parent.width == tile.width){
+				int destPos = tile.y - parent.y;
+				System.arraycopy(this.rowSums, 0, smiParent.rowSums, destPos, this.rowSums.length);
+				if (destPos == 0) {
+					if (smiParent.firstNonZeroY < 0 && this.firstNonZeroY >= 0)
+						smiParent.firstNonZeroY = this.firstNonZeroY;
+					if (smiParent.validStartY < 0 && this.validStartY >= 0)
+						smiParent.validStartY = this.validStartY;
+				} else {
+					if (smiParent.lastNonZeroY < 0 && this.lastNonZeroY >= 0)
+						smiParent.lastNonZeroY = this.lastNonZeroY;
+				}
+			} 
+			if (parent.height == tile.height){
+				int destPos = tile.x - parent.x;
+				System.arraycopy(this.colSums, 0, smiParent.colSums, destPos, this.colSums.length);
+				if (destPos == 0) {
+					if (smiParent.firstNonZeroX < 0 && this.firstNonZeroX >= 0)
+						smiParent.firstNonZeroX = this.firstNonZeroX;
+					if (smiParent.validStartX < 0 && this.validStartX >= 0)
+						smiParent.validStartX = this.validStartX;
+				} else {
+					if (smiParent.lastNonZeroX < 0 && this.lastNonZeroX >= 0)
+						smiParent.lastNonZeroX = this.lastNonZeroX;
+				}
+			}
+			
+		}
+	}
+	 	
 	/**
 	 * Helper class to combine a list of tiles with some
 	 * values that measure the quality.
@@ -1462,6 +1640,12 @@ public class SplittableDensityArea {
 			worstMinNodes = Math.min(tile.count, worstMinNodes); 		
 			return true;
 		}
+		
+		/**
+		 * Combine this solution with the other.
+		 * @param other
+		 * @param mergeAtDepth
+		 */
 		public void merge(Solution other, int mergeAtDepth){
 			if (other.tiles.isEmpty())
 				return;
@@ -1496,6 +1680,11 @@ public class SplittableDensityArea {
 			return tiles.size();
 		}
 		
+		/**
+		 * Compare two solutions 
+		 * @param other
+		 * @return -1 if this is better, 1 if other is better, 0 if both are equal
+		 */
 		public int compareTo(Solution other){
 			if (other == null)
 				return -1;
@@ -1724,12 +1913,7 @@ public class SplittableDensityArea {
 			return tiles.size() + " tile(s). The smallest node count is " + worstMinNodes + " (" +  percentage + " %), the worst aspect ratio is near " + ratio;
 			
 		}
-		
-		
-		
 	}
-
-	
 }
 
 
