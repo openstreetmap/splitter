@@ -789,7 +789,6 @@ public class SplittableDensityArea {
 		}
 		
 		int currX = 0, currY = 0;
-		int usedX = -1, usedY = -1;
 		Solution res = null;
 		int maxX, maxY;
 		if (offsets != null){
@@ -801,6 +800,7 @@ public class SplittableDensityArea {
 		
 		int countDone = 0;
 		while(true){
+			int usedX = -1, usedY = -1;
 			if (currX >= maxX && currY >= maxY)
 				break;
 			if (axis == AXIS_HOR){
@@ -817,17 +817,15 @@ public class SplittableDensityArea {
 				usedY = currY++;
 			}
 			countDone++;
-
 			if (alreadyDone != null && countDone <= alreadyDone.intValue()){
 				continue;
 			}
 			
 			// create the two parts of the tile 
 			boolean ok = false;
-			int usedOffset = 0;
-
 			if (offsets != null){
-				if (usedX >= 0){
+				int usedOffset;
+				if (axis == AXIS_HOR){
 					usedOffset = offsets.getInt(usedX);
 					ok = tile.splitHorizWithOffset(usedOffset, smi);
 				} else {
@@ -836,7 +834,7 @@ public class SplittableDensityArea {
 				}
 			} else {
 				int splitPos;
-				if (usedX >= 0){
+				if (axis == AXIS_HOR){
 					splitPos = splitXPositions.getInt(usedX);
 					ok = tile.splitHoriz(splitPos, smi);
 				} else {
