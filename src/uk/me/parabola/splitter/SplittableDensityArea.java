@@ -120,7 +120,10 @@ public class SplittableDensityArea {
 			return Collections.emptyList();
 		prepare(null);
 		Tile startTile = new Tile(0,0,allDensities.getWidth(),allDensities.getHeight(), allDensities.getNodeCount());
-		
+		if (allDensities.getBounds().getWidth() >= 0x1000000){
+			// spans planet
+			startTile = checkBounds(startTile);
+		}
 		Solution fullSolution = new Solution(spread);
 		Solution startSolution = solveRectangularArea(startTile);
 		
@@ -160,6 +163,25 @@ public class SplittableDensityArea {
 		return fullSolution.getAreas(null);
 	}
 
+	/**
+	 * Check if bbox of tile is far too large. Found in Asia extract
+	 * from geofabrik which claims to span planet, but doesn't.
+	 * @param startTile
+	 * @return
+	 */
+	private Tile checkBounds(Tile startTile) {
+		List<Tile> startTiles = checkForEmptyClusters(0, startTile, true);
+		if (startTiles.size() == 1){
+			Tile tile = startTiles.get(0);
+			if (tile.width < 0.95 * startTile.width){
+				System.out.println("removed empty parts");
+				return tile;
+			}
+		}			
+
+		return startTile;
+	}
+	
 	/**
 	 * Split with a given polygon and max nodes threshold. If the polygon
 	 * is not singular, it is divided into singular areas.
