@@ -1502,21 +1502,22 @@ public class SplittableDensityArea {
 		
 		@Override
 		public String toString(){
-//			Area area = allDensities.getArea(x,y,width,height); 
-//			return  (area.toString() + " with " + Utils.format(count) + " nodes");
-			StringBuilder sb = new StringBuilder();
-			sb.append("(");
-			sb.append(x);
-			sb.append(",");
-			sb.append(y);
-			sb.append(",");
-			sb.append(width);
-			sb.append(",");
-			sb.append(height);
-			sb.append(") with ");
-			sb.append(Utils.format(count));
-			sb.append(" nodes");
-			return sb.toString(); 		}
+			Area area = allDensities.getArea(x,y,width,height); 
+			return  (area.toString() + " with " + Utils.format(count) + " nodes");
+//			StringBuilder sb = new StringBuilder();
+//			sb.append("(");
+//			sb.append(x);
+//			sb.append(",");
+//			sb.append(y);
+//			sb.append(",");
+//			sb.append(width);
+//			sb.append(",");
+//			sb.append(height);
+//			sb.append(") with ");
+//			sb.append(Utils.format(count));
+//			sb.append(" nodes");
+//			return sb.toString(); 		
+		}
 	}
 	
 	/**
