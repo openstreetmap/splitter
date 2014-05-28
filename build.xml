@@ -127,6 +127,7 @@
     <mkdir dir="${build.classes}"/>
     <mkdir dir="${build.test-classes}"/>
     <mkdir dir="${build.test-output}"/>
+    <mkdir dir="${resources}"/>
 		<property environment="env"/>
 
 		<condition property="have.svn">
