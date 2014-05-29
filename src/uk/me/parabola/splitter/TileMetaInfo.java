@@ -21,7 +21,7 @@ import java.util.Arrays;
  * @author GerdP
  */
 class TileMetaInfo {
-	private final long minNodes;
+	private long minNodes;
 	private final long[] rowSums;
 	private final long[] colSums;
 	private final Tile[] parts = new Tile[2];
@@ -35,6 +35,52 @@ class TileMetaInfo {
 	private long horMidSum = -1;
 	private int vertMidPos = -1;
 	private int horMidPos = -1;
+	private int validEndX = -1;
+	private int validEndY = -1;
+	
+	/**
+	 * Copy information from parent tile to child. Reusing these values
+	 * saves a lot of time.
+	 * @param tile
+	 * @param parent
+	 * @param smiParent
+	 */
+	public TileMetaInfo(Tile tile, Tile parent, TileMetaInfo smiParent) {
+		rowSums = new long[tile.height];
+		colSums = new long[tile.width]; 
+		if (parent != null && parent.width == tile.width){
+			int srcPos = tile.y - parent.y;
+			System.arraycopy(smiParent.rowSums, srcPos, rowSums, 0, rowSums.length);
+			if (srcPos == 0)
+				firstNonZeroY = smiParent.firstNonZeroY;
+		} else 
+			Arrays.fill(rowSums, -1);
+		if (parent != null && parent.height == tile.height){
+			int srcPos = tile.x - parent.x;
+			System.arraycopy(smiParent.colSums, srcPos, colSums, 0, colSums.length);
+			if (srcPos == 0)
+				firstNonZeroX = smiParent.firstNonZeroX;
+				
+		} else 
+			Arrays.fill(colSums, -1);
+		if (smiParent != null)
+			this.minNodes = smiParent.minNodes;
+	}
+
+	/**
+	 * Set new minNodes value. This invalidates cached values if the value is
+	 * different to the previously used one.
+	 * @param minNodes
+	 */
+	public void setMinNodes(long minNodes){
+		if (this.minNodes == minNodes)
+			return;
+		this.minNodes = minNodes;
+		this.validStartX = -1;
+		this.validStartY = -1;
+		this.validEndX = -1;
+		this.validEndY = -1;
+	}
 	
 	public int getValidStartX() {
 		return validStartX;
@@ -132,33 +178,20 @@ class TileMetaInfo {
 		return parts;
 	}
 
-	/**
-	 * Copy information from parent tile to child. Reusing these values
-	 * saves a lot of time.
-	 * @param tile
-	 * @param parent
-	 * @param smiParent
-	 */
-	public TileMetaInfo(Tile tile, Tile parent, TileMetaInfo smiParent, long minNodes) {
-		this.minNodes = minNodes;
-		rowSums = new long[tile.height];
-		colSums = new long[tile.width]; 
-		if (parent != null && parent.width == tile.width){
-			int srcPos = tile.y - parent.y;
-			System.arraycopy(smiParent.rowSums, srcPos, rowSums, 0, rowSums.length);
-			if (srcPos == 0)
-				firstNonZeroY = smiParent.firstNonZeroY;
-		} else 
-			Arrays.fill(rowSums, -1);
-		if (parent != null && parent.height == tile.height){
-			int srcPos = tile.x - parent.x;
-			System.arraycopy(smiParent.colSums, srcPos, colSums, 0, colSums.length);
-			if (srcPos == 0)
-				firstNonZeroX = smiParent.firstNonZeroX;
-				
-		} else 
-			Arrays.fill(colSums, -1);
+	public int getValidEndX() {
+		return validEndX;
+	}
 
+	public void setValidEndX(int pos) {
+		this.validEndX = pos;
+	}
+
+	public int getValidEndY() {
+		return validEndY;
+	}
+
+	public void setValidEndY(int pos) {
+		this.validEndY = pos;
 	}
 	
 	/**
@@ -177,8 +210,14 @@ class TileMetaInfo {
 				if (smiParent.validStartY < 0 && this.validStartY >= 0)
 					smiParent.validStartY = this.validStartY;
 			} else {
-				if (smiParent.lastNonZeroY < 0 && this.lastNonZeroY >= 0)
-					smiParent.lastNonZeroY = this.lastNonZeroY;
+				if (smiParent.lastNonZeroY < 0 && this.lastNonZeroY >= 0){
+					smiParent.lastNonZeroY = destPos + this.lastNonZeroY;
+					assert smiParent.lastNonZeroY <= parent.height;
+				}
+				if (smiParent.validEndY < 0 && this.validEndY >= 0){
+					smiParent.validEndY = destPos + this.validEndY;
+					assert smiParent.validEndY <= parent.height;
+				}
 			}
 		} 
 		if (parent.height == tile.height){
@@ -190,10 +229,77 @@ class TileMetaInfo {
 				if (smiParent.validStartX < 0 && this.validStartX >= 0)
 					smiParent.validStartX = this.validStartX;
 			} else {
-				if (smiParent.lastNonZeroX < 0 && this.lastNonZeroX >= 0)
-					smiParent.lastNonZeroX = this.lastNonZeroX;
+				if (smiParent.lastNonZeroX < 0 && this.lastNonZeroX >= 0){
+					smiParent.lastNonZeroX = destPos + this.lastNonZeroX;
+					assert parent.getColSum(smiParent.lastNonZeroX) > 0;
+				}
+				if (smiParent.validEndX < 0 && this.validEndX >= 0){
+					smiParent.validEndX = destPos + this.validEndX;
+					assert smiParent.validEndX <= parent.width;
+				}
 			}
 		}
-		
+//		verify(tile);
+//		smiParent.verify(parent);
 	}
+
+	boolean verify(Tile tile){
+		if (firstNonZeroX >= 0){
+			assert tile.getColSum(firstNonZeroX) > 0;
+			for (int i = 0; i < firstNonZeroX; i++)
+				assert tile.getColSum(i) == 0;
+		}
+		if (lastNonZeroX >= 0){
+			assert tile.getColSum(lastNonZeroX) > 0;
+			for (int i = lastNonZeroX+1; i < tile.width; i++)
+				assert tile.getColSum(i) == 0;
+		}
+		if (validEndX >= 0){
+			long sum = 0;
+			for (int i = validEndX; i < tile.width; i++){
+				sum += tile.getColSum(i);
+			}
+			assert sum >= minNodes;
+			assert sum - tile.getColSum(validEndX) < minNodes;
+		}
+		if (validStartX >= 0){
+			if (tile.count == 209218100){
+				long dd = 4;
+			}
+			long sum = 0;
+			for (int i = 0; i < validStartX; i++){
+				sum += tile.getColSum(i);
+			}
+			assert sum < minNodes;
+			assert sum + tile.getColSum(validStartX) >= minNodes;
+		}
+		if (firstNonZeroY >= 0){
+			assert tile.getRowSum(firstNonZeroY) > 0;
+			for (int i = 0; i < firstNonZeroY; i++)
+				assert tile.getRowSum(i) == 0;
+		}
+		if (lastNonZeroY >= 0){
+			assert tile.getRowSum(lastNonZeroY) > 0;
+			for (int i = lastNonZeroY+1; i < tile.height; i++)
+				assert tile.getRowSum(i) == 0;
+		}
+		if (validStartY >= 0){
+			long sum = 0;
+			for (int i = 0; i < validStartY; i++){
+				sum += tile.getRowSum(i);
+			}
+			assert sum < minNodes;
+			assert sum + tile.getRowSum(validStartY) >= minNodes;
+		}
+		if (validEndY >= 0){
+			long sum = 0;
+			for (int i = validEndY; i < tile.height; i++){
+				sum += tile.getRowSum(i);
+			}
+			assert sum >= minNodes;
+			assert sum - tile.getRowSum(validEndY) < minNodes;
+		}
+		return false;
+	}
+
 }

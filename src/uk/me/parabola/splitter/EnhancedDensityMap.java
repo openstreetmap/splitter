@@ -12,6 +12,8 @@
  */ 
 package uk.me.parabola.splitter;
 
+import java.awt.Rectangle;
+
 /**
  * Contains info that is needed by the {@link Tile} class. For a given
  * DensityMap we calculate some extra info to allow faster access to row sums
@@ -98,7 +100,7 @@ public class EnhancedDensityMap {
 	}
 
 	// calculate aspect ratio of a tile which is a view on the densityMap
-	public double getAspectRatio(Tile r) {
+	public double getAspectRatio(Rectangle r) {
 		double ratio;
 		double maxWidth ;
 		if (r.y < minAspectRatioFactorPos && r.y+r.height > minAspectRatioFactorPos){

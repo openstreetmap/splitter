@@ -63,6 +63,10 @@ import java.awt.Rectangle;
 			super(x,y,width,height);
 			this.densityInfo = densityInfo;
 			this.count = count; 
+//			if (!verify()){
+//				System.out.println(count + " <> " + calcCount());
+//				assert false;
+//			}
 		}
 
 		/**
@@ -176,7 +180,7 @@ import java.awt.Rectangle;
 			if (count == 0 || width < 2)
 				smi.setHorMidPos(0);
 			else {
-				int start = (smi.getLastNonZeroX() > 0) ? smi.getLastNonZeroX() : 0;
+				int start = (smi.getFirstNonZeroX() > 0) ? smi.getFirstNonZeroX() : 0;
 				long sum = 0;
 				long lastSum = 0;
 				long target = count/2;
@@ -184,7 +188,9 @@ import java.awt.Rectangle;
 				for (int pos = start; pos <= width; pos++) {
 					lastSum = sum;
 					sum += getColSum(pos, smi.getColSums());
-					if (lastSum <= 0 && sum > 0)
+					if (sum == 0)
+						continue;
+					if (lastSum <= 0)
 						smi.setFirstNonZeroX(pos);
 					if (sum > target){
 						smi.setHorMidPos(pos);
@@ -226,7 +232,7 @@ import java.awt.Rectangle;
 		} 		
 
 		/**
-		 * Split at a desired horizontal position.
+		 * Split at the given horizontal position.
 		 * @param splitX the horizontal split line
 		 * @return array with two parts
 		 */
@@ -258,7 +264,7 @@ import java.awt.Rectangle;
 		}
 
 		/**
-		 * Split at a desired vertical position.
+		 * Split at the given vertical position.
 		 * @param splitY the vertical split line
 		 * @return array with two parts
 		 */
@@ -291,12 +297,22 @@ import java.awt.Rectangle;
 			return true;
 		}
 
+		/**
+		 * 
+		 * @param smi
+		 * @return smallest position at which all columns on the left have a sum < minNodes
+		 */
 		public int findValidStartX(TileMetaInfo smi) {
 			if (smi.getValidStartX() >= 0)
 				return smi.getValidStartX();
 			long sum = 0;
-			for (int i = 0; i < smi.getColSums().length; i++) {
+			int start = (smi.getFirstNonZeroX() > 0) ? smi.getFirstNonZeroX() : 0;
+			for (int i = start; i < width; i++) {
 				sum += getColSum(i, smi.getColSums());
+				if (sum == 0)
+					continue;
+				if (smi.getFirstNonZeroX() < 0)
+					smi.setFirstNonZeroX(i);
 				if (sum >= smi.getMinNodes()){
 					smi.setValidStartX(i);
 					return i;
@@ -306,22 +322,44 @@ import java.awt.Rectangle;
 			return width;
 		}
 
+		/**
+		 * 
+		 * @param smi
+		 * @return highest position at which all columns on the right have a sum < minNodes
+		 */
 		public int findValidEndX(TileMetaInfo smi) {
-			long sum = 0;
-			for (int i = smi.getColSums().length - 1; i >= 0; --i) {
-				sum += getColSum(i, smi.getColSums());
-				if (sum >= smi.getMinNodes())
-					return i;
+			if (smi.getValidEndX() < 0){
+				int end = smi.getLastNonZeroX() > 0 ? smi.getLastNonZeroX() : width - 1; 
+				long sum = 0;
+				for (int i = end; i >= 0; --i) {
+					sum += getColSum(i, smi.getColSums());
+					if (sum > 0 && smi.getLastNonZeroX() < 0)
+						smi.setLastNonZeroX(i);
+					if (sum >= smi.getMinNodes()){
+						smi.setValidEndX(i);
+						break;
+					}
+				}
 			}
-			return 0;
+			return smi.getValidEndX();
 		}
-
+		
+		/**
+		 * 
+		 * @param smi
+		 * @return smallest position at which all lower rows have a sum < minNodes
+		 */
 		public int findValidStartY(TileMetaInfo smi) {
 			if (smi.getValidStartY() > 0)
 				return smi.getValidStartY();
 			long sum = 0;
-			for (int i = 0; i < height; i++) {
+			int start = (smi.getFirstNonZeroY() > 0) ? smi.getFirstNonZeroY() : 0;
+			for (int i = start; i < height; i++) {
 				sum += getRowSum(i, smi.getRowSums());
+				if (sum == 0)
+					continue;
+				if (smi.getFirstNonZeroY() < 0)
+					smi.setFirstNonZeroY(i);
 				if (sum >= smi.getMinNodes()){
 					smi.setValidStartY(i);
 					return i;
@@ -331,14 +369,26 @@ import java.awt.Rectangle;
 			return height;
 		}
 
+		/**
+		 * 
+		 * @param smi
+		 * @return highest position at which all upper rows have a sum < minNodes
+		 */
 		public int findValidEndY(TileMetaInfo smi) {
-			long sum = 0;
-			for (int i = height - 1; i >= 0; --i) {
-				sum += getRowSum(i, smi.getRowSums());
-				if (sum >= smi.getMinNodes())
-					return i;
+			if (smi.getValidEndY() < 0){
+				int end = smi.getLastNonZeroY() > 0 ? smi.getLastNonZeroY() : height - 1; 
+				long sum = 0;
+				for (int i = end; i >= 0; --i) {
+					sum += getRowSum(i, smi.getRowSums());
+					if (sum > 0 && smi.getLastNonZeroY() < 0)
+						smi.setLastNonZeroY(i);
+					if (sum >= smi.getMinNodes()){
+						smi.setValidEndY(i);
+						break;
+					}
+				}
 			}
-			return 0;
+			return smi.getValidEndY();
 		}
 		
 		/**

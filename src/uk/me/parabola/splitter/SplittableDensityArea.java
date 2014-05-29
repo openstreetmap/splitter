@@ -671,7 +671,7 @@ public class SplittableDensityArea {
 
 		// copy the existing density info from parent 
 		// typically, at least one half can be re-used
-		TileMetaInfo smi = new TileMetaInfo(tile, parent, smiParent, minNodes);
+		TileMetaInfo smi = new TileMetaInfo(tile, parent, smiParent);
 		
 		// we have to split the tile
 		IntArrayList splitXPositions = new IntArrayList();
@@ -780,9 +780,9 @@ public class SplittableDensityArea {
 	 * @return a solution (maybe be empty)
 	 */
 	private Solution solveRectangularArea(Tile startTile){
-		// start values for optimization process (they make sure that we find a solution)
+		// start values for optimization process: we make little steps towards a good solution
 		spread = 0;
-		minNodes = maxNodes / 100;
+		minNodes = Math.max(Math.min((long)(0.05 * maxNodes), extraDensityInfo.getNodeCount()), 1); 
 		
 		maxAspectRatio = startTile.getAspectRatio();
 		if (maxAspectRatio < 1)
@@ -791,9 +791,9 @@ public class SplittableDensityArea {
 			maxAspectRatio = NICE_MAX_ASPECT_RATIO;
 		goodSolutions = new HashMap<>();
 		goodRatio = 0.5;
-		TileMetaInfo smiStart = new TileMetaInfo(startTile, null, null, minNodes);
+		TileMetaInfo smiStart = new TileMetaInfo(startTile, null, null);
 
-		if (checkSize(startTile)){
+		if (startTile.count < 300 * maxNodes && (checkSize(startTile) || startTile.count < 10 * maxNodes) ){
 			searchAll = true;
 		}
 		
@@ -816,6 +816,7 @@ public class SplittableDensityArea {
 				else
 					System.out.println("searching for split with spread " + spread + " and min-nodes " + minNodes + ", learned " + goodSolutions.size() + " good partial solutions");
 			}
+			smiStart.setMinNodes(minNodes);
 			solution = findSolution(0, startTile, startTile, smiStart);
 			if (solution != null){
 				foundBetter = bestSolution.compareTo(solution) > 0;
@@ -854,16 +855,17 @@ public class SplittableDensityArea {
 			}
 			if (!searchAll && foundBetter == false && spread < MAX_SPREAD){
 				// no (better) solution found for the criteria, search also with "non-natural" split lines
-				if (spread == 0 || minNodes > 0.66 * maxNodes){
-					spread = getNextSpread(spread);
-					incomplete.clear();
-					continue;
-				}
+				spread = getNextSpread(spread);
+				incomplete.clear();
+				continue;
 			}
 			maxAspectRatio = Math.max(bestSolution.getWorstAspectRatio()/2, NICE_MAX_ASPECT_RATIO);
 			maxAspectRatio = Math.min(32,maxAspectRatio);
 			
-			
+			if (bestSolution.isEmpty()){
+				minNodes *= 2; 
+				spread = 0;
+			} 
 			if (bestSolution.isEmpty() == false && bestSolution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes)
 				break;
 			if (minNodes > VERY_NICE_FILL_RATIO * maxNodes)
@@ -1014,7 +1016,7 @@ public class SplittableDensityArea {
 							splitXPositions.add(smi.getHorMidPos());
 							splitXPositions.add(tile.findValidStartX(smi));
 							splitXPositions.add(tile.findValidEndX(smi));
-							splitYPositions.add(smi.getHorMidPos());
+							splitYPositions.add(smi.getVertMidPos());
 							splitYPositions.add(tile.findValidStartY(smi));
 							splitYPositions.add(tile.findValidEndY(smi));
 						}
