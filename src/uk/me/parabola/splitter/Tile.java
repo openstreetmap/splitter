@@ -5,33 +5,73 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.awt.Rectangle;
 
 /**
-	 * Helper class to store area info with node counters.
-	 * The node counters use the values saved in the xyMap / yxMap.
+	 * This class implements a "view" on a rectangle covering a part
+	 * of a {@link DensityMap}. 
+	 * It contains the sum of all nodes in this area and has methods to
+	 * help splitting it into smaller parts.
+	 * 
+	 * It extends java.awt.Rectangle because that implements a useful 
+	 * hashCode method. 
+	 * We want to keep the memory footprint of this class small as
+	 * many instances are kept in maps. 
 	 * @author GerdP
 	 *
 	 */
-	@SuppressWarnings("serial")
 	class Tile extends Rectangle{
 		/**
 		 * 
 		 */
 		private final EnhancedDensityMap densityInfo;
-		final long count;
+		public final long count;
 		
 		/**
-		 * create a tile with unknown number of nodes
-		 * @param x
-		 * @param y
-		 * @param width
-		 * @param height
-		 * @param splittableDensityArea TODO
+		 * Create tile for whole density map.
+		 * @param densityInfo
 		 */
-		public Tile(EnhancedDensityMap densityInfo, int x,int y, int width, int height) {
-			super(x,y,width,height);
+		public Tile(EnhancedDensityMap densityInfo) {
+			this(densityInfo, 0, 0, densityInfo.getDensityMap().getWidth(), 
+					densityInfo.getDensityMap().getHeight(),
+					densityInfo.getNodeCount());
+		}
+
+		/**
+		 * create a tile with unknown number of nodes
+		 * @param r the rectangle
+		 * @param densityInfo
+		 */
+		public Tile(EnhancedDensityMap densityInfo, Rectangle r) {
+			super(r);
+			if (r.x < 0 || r.y < 0
+				|| r.x + r.width > densityInfo.getDensityMap().getWidth()
+				|| r.y + r.height > densityInfo.getDensityMap().getHeight())
+			throw new IllegalArgumentException("Rectangle doesn't fit into density map");
+			
 			this.densityInfo = densityInfo;
 			count = calcCount();
 		}
 
+		/**
+		 * create a tile with a known number of nodes
+		 * @param densityInfo
+		 * @param x
+		 * @param y
+		 * @param width
+		 * @param height
+		 * @param count caller must ensure that this value is correct. See also verify()
+		 */
+		private Tile(EnhancedDensityMap densityInfo, int x,int y, int width, int height, long count) {
+			super(x,y,width,height);
+			this.densityInfo = densityInfo;
+			this.count = count; 
+		}
+
+		/**
+		 * @return true if the saved count value is correct. 
+		 */
+		public boolean verify(){
+			return (count == calcCount()); 
+		}
+		
 		public IntArrayList genXTests(TileMetaInfo smi) {
 			int start = this.findValidStartX(smi);
 			int end = this.findValidEndX(smi);
@@ -66,28 +106,6 @@ import java.awt.Rectangle;
 		}
 
 
-
-		/**
-		 * create a tile with a known number of nodes
-		 * @param densityInfo
-		 * @param x
-		 * @param y
-		 * @param width
-		 * @param height
-		 * @param count
-		 */
-		public Tile(EnhancedDensityMap densityInfo, int x,int y, int width, int height, long count) {
-			this.densityInfo = densityInfo;
-			this.x = x;
-			this.y = y;
-			this.width = width;
-			this.height = height;
-			this.count = count; 
-//			if (count != calcCount()){
-//				System.err.println(count + " <> " + calcCount());
-//				assert false;
-//			}
-		}
 
 		/**
 		 * calculate the numnber of nodes in this tile
@@ -148,176 +166,34 @@ import java.awt.Rectangle;
 		}
 
 		/**
-		 * Find the horizontal middle of the tile (using the node counts).
-		 * Add the offset and split at this position.   
-		 * If the tile is large, the real middle is used to avoid
-		 * time consuming calculations.
-		 * @param offset the desired offset
-		 * @return array with two parts or null in error cases
-		 */
-		public boolean splitHorizWithOffset(final int offset, TileMetaInfo smi, long maxNodes) {
-			if (count == 0 || width < 2)
-				return false;
-			int middle = width / 2;
-			if(count > maxNodes * 16 && width > 256)
-				return splitHoriz(middle + offset, smi);
-			
-			int splitX = -1;
-			long sum = 0;
-			long lastSum = 0;
-			long target = count/2;
-			
-			if (smi.getHorMidPos() < 0)
-				findHorizontalMiddle(smi);
-			splitX = smi.getHorMidPos();
-			lastSum = smi.getHorMidSum();
-			boolean checkMove = false;
-			if (splitX == 0)
-				lastSum += getColSum(splitX++, smi.getColSums());
-			else 
-				checkMove = true;
-
-
-			int splitPos = splitX + offset;
-			if (splitPos <= 0 || splitPos >= width)
-				return false;
-			
-			if (offset > 0){
-				if (width - splitPos < offset)
-					return splitHoriz(splitPos, smi);
-				
-				for (int i = 0; i < offset; i++){
-					lastSum += getColSum(splitX + i, smi.getColSums());
-				}
-				
-			} else if (offset < 0){
-				if (splitPos < -offset)
-					return splitHoriz(splitPos, smi);
-				int toGo = offset;
-				while (toGo != 0){
-					// we can use the array here because we can be sure that all used fields are filled
-					// the loop should run forward as this seems to be faster
-					lastSum -= smi.getColSums()[splitX + toGo++]; 
-				}
-			}
-			sum = lastSum + getColSum(splitPos, smi.getColSums()); 
-			if (checkMove && offset >= 0 && splitPos + 1 < width  && target - lastSum > sum - target){
-				lastSum = sum;
-				splitPos++;
-			}
-			if (lastSum < smi.getMinNodes() || count - lastSum < smi.getMinNodes())
-				return false;
-			assert splitX > 0 && splitX < width; 
-			smi.getParts()[0] = new Tile(densityInfo, x, y, splitPos, height, lastSum);
-			smi.getParts()[1] = new Tile(densityInfo, x + splitPos, y, width - splitPos,height, count -lastSum);
-			assert smi.getParts()[0].width + smi.getParts()[1].width == this.width; 
-			return true;
-			
-			
-		}
-		/**
-		 * Find the vertical middle of the tile (using the node counts).
-		 * Add the offset and split at this position.   
-		 * If the tile is large, the real middle is used to avoid
-		 * time consuming calculations.
-		 * @param offset the desired offset
-		 * @return array with two parts or null in error cases
-		 */
-		public boolean splitVertWithOffset(int offset, TileMetaInfo smi, long maxNodes) {
-			if (count == 0 || height < 2)
-				return false;
-			int middle = height/2;
-			if (count > maxNodes * 16 && height > 128)
-				return splitVert(middle + offset, smi);
-			long target = count/2;
-			int splitY = -1;
-			long sum = 0;
-			long lastSum = 0;
-			if (smi.getVertMidPos() < 0)
-				findVerticalMiddle(smi);
-			splitY = smi.getHorMidPos();
-			lastSum = smi.getHorMidSum();
-			boolean checkMove = false;
-			if (splitY == 0)
-				lastSum += getRowSum(splitY++, smi.getRowSums());
-			else 
-				checkMove = true;
-
-			int splitPos = splitY + offset;
-			if (splitPos <= 0 || splitPos >= height)
-				return false;
-			
-			if (offset > 0){
-				if (height - splitPos < offset)
-					return splitVert(splitPos, smi);
-				
-				for (int i = 0; i < offset; i++){
-					lastSum += getRowSum(splitY + i, smi.getRowSums());
-				}
-				
-			} else if (offset < 0){
-				if (splitPos < -offset)
-					return splitVert(splitPos, smi);
-				int toGo = offset;
-				while (toGo != 0){
-					// we can use the array here because we can be sure that all used fields are filled
-					// the loop should run forward as this seems to be faster
-					lastSum -= smi.getRowSums()[splitY + toGo++]; 
-				}
-			}
-			sum = lastSum + getRowSum(splitPos, smi.getRowSums()); 
-			if (checkMove && offset >= 0 && splitPos + 1 < height  && target - lastSum > sum - target){
-				lastSum = sum;
-				splitPos++;
-			}
-			if (lastSum < smi.getMinNodes() || count - lastSum < smi.getMinNodes())
-				return false;
-			splitAtY(splitPos, lastSum, smi);
-			return true;
-			
-		}
-		
-		private void splitAtX(int splitPos, long sum1, TileMetaInfo smi) {
-			smi.getParts()[0] = new Tile(densityInfo, x, y, splitPos, height, sum1);
-			smi.getParts()[1] = new Tile(densityInfo, x + splitPos, y, width - splitPos,height, count - sum1);
-			assert smi.getParts()[0].width + smi.getParts()[1].width == this.width; 
-			
-		}
-		private void splitAtY(int splitPos, long sum1, TileMetaInfo smi) {
-			smi.getParts()[0] = new Tile(densityInfo, x, y, width, splitPos, sum1);
-			smi.getParts()[1] = new Tile(densityInfo, x, y + splitPos, width, height- splitPos, count- sum1);
-			assert smi.getParts()[0].height + smi.getParts()[1].height == this.height;
-			
-		}
-
-		/**
 		 * Find first y so that sums of columns for 0-y is > count/2
 		 * Update corresponding fields in smi.
 		 * 
 		 * @param smi fields firstNonZeroX, horMidPos and horMidSum may be updated
 		 * @return true if the above fields are usable 
 		 */
-		public boolean findHorizontalMiddle(TileMetaInfo smi) {
+		public int findHorizontalMiddle(TileMetaInfo smi) {
 			if (count == 0 || width < 2)
-				return false;
+				smi.setHorMidPos(0);
+			else {
+				int start = (smi.getLastNonZeroX() > 0) ? smi.getLastNonZeroX() : 0;
+				long sum = 0;
+				long lastSum = 0;
+				long target = count/2;
 
-			int start = (smi.getLastNonZeroX() > 0) ? smi.getLastNonZeroX() : 0;
-			long sum = 0;
-			long lastSum = 0;
-			long target = count/2;
-			
-			for (int pos = start; pos <= width; pos++) {
-				lastSum = sum;
-				sum += getColSum(pos, smi.getColSums());
-				if (lastSum <= 0 && sum > 0)
-					smi.setFirstNonZeroX(pos);
-				if (sum > target){
-					smi.setHorMidPos(pos);
-					smi.setHorMidSum(lastSum);
-					break;
+				for (int pos = start; pos <= width; pos++) {
+					lastSum = sum;
+					sum += getColSum(pos, smi.getColSums());
+					if (lastSum <= 0 && sum > 0)
+						smi.setFirstNonZeroX(pos);
+					if (sum > target){
+						smi.setHorMidPos(pos);
+						smi.setHorMidSum(lastSum);
+						break;
+					}
 				}
 			}
-			return false;
+			return smi.getHorMidPos();
 		}
 
 		/**
@@ -326,27 +202,27 @@ import java.awt.Rectangle;
 		 * @param smi fields firstNonZeroY, vertMidPos, and vertMidSum may be updated 
 		 * @return true if the above fields are usable 
 		 */
-		public boolean findVerticalMiddle(TileMetaInfo smi) {
+		public int findVerticalMiddle(TileMetaInfo smi) {
 			if (count == 0 || height < 2)
-				return false;
-			
-			long sum = 0;
-			long lastSum;
-			long target = count/2;
-			int start = (smi.getFirstNonZeroY() > 0) ? smi.getFirstNonZeroY() : 0;
-			for (int pos = start; pos <= height; pos++) {
-				lastSum = sum;
-				sum += getRowSum(pos, smi.getRowSums());
-				if (lastSum <= 0 && sum > 0)
-					smi.setFirstNonZeroY(pos);
-				
-				if (sum > target){
-					smi.setVertMidPos(pos);
-					smi.setVertMidSum(lastSum);
-					return true;
+				smi.setVertMidPos(0);
+			else {
+				long sum = 0;
+				long lastSum;
+				long target = count/2;
+				int start = (smi.getFirstNonZeroY() > 0) ? smi.getFirstNonZeroY() : 0;
+				for (int pos = start; pos <= height; pos++) {
+					lastSum = sum;
+					sum += getRowSum(pos, smi.getRowSums());
+					if (lastSum <= 0 && sum > 0)
+						smi.setFirstNonZeroY(pos);
+					if (sum > target){
+						smi.setVertMidPos(pos);
+						smi.setVertMidSum(lastSum);
+						break;
+					}
 				}
 			}
-			return false; // should not happen
+			return smi.getVertMidPos();
 		} 		
 
 		/**
@@ -373,7 +249,11 @@ import java.awt.Rectangle;
 			}
 			if (sum < smi.getMinNodes() || count - sum < smi.getMinNodes())
 				return false;
-			splitAtX(splitX, sum, smi);
+			assert splitX > 0 && splitX < width;
+			Tile[] parts = smi.getParts();
+			parts[0] = new Tile(densityInfo, x, y, splitX, height, sum);
+			parts[1] = new Tile(densityInfo, x + splitX, y, width - splitX,height, count - sum);
+			assert smi.getParts()[0].width + smi.getParts()[1].width == this.width; 
 			return true;
 		}
 
@@ -402,7 +282,12 @@ import java.awt.Rectangle;
 
 			if (sum < smi.getMinNodes() || count - sum < smi.getMinNodes())
 				return false;
-			splitAtY(splitY, sum, smi);
+			assert splitY > 0 && splitY < height;
+			Tile[] parts = smi.getParts();
+			parts[0] = new Tile(densityInfo, x, y, width, splitY, sum);
+			parts[1] = new Tile(densityInfo, x, y + splitY, width, height- splitY, count- sum);
+			assert parts[0].height + parts[1].height == this.height;
+			
 			return true;
 		}
 
@@ -502,7 +387,8 @@ import java.awt.Rectangle;
 			assert minX <= maxX;
 			assert minY <= maxY;
 			return new Tile(densityInfo, minX, minY, maxX - minX + 1, maxY - minY + 1, count);
-		} 		
+		}
+		
 		
 		@Override
 		public String toString(){

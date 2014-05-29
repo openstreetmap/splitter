@@ -118,9 +118,7 @@ public class SplittableDensityArea {
 		if (allDensities == null || allDensities.getNodeCount() == 0)
 			return Collections.emptyList();
 		prepare(null);
-		Tile startTile = new Tile(extraDensityInfo, 0, 0,
-				allDensities.getWidth(), allDensities.getHeight(),
-				allDensities.getNodeCount());
+		Tile startTile = new Tile(extraDensityInfo);
 		if (allDensities.getBounds().getWidth() >= 0x1000000){
 			// spans planet
 			startTile = checkBounds(startTile);
@@ -201,9 +199,7 @@ public class SplittableDensityArea {
 			}
 			
 			prepare(polygonArea);
-			Tile tile = new Tile(extraDensityInfo, rasteredArea.getBounds().x,
-					rasteredArea.getBounds().y, rasteredArea.getBounds().width,
-					rasteredArea.getBounds().height);
+			Tile tile = new Tile(extraDensityInfo, rasteredArea.getBounds());
 			Solution solution = findSolutionWithSinglePolygon(0, tile, rasteredArea);
 			return getAreas(solution, polygonArea);
 		}
@@ -500,8 +496,7 @@ public class SplittableDensityArea {
 				List<List<Point>> shapes = Utils.areaToShapes(area);
 				for (List<Point> shape: shapes){
 					java.awt.geom.Area part = Utils.shapeToArea(shape);
-					Rectangle r = part.getBounds();
-					Tile t = new Tile(extraDensityInfo, r.x, r.y, r.width, r.height);
+					Tile t = new Tile(extraDensityInfo, part.getBounds());
 					if (t.count > 0)
 						clusters.addAll(checkForEmptyClusters(depth + 1, t.trim(), !splitHoriz ));
 				}
@@ -554,21 +549,17 @@ public class SplittableDensityArea {
 	 * @param rasteredPolygonArea an area describing a rectilinear shape
 	 * @return a solution or null if splitting failed
 	 */
-//	private int rectangles = 0;
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
 		if (rasteredPolygonArea.isRectangular()){
-			Rectangle r = rasteredPolygonArea.getBounds();
-			Tile part = new Tile(extraDensityInfo, r.x, r.y, r.width, r.height);
-//			KmlWriter.writeKml("e:/ld_sp/rect"+rectangles, "rect", allDensities.getArea(r.x,r.y,r.width,r.height).getJavaArea());
+			Tile part = new Tile(extraDensityInfo, rasteredPolygonArea.getBounds());
 			return solveRectangularArea(part);
 		}
 		List<List<Point>> shapes = Utils.areaToShapes(rasteredPolygonArea);
 		List<Point> shape = shapes.get(0);
 		
 		if (shape.size() > MAX_SINGLE_POLYGON_VERTICES){
-			Rectangle r = rasteredPolygonArea.getBounds();
-			Tile part = new Tile(extraDensityInfo, r.x, r.y, r.width, r.height);
+			Tile part = new Tile(extraDensityInfo, rasteredPolygonArea.getBounds());
 			System.out.println("Warning: shape is too complex, using rectangle " + part + " instead");
 			return solveRectangularArea(part);
 		}
@@ -683,82 +674,15 @@ public class SplittableDensityArea {
 		TileMetaInfo smi = new TileMetaInfo(tile, parent, smiParent, minNodes);
 		
 		// we have to split the tile
-		IntArrayList offsets = null;
-		IntArrayList splitXPositions = null;
-		IntArrayList splitYPositions = null;
-		
-		int axis = (tile.getAspectRatio() >= 1.0) ? AXIS_HOR:AXIS_VERT;
-		if (searchAll){
-			splitXPositions = tile.genXTests(smi);
-			splitYPositions = tile.genYTests(smi);
-		} else {
-			if (spread == 0){
-				offsets = new IntArrayList(1);
-				offsets.add(0);
-			}else {
-				if (tile.count > maxNodes * 8 ){
-					splitXPositions = new IntArrayList();
-					splitYPositions = new IntArrayList();
-					
-					// jump around
-					int step = tile.width / spread;
-					int pos = step;
-					while (pos + spread < tile.width){
-						splitXPositions.add(pos);
-						pos+= step;
-					}
-					
-					step = tile.height / spread;
-					pos = step;
-					while (pos + spread < tile.height){
-						splitYPositions.add(pos);
-						pos+= step;
-					}
-				} else {
-					long nMax = tile.count / minNodes;
-					if (nMax * minNodes < tile.count)
-						nMax++;
-					long nMin = tile.count / maxNodes;
-					if (nMin * maxNodes < tile.count)
-						nMin++;
-					splitXPositions = new IntArrayList();
-					splitYPositions = new IntArrayList();
-					if (smi.getHorMidPos() < 0)
-						tile.findHorizontalMiddle(smi);
-					if (smi.getVertMidPos() < 0)
-						tile.findVerticalMiddle(smi);
-					if (nMax == 2 || nMin == 2){
-						splitXPositions.add(smi.getHorMidPos());
-						splitYPositions.add(smi.getVertMidPos());
-					} else {
-						if (nMax == 3){
-							splitXPositions.add(tile.findValidStartX(smi));
-							splitXPositions.add(tile.findValidEndX(smi));
-							splitYPositions.add(tile.findValidStartY(smi));
-							splitYPositions.add(tile.findValidEndY(smi));
-						} else {
-							splitXPositions.add(smi.getHorMidPos());
-							splitXPositions.add(tile.findValidStartX(smi));
-							splitXPositions.add(tile.findValidEndX(smi));
-							splitYPositions.add(smi.getHorMidPos());
-							splitYPositions.add(tile.findValidStartY(smi));
-							splitYPositions.add(tile.findValidEndY(smi));
-						}
-					}
-				}
-			}
-		}
+		IntArrayList splitXPositions = new IntArrayList();
+		IntArrayList splitYPositions = new IntArrayList();
+		int axis = generateTestCases(tile, splitXPositions, splitYPositions, smi);
 		
 		int currX = 0, currY = 0;
 		Solution res = null;
 		int maxX, maxY;
-		if (offsets != null){
-			maxX = maxY = offsets.size();
-		} else {
-			maxX = splitXPositions.size();
-			maxY = splitYPositions.size();
-		}
-		
+		maxX = splitXPositions.size();
+		maxY = splitYPositions.size();
 		int countDone = 0;
 		while(true){
 			int usedX = -1, usedY = -1;
@@ -784,24 +708,13 @@ public class SplittableDensityArea {
 			
 			// create the two parts of the tile 
 			boolean ok = false;
-			if (offsets != null){
-				int usedOffset;
-				if (axis == AXIS_HOR){
-					usedOffset = offsets.getInt(usedX);
-					ok = tile.splitHorizWithOffset(usedOffset, smi, maxNodes);
-				} else {
-					usedOffset = offsets.getInt(usedY);
-					ok = tile.splitVertWithOffset(usedOffset, smi, maxNodes);
-				}
+			int splitPos;
+			if (axis == AXIS_HOR){
+				splitPos = splitXPositions.getInt(usedX);
+				ok = tile.splitHoriz(splitPos, smi);
 			} else {
-				int splitPos;
-				if (axis == AXIS_HOR){
-					splitPos = splitXPositions.getInt(usedX);
-					ok = tile.splitHoriz(splitPos, smi);
-				} else {
-					splitPos = splitYPositions.getInt(usedY);
-					ok = tile.splitVert(splitPos, smi);
-				}
+				splitPos = splitYPositions.getInt(usedY);
+				ok = tile.splitVert(splitPos, smi);
 			}
 			if (!ok)
 				continue;
@@ -1005,6 +918,8 @@ public class SplittableDensityArea {
 		for (Tile tile : sol.getTiles()) {
 			if (tile.count == 0)
 				continue;
+			if (tile.verify() == false)
+				throw new SplitFailedException("found invalid tile");
 			Rectangle r = new Rectangle(minLon + (tile.x << shift), minLat + (tile.y << shift), 
 					tile.width << shift, tile.height << shift);
 			
@@ -1037,6 +952,78 @@ public class SplittableDensityArea {
 
 	}
 
+	private int generateTestCases(Tile tile, IntArrayList splitXPositions,
+			IntArrayList splitYPositions, TileMetaInfo smi) {
+		int axis = (tile.getAspectRatio() >= 1.0) ? AXIS_HOR:AXIS_VERT;
+		if (searchAll){
+			splitXPositions.addAll(tile.genXTests(smi));
+			splitYPositions.addAll(tile.genYTests(smi));
+		} else {
+			if (spread == 0){
+				//TODO remove this block
+				int xPos, yPos;
+				if(tile.count > maxNodes * 16 && tile.width > 256)
+					xPos = tile.width / 2;
+				else 
+					xPos = tile.findHorizontalMiddle(smi);
+				if (xPos > 0)
+					splitXPositions.add(xPos);
+				if (tile.count > maxNodes * 16 && tile.height > 128)
+					yPos = tile.height / 2;
+				else 
+					yPos = tile.findVerticalMiddle(smi);
+				if (yPos > 0)
+					splitYPositions.add(yPos);
+			}else {
+				if (tile.count > maxNodes * 8 ){
+					// jump around
+					int step = tile.width / spread;
+					int pos = step;
+					while (pos + spread < tile.width){
+						splitXPositions.add(pos);
+						pos+= step;
+					}
+					
+					step = tile.height / spread;
+					pos = step;
+					while (pos + spread < tile.height){
+						splitYPositions.add(pos);
+						pos+= step;
+					}
+				} else {
+					long nMax = tile.count / minNodes;
+					if (nMax * minNodes < tile.count)
+						nMax++;
+					long nMin = tile.count / maxNodes;
+					if (nMin * maxNodes < tile.count)
+						nMin++;
+					if (smi.getHorMidPos() < 0)
+						tile.findHorizontalMiddle(smi);
+					if (smi.getVertMidPos() < 0)
+						tile.findVerticalMiddle(smi);
+					if (nMax == 2 || nMin == 2){
+						splitXPositions.add(smi.getHorMidPos());
+						splitYPositions.add(smi.getVertMidPos());
+					} else {
+						if (nMax == 3){
+							splitXPositions.add(tile.findValidStartX(smi));
+							splitXPositions.add(tile.findValidEndX(smi));
+							splitYPositions.add(tile.findValidStartY(smi));
+							splitYPositions.add(tile.findValidEndY(smi));
+						} else {
+							splitXPositions.add(smi.getHorMidPos());
+							splitXPositions.add(tile.findValidStartX(smi));
+							splitXPositions.add(tile.findValidEndX(smi));
+							splitYPositions.add(smi.getHorMidPos());
+							splitYPositions.add(tile.findValidStartY(smi));
+							splitYPositions.add(tile.findValidEndY(smi));
+						}
+					}
+				}
+			}
+		}
+		return axis;
+	}
 	
 }
 

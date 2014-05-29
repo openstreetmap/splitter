@@ -13,9 +13,12 @@
 package uk.me.parabola.splitter;
 
 /**
- * Contains info that is needed by the {@link Tile} class
+ * Contains info that is needed by the {@link Tile} class. For a given
+ * DensityMap we calculate some extra info to allow faster access to row sums
+ * and column sums.
+ * 
  * @author GerdP
- *
+ * 
  */
 public class EnhancedDensityMap {
 	private final DensityMap densityMap;
@@ -31,18 +34,23 @@ public class EnhancedDensityMap {
 	}
 
 	
-	/** 
-	 * Filter the density data, calculate once complex trigonometric results 
+	/**
+	 * If a polygon is given, filter the density data Compute once complex
+	 * trigonometric results for needed for proper aspect ratio calculations.
+	 * 
 	 * @param polygonArea
+	 *            if not null, this is used to filter the data in the density
+	 *            map so that grid elements outside of the polygon are 
+	 *            reduced
 	 */
 	private void prepare(java.awt.geom.Area polygonArea){
+		// performance: calculate only once the needed complex math results
 		aspectRatioFactor = new double[densityMap.getHeight()+1]; 
 		int minLat = densityMap.getBounds().getMinLat(); 
 		int maxLat = densityMap.getBounds().getMaxLat();
 		int lat = 0;
 		double maxAspectRatioFactor = Double.MIN_VALUE;
 		int minPos = Integer.MAX_VALUE;
-		// performance: calculate only once the needed complex math results
 		for (int i = 0; i < aspectRatioFactor.length; i++ ){
 			lat = minLat + i * (1 << densityMap.getShift());
 			assert lat <= maxLat;
@@ -54,13 +62,15 @@ public class EnhancedDensityMap {
 		}
 		minAspectRatioFactorPos = minPos;
 		assert lat == maxLat;
+		
+		// filter the density map and populate xyMap   
 		int width = densityMap.getWidth();
 		int height = densityMap.getHeight();
 		xyMap = new int [width][height];
 		int shift = densityMap.getShift();
 		for (int x = 0; x < width; x++){
 			int polyXPos = densityMap.getBounds().getMinLong() +  (x << shift);
-			
+			int[] xCol = xyMap[x];
 			for(int y = 0; y < height; y++){
 				int count = densityMap.getNodeCount(x, y);
 				if (polygonArea != null){
@@ -73,14 +83,16 @@ public class EnhancedDensityMap {
 				if (count > 0){
 					if (count > maxNodesInDensityMapGridElement)
 						maxNodesInDensityMapGridElement = count;
-					xyMap[x][y] = count;
+					xCol[y] = count;
 				}
 			}
 		}
+		// create and populate yxMap, this helps to speed up row access
 		yxMap = new int [height][width];
 		for(int y = 0; y < height; y++){
+			int[] yRow = yxMap[y];
 			for (int x = 0; x < width; x++){
-				yxMap[y][x] = xyMap[x][y];
+				yRow[x] = xyMap[x][y];
 			}
 		}
 	}
@@ -99,6 +111,7 @@ public class EnhancedDensityMap {
 		ratio = maxWidth/r.height;
 		return ratio;
 	}
+	
 	public Area getBounds() {
 		return densityMap.getBounds();
 	}
