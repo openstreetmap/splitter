@@ -263,6 +263,8 @@ public class Main {
 			}
 			for (Area area : areaList.getAreas()) {
 				area.setMapId(mapId++);
+				if (description != null)
+					area.setName(description);
 			}
 			nameAreas();
 			areaList.write(new File(fileOutputDir, "areas.list").getPath());
@@ -614,15 +616,20 @@ public class Main {
 	}
 	
 	private void nameAreas() {
-		if (geoNamesFile == null) 
-			return;
-		CityLoader cityLoader = new CityLoader(true);
-		List<City> cities = cityLoader.load(geoNamesFile);
-		if (cities == null)
-			return;
-		
-		CityFinder cityFinder = new DefaultCityFinder(cities);
+		CityFinder cityFinder = null;
+		if (geoNamesFile != null){
+			CityLoader cityLoader = new CityLoader(true);
+			List<City> cities = cityLoader.load(geoNamesFile);
+			if (cities == null)
+				return;
+
+			cityFinder = new DefaultCityFinder(cities);
+		}
 		for (Area area : areaList.getAreas()) {
+			area.setName(description);
+			if (cityFinder == null)
+				continue;
+
 			// Decide what to call the area
 			Set<City> found = cityFinder.findCities(area);
 			City bestMatch = null;
@@ -633,8 +640,6 @@ public class Main {
 			}
 			if (bestMatch != null)
 				area.setName(bestMatch.getCountryCode() + '-' + bestMatch.getName());
-			else
-				area.setName(description);
 		}
 	}
 
