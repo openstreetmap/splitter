@@ -44,7 +44,8 @@ public class SplittableDensityArea {
 	
 	private double maxAspectRatio;
 	private long minNodes;
-	private final int searchLimit;
+	private final int startSearchLimit;
+	private int searchLimit;
 
 	private final DensityMap allDensities;
 	private EnhancedDensityMap extraDensityInfo;
@@ -75,9 +76,9 @@ public class SplittableDensityArea {
 	private int currMapId;
 	
 	
-	public SplittableDensityArea(DensityMap densities, int searchLimit) {
+	public SplittableDensityArea(DensityMap densities, int startSearchLimit) {
 		this.shift = densities.getShift();
-		this.searchLimit = searchLimit;
+		this.searchLimit = this.startSearchLimit = startSearchLimit;
 		maxTileHeight = Utils.toMapUnit(MAX_LAT_DEGREES) / (1 << shift);
 		maxTileWidth = Utils.toMapUnit(MAX_LON_DEGREES) / (1 << shift);
 		allDensities = densities;
@@ -526,7 +527,7 @@ public class SplittableDensityArea {
 			Area shapeBounds = new Area(rShape.y, rShape.x,(int)rShape.getMaxY(), (int)rShape.getMaxX());
 			int resolution = 24-allDensities.getShift();
 			shapeBounds  = RoundingUtils.round(shapeBounds, resolution);
-			SplittableDensityArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds), searchLimit);
+			SplittableDensityArea splittableArea = new SplittableDensityArea(allDensities.subset(shapeBounds), startSearchLimit);
 			splittableArea.setMaxNodes(maxNodes);
 			if (splittableArea.hasData() == false){
 				System.out.println("Warning: a part of the bounding polygon would be empty and is ignored:" + shapeBounds);
@@ -862,15 +863,23 @@ public class SplittableDensityArea {
 			maxAspectRatio = Math.max(bestSolution.getWorstAspectRatio()/2, NICE_MAX_ASPECT_RATIO);
 			maxAspectRatio = Math.min(32,maxAspectRatio);
 			
-			if (bestSolution.isEmpty()){
-				minNodes *= 2; 
-				spread = 0;
-			} 
 			if (bestSolution.isEmpty() == false && bestSolution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes)
 				break;
 			if (minNodes > VERY_NICE_FILL_RATIO * maxNodes)
 				minNodes = (long) (VERY_NICE_FILL_RATIO * maxNodes);
 			if (saveMaxAspectRatio == maxAspectRatio && saveMinNodes == minNodes){
+				if (searchAll && (bestSolution.isEmpty() || bestSolution.getWorstMinNodes() < 0.5 * maxNodes)){
+					if (searchLimit < 5_000_000){
+						searchLimit *= 2;
+						System.err.println("no good solution found, duplicated search-limit to " + searchLimit);
+						continue;
+					}
+					searchAll = false;
+//					searchLimit = startSearchLimit;
+					minNodes = bestSolution.getWorstMinNodes() + 1;
+					System.out.println("still no good solution found, trying alternate algorithm");
+					continue;
+				}  
 				break;
 			}
 		} 
@@ -890,7 +899,7 @@ public class SplittableDensityArea {
 				if (solution.getWorstMinNodes() > VERY_NICE_FILL_RATIO * maxNodes && solution.isNice())
 					System.out.println("Solution is very nice. No need to search for a better solution: " + solution.toString());
 				else 
-					System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution: " + solution.toString());
+					System.out.println("Solution is " + (solution.isNice() ? "":"not ") + "nice. Can't find a better solution with search-limit " + searchLimit + ": " + solution.toString());
 			}
 		}
 		return;
