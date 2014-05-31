@@ -155,7 +155,7 @@ public class SplittableDensityArea {
 					System.out.println("Warning: No solution found for partition " + tile.toString());
 			}
 		}
-		System.out.println("Final solution has " +  fullSolution.toString());
+		System.out.println("Final solution: " +  fullSolution.toString());
 		if (fullSolution.isNice())
 			System.out.println("This seems to be nice.");
 		
