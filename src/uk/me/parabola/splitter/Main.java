@@ -251,7 +251,7 @@ public class Main {
 			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areaList = calculateAreas();
 			if (areaList == null || areaList.getAreas().isEmpty()){
-				System.err.println("Failed to calculate areas. See log for details.");
+				System.err.println("Failed to calculate areas. See stdout messages for details.");
 				System.out.println("Failed to calculate areas.");
 				System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
 				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
