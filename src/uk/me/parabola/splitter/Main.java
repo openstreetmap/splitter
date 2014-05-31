@@ -586,7 +586,7 @@ public class Main {
 			DensityMapCollector seaCollector = new DensityMapCollector(resolution);
 			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
 			precompSeaReader.processMap(seaCollector);
-			pass1Collector.mergeSeaData(seaCollector, trim);
+			pass1Collector.mergeSeaData(seaCollector, trim, resolution);
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
 		}
 		

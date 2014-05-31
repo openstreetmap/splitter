@@ -347,10 +347,10 @@ public class DensityMap {
 		int maxX = lonToX(area.getMaxLong());
 		int minY = latToY(area.getMinLat());
 		int maxY = latToY(area.getMaxLat());
-		if (maxX == width)
-			--maxX;
-		if (maxY == height)
-			--maxY;
+		if (maxX >= width)
+			maxX = width - 1;
+		if (maxY >= height)
+			maxY = height - 1;
 		if (trim){
 			for (int x = minX; x <= width; x++) {
 				if (nodeMap[x] != null){
@@ -383,6 +383,7 @@ public class DensityMap {
 				for (int x = minX; x < width; x++) {
 					if (nodeMap[x] == null)
 						continue;
+
 					if (nodeMap[x][y] > 0){
 						maxY = y;
 						done = true;
