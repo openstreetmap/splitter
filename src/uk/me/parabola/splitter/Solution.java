@@ -29,24 +29,19 @@ class Solution {
 	private static enum sides {TOP,RIGHT,BOTTOM,LEFT}
 
 	private final List<Tile> tiles;
-	private final int spread;
 	private final long maxNodes;
 	private double worstAspectRatio = -1;
 	private long worstMinNodes = Long.MAX_VALUE;
-	private int depth;
 	
-	public Solution(int spread, long maxNodes) {
+	public Solution(long maxNodes) {
 		tiles = new ArrayList<>();
-		this.spread = spread;
 		this.maxNodes = maxNodes;
-		this.depth = Integer.MAX_VALUE;
 	}
 
 	public Solution copy(){
-		Solution s = new Solution(this.spread, this.maxNodes);
+		Solution s = new Solution(this.maxNodes);
 		for (Tile t : tiles)
 			s.add(t);
-		s.depth = this.depth;
 		return s;
 	} 
 	
@@ -65,7 +60,7 @@ class Solution {
 	 * @param other
 	 * @param mergeAtDepth
 	 */
-	public void merge(Solution other, int mergeAtDepth){
+	public void merge(Solution other){
 		if (other.tiles.isEmpty())
 			return;
 		
@@ -78,17 +73,11 @@ class Solution {
 			if (worstMinNodes > other.worstMinNodes)
 				worstMinNodes = other.worstMinNodes;
 		}
-		if (this.depth > mergeAtDepth )
-			this.depth = mergeAtDepth; 
 		tiles.addAll(other.tiles);
 	}
 
 	public List<Tile> getTiles() {
 		return tiles;
-	}
-
-	public int getSpread() {
-		return spread;
 	}
 
 	public long getWorstMinNodes(){
@@ -122,8 +111,8 @@ class Solution {
 		if (isNice() != other.isNice())
 			return isNice() ? -1 : 1;
 		
-		if (depth != other.depth)
-			return (depth < other.depth) ? -1 : 1;
+//		if (depth != other.depth)
+//			return (depth < other.depth) ? -1 : 1;
 		if (worstMinNodes != other.worstMinNodes)
 			return (worstMinNodes > other.worstMinNodes) ? -1 : 1;
 		if (tiles.size() != other.tiles.size())

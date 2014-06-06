@@ -23,6 +23,7 @@ import java.awt.Rectangle;
 		 */
 		private final EnhancedDensityMap densityInfo;
 		public final long count;
+//		int bestSplit;
 		
 		/**
 		 * Create tile for whole density map.
@@ -97,14 +98,14 @@ import java.awt.Rectangle;
 			for (int i = 0; i <= mid; i++){
 				int pos = mid + i;
 				if (pos >= start && pos <= end)
-					list.add(mid+i);
+					list.add(pos);
 				if (list.size() >= toAdd)
 					break;
 				if (i == 0)
 					continue;
 				pos = mid - i;
-				if (pos > start && pos < end)
-					list.add(mid-i);
+				if (pos >= start && pos <= end)
+					list.add(pos);
 			}
 			return list;
 		}
@@ -193,8 +194,13 @@ import java.awt.Rectangle;
 					if (lastSum <= 0)
 						smi.setFirstNonZeroX(pos);
 					if (sum > target){
-						smi.setHorMidPos(pos);
-						smi.setHorMidSum(lastSum);
+						if (sum - target < target - lastSum && pos + 1 < width){
+							smi.setHorMidPos(pos+1); 
+							smi.setHorMidSum(sum);
+						} else {
+							smi.setHorMidPos(pos); 
+							smi.setHorMidSum(lastSum);
+						}
 						break;
 					}
 				}
@@ -219,11 +225,18 @@ import java.awt.Rectangle;
 				for (int pos = start; pos <= height; pos++) {
 					lastSum = sum;
 					sum += getRowSum(pos, smi.getRowSums());
-					if (lastSum <= 0 && sum > 0)
+					if (sum == 0)
+						continue;
+					if (lastSum <= 0)
 						smi.setFirstNonZeroY(pos);
-					if (sum > target){
-						smi.setVertMidPos(pos);
-						smi.setVertMidSum(lastSum);
+					if (sum > target) {
+						if (sum - target < target - lastSum && pos + 1 < height) {
+							smi.setVertMidPos(pos + 1);
+							smi.setVertMidSum(sum);
+						} else {
+							smi.setVertMidPos(pos);
+							smi.setVertMidSum(lastSum);
+						}
 						break;
 					}
 				}
@@ -300,7 +313,7 @@ import java.awt.Rectangle;
 		/**
 		 * 
 		 * @param smi
-		 * @return smallest position at which all columns on the left have a sum < minNodes
+		 * @return lowest horizontal position at which a split will work regarding minNodes
 		 */
 		public int findValidStartX(TileMetaInfo smi) {
 			if (smi.getValidStartX() >= 0)
@@ -313,9 +326,10 @@ import java.awt.Rectangle;
 					continue;
 				if (smi.getFirstNonZeroX() < 0)
 					smi.setFirstNonZeroX(i);
-				if (sum >= smi.getMinNodes()){
-					smi.setValidStartX(i);
-					return i;
+				if (sum >= smi.getMinNodes()) {
+					int splitPos = i + 1;
+					smi.setValidStartX(splitPos);
+					return splitPos;
 				}
 			}
 			smi.setValidStartX(width);
@@ -347,7 +361,8 @@ import java.awt.Rectangle;
 		/**
 		 * 
 		 * @param smi
-		 * @return smallest position at which all lower rows have a sum < minNodes
+		 * @return lowest vertical position at which a split will work regarding minNodes 
+		 * or height if no such position exists
 		 */
 		public int findValidStartY(TileMetaInfo smi) {
 			if (smi.getValidStartY() > 0)
@@ -361,8 +376,9 @@ import java.awt.Rectangle;
 				if (smi.getFirstNonZeroY() < 0)
 					smi.setFirstNonZeroY(i);
 				if (sum >= smi.getMinNodes()){
-					smi.setValidStartY(i);
-					return i;
+					int splitPos = i+1;
+					smi.setValidStartY(splitPos);
+					return splitPos;
 				}
 			}
 			smi.setValidStartY(height);
@@ -390,6 +406,40 @@ import java.awt.Rectangle;
 			}
 			return smi.getValidEndY();
 		}
+		
+		public int findFirstXHigher(TileMetaInfo smi, long limit){
+			long sum = 0;
+			int start = (smi.getFirstNonZeroX() > 0) ? smi.getFirstNonZeroX() : 0;
+			for (int i = start; i < width; i++) {
+				sum += getColSum(i, smi.getColSums());
+				if (sum == 0)
+					continue;
+				if (smi.getFirstNonZeroX() < 0)
+					smi.setFirstNonZeroX(i);
+				if (sum > limit){
+					return i;
+					
+				}
+			}
+			return height;
+		}
+
+		public int findFirstYHigher(TileMetaInfo smi, long limit){
+			long sum = 0;
+			int start = (smi.getFirstNonZeroY() > 0) ? smi.getFirstNonZeroY() : 0;
+			for (int i = start; i < height; i++) {
+				sum += getRowSum(i, smi.getRowSums());
+				if (sum == 0)
+					continue;
+				if (smi.getFirstNonZeroY() < 0)
+					smi.setFirstNonZeroY(i);
+				if (sum > limit){
+					return i;
+				}
+			}
+			return height;
+		}
+
 		
 		/**
 		 *  
@@ -455,7 +505,8 @@ import java.awt.Rectangle;
 //			sb.append(height);
 //			sb.append(") with ");
 //			sb.append(Utils.format(count));
-//			sb.append(" nodes");
+//			sb.append(" nodes and ratio ");
+//			sb.append(getAspectRatio());
 //			return sb.toString(); 		
 		}
 	}
