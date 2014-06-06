@@ -534,7 +534,7 @@ public class Main {
 			}
 		}
 		stopAfter = params.getStopAfter();
-		if ("split gen-problem-list handle-problem-list dist".contains(stopAfter) == false){
+		if (Arrays.asList("split", "gen-problem-list" , "handle-problem-list", "dist").contains(stopAfter) == false){
 			throw new IllegalArgumentException("Error: the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
 		}
 		
