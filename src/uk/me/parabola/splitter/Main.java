@@ -519,7 +519,6 @@ public class Main {
 				try {
 					processOSMFiles(polygonDescProcessor, Arrays.asList(polygonDescFile));
 					polygons = polygonDescProcessor.getPolygons();
-					KmlWriter.writeKml("e:/ld_sp/start-poly.kml", "start", polygonDescProcessor.getCombinedPolygon());
 				} catch (XmlPullParserException e) {
 					polygons = null;
 					polygonDescProcessor = null;
