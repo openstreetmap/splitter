@@ -247,7 +247,7 @@ import java.awt.Rectangle;
 		/**
 		 * Split at the given horizontal position.
 		 * @param splitX the horizontal split line
-		 * @return array with two parts
+		 * @return true if result in smi is OK
 		 */
 		public boolean splitHoriz(int splitX, TileMetaInfo smi) {
 			if (splitX <= 0 || splitX >= width)
@@ -279,7 +279,7 @@ import java.awt.Rectangle;
 		/**
 		 * Split at the given vertical position.
 		 * @param splitY the vertical split line
-		 * @return array with two parts
+		 * @return true if result in smi is OK
 		 */
 		public boolean splitVert(int splitY, TileMetaInfo smi) {
 			if (splitY <= 0 || splitY >= height)
