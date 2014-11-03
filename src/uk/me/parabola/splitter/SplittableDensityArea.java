@@ -304,7 +304,7 @@ public class SplittableDensityArea {
 			}
 			long testMaxNodes;
 			if (bestBelow == null || bestAbove == null)
-				testMaxNodes = Math.round((double) currMaxNodes * res.size() / wantedTiles);
+				testMaxNodes = Math.min(Math.round((double) currMaxNodes * res.size() / wantedTiles), this.allDensities.getNodeCount()-1);
 			else 
 				testMaxNodes = (bestBelow.maxNodes + bestAbove.maxNodes) / 2;
 			if (testMaxNodes == currMaxNodes){
@@ -315,7 +315,6 @@ public class SplittableDensityArea {
 		} 
 	}
 
-	
 	/** 
 	 * Filter the density data, calculate once complex trigonometric results 
 	 * @param polygonArea
@@ -744,12 +743,16 @@ public class SplittableDensityArea {
 		searchLimit = startSearchLimit;
 		tryOptimize = false;
 		minNodes = Math.max(Math.min((long)(0.05 * maxNodes), extraDensityInfo.getNodeCount()), 1); 
-		
-		maxAspectRatio = startTile.getAspectRatio();
-		if (maxAspectRatio < 1)
-			maxAspectRatio = 1 / maxAspectRatio;
-		if (maxAspectRatio < NICE_MAX_ASPECT_RATIO)
-			maxAspectRatio = NICE_MAX_ASPECT_RATIO;
+
+		if (extraDensityInfo.getNodeCount() / maxNodes < 4){
+			maxAspectRatio = 32;
+		} else { 
+			maxAspectRatio = startTile.getAspectRatio();
+			if (maxAspectRatio < 1)
+				maxAspectRatio = 1 / maxAspectRatio;
+			if (maxAspectRatio < NICE_MAX_ASPECT_RATIO)
+				maxAspectRatio = NICE_MAX_ASPECT_RATIO;
+		}
 		goodSolutions = new HashMap<>();
 		goodRatio = 0.5;
 		TileMetaInfo smiStart = new TileMetaInfo(startTile, null, null);
