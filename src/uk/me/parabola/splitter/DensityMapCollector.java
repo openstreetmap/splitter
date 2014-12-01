@@ -44,11 +44,11 @@ class DensityMapCollector extends AbstractMapProcessor{
 	}
 
 	@Override
-	public void boundTag(Area bounds) {
+	public void boundTag(Area fileBbox) {
 		if (this.bounds == null)
-			this.bounds = bounds;
+			this.bounds = fileBbox;
 		else
-			this.bounds = this.bounds.add(bounds);
+			this.bounds = this.bounds.add(fileBbox);
 	}
 
 	@Override
@@ -76,8 +76,8 @@ class DensityMapCollector extends AbstractMapProcessor{
 		}
 		return details.getBounds();
 	}
-	public SplittableDensityArea getRoundedArea(int resolution, int searchLimit) {
-		Area roundedBounds = RoundingUtils.round(getExactArea(), resolution);
+	
+	public SplittableDensityArea getSplitArea(int searchLimit, Area roundedBounds) {
 		return new SplittableDensityArea(densityMap.subset(roundedBounds), searchLimit);
 	} 
 

@@ -13,6 +13,7 @@
 package uk.me.parabola.splitter;
 
 import java.awt.Rectangle;
+import java.awt.geom.Rectangle2D;
 
 /**
  * A map area in map units.  There is a constructor available for creating
@@ -65,6 +66,19 @@ public class Area {
 		else
 			this.maxLong = maxLong;
 	}
+
+	/**
+	 * Apply bbox to area.
+	 * @param area the area
+	 * @param bbox the bounding box
+	 * @return A new area instance that covers the intersection of area and bbox. 
+	 */
+	public static Area calcArea (Area area, Rectangle bbox) {
+		Rectangle dest = new Rectangle();
+		Rectangle2D.intersect(area.getRect(), bbox, dest);
+		return new Area(dest.y, dest.x, dest.y + dest.height, dest.x + dest.width);
+	}
+
 
 	/**
 	 * Creates an empty area.

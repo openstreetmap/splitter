@@ -101,6 +101,7 @@ public class Main {
 	// A polygon file in osmosis polygon format
 	private String polygonFile;
 	private List<PolygonDesc> polygons = new ArrayList<>();
+	Rectangle polgonsBoundingBox = null;
 
 	// The path where the results are written out to.
 	private File fileOutputDir;
@@ -528,6 +529,9 @@ public class Main {
 			}
 		}
 		if (polygons.isEmpty() == false){
+			if (polygons.size() == 1){
+				polgonsBoundingBox = polygons.get(0).area.getBounds(); 
+			}
 			if (checkPolygons() == false){
 				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 			}
@@ -545,7 +549,11 @@ public class Main {
 			}
 		}
 		if (polygons.isEmpty() == false && numTiles > 0){
-			System.out.println("Polygons are ignored because parameter --num-tiles is used");
+			if (polygons.size() == 1){
+				System.out.println("Warning: Parameter polygon-file is only used to calculate the bounds because --num-tiles is used");
+			} else {
+				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
+			}
 		}
 		searchLimit = params.getSearchLimit();
 		if (searchLimit < 1000){
@@ -579,6 +587,12 @@ public class Main {
 			pass1Collector.saveMap(densityOutData.getAbsolutePath());
 
 		Area exactArea = pass1Collector.getExactArea();
+		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
+		if (polgonsBoundingBox != null){
+			exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
+			System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
+		}
+
 		if (precompSeaDir != null){
 			System.out.println("Counting nodes of precompiled sea data ...");
 			long startSea = System.currentTimeMillis();
@@ -588,13 +602,11 @@ public class Main {
 			pass1Collector.mergeSeaData(seaCollector, trim, resolution);
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
 		}
-		
-		SplittableDensityArea splittableArea = pass1Collector.getRoundedArea(resolution, searchLimit);
+		Area roundedBounds = RoundingUtils.round(exactArea, resolution);
+		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(searchLimit, roundedBounds);
 		if (splittableArea.hasData() == false)
 			return new AreaList(new ArrayList<Area>());
-		System.out.println("Exact map coverage is " + exactArea);
 		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
-		
 		
 		splittableArea.setTrim(trim);
 		splittableArea.setMapId(mapId);
