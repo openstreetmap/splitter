@@ -237,6 +237,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 					useThis= true; // no need to check other tags
 				else if ("multipolygon".equals((t.value))  || "boundary".equals((t.value)))
 					isMPRelType= true;
+				else if ("associatedStreet".equals((t.value))  || "street".equals((t.value)))
+					useThis= true; // no need to check other tags
 			} else if ("boundary".equals(t.key)){
 				hasBoundaryTag = true;
 				if (wantedBoundaryTagValues != null){
