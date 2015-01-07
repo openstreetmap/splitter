@@ -58,7 +58,6 @@ class Solution {
 	/**
 	 * Combine this solution with the other.
 	 * @param other
-	 * @param mergeAtDepth
 	 */
 	public void merge(Solution other){
 		if (other.tiles.isEmpty())
@@ -111,12 +110,24 @@ class Solution {
 		if (isNice() != other.isNice())
 			return isNice() ? -1 : 1;
 		
-//		if (depth != other.depth)
-//			return (depth < other.depth) ? -1 : 1;
-		if (worstMinNodes != other.worstMinNodes)
-			return (worstMinNodes > other.worstMinNodes) ? -1 : 1;
+		if (worstMinNodes != other.worstMinNodes){
+			// ignore minNodes when both are bad
+			if (Math.max(worstMinNodes, other.worstMinNodes) > 1000)
+				return (worstMinNodes > other.worstMinNodes) ? -1 : 1;
+		}
+		// if aspect ratio is very different and tile sizes are almost equal,
+		// favour better aspect ratio
+		double tileRatio = (double) tiles.size() / other.tiles.size();
+		double arRatio = worstAspectRatio / other.worstAspectRatio;
+		if (tileRatio < 1 && tileRatio > 0.99 && arRatio > 1.5)
+			return 1;
+		if (tileRatio < 1.01 && tileRatio > 1 && arRatio < 0.66666)
+			return -1;
+		
 		if (tiles.size() != other.tiles.size())
 			return tiles.size() < other.tiles.size() ? -1 : 1;
+		if (worstAspectRatio != other.worstAspectRatio)
+			return worstAspectRatio < other.worstAspectRatio ? -1 : 1;
 		return 0;
 	}
 	

@@ -366,6 +366,11 @@ public class Main {
 			System.err.println("The --mapid parameter must have less than 9 digits. Resetting to " + mapId + ".");
 		} 		
 		maxNodes = params.getMaxNodes();
+		if (maxNodes < 10000){
+			System.err.println("Error: Invalid number "+ params.getMaxNodes() + 
+					". The --max-nodes parameter must be an integer value of 10000 or higher.");
+			throw new IllegalArgumentException();
+		}
 		String numTilesParm = params.getNumTiles();
 		if (numTilesParm != null){
 			try{
