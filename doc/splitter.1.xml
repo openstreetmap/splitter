@@ -1,0 +1,709 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN" "http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd">
+<refentry id='mkgmap-splitter'>
+
+  <refmeta>
+    <refentrytitle>mkgmap-splitter</refentrytitle>
+    <manvolnum>1</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>mkgmap-splitter</refname>
+    <refpurpose>tile splitter for mkgmap</refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv id='synopsis'>
+    <cmdsynopsis>
+      <command>mkgmap-splitter</command>
+      <arg choice='opt'><replaceable>options</replaceable></arg>
+      <arg choice='plain'><replaceable><filename>file.osm</filename></replaceable></arg>
+    </cmdsynopsis>
+    &gt; <replaceable><filename>splitter.log</filename></replaceable>
+  </refsynopsisdiv>
+
+  <refsect1 id='description'>
+    <title>DESCRIPTION</title>
+    <para>
+      <command>mkgmap-splitter</command> splits an .osm file that contains
+      large well mapped regions into a number of smaller tiles, to fit within
+      the maximum size used for the Garmin maps format.
+    </para>
+    <para>
+      The two most important features are:
+      <itemizedlist>
+        <listitem>
+          <para>
+            Variable sized tiles to prevent a large number of tiny files.
+          </para>
+        </listitem>
+        <listitem>
+          <para>
+            Tiles join exactly with no overlap or gaps.
+          </para>
+        </listitem>
+      </itemizedlist>
+    </para>
+    <para>
+      You will need a lot of memory on your computer if you intend to split a
+      large area.
+      A few options allow to configure how much memory you need.
+      With the default parameters, you need about 4-5 bytes for every node and
+      way.
+      This doesn't sound a lot but there are about 1700 million nodes in the
+      whole planet file and so you cannot process the whole planet in one pass
+      file on a 32 bit machine using this utility as the maximum java heap
+      space is 2G.
+      It is possible with 64 bit java and about 7GB of heap or with multiple
+      passes.
+    </para>
+    <para>
+      The Europe extract from Cloudmade or Geofabrik can be processed within
+      the 2G limit if you have sufficient memory.
+      With the default options europe is split into about 750 tiles.
+      The Europe extract is about half of the size of the complete planet file.
+    </para>
+    <para>
+      On the other hand a single country, even a well mapped one such as
+      Germany or the UK, will be possible on a modest machine, even a netbook.
+    </para>
+  </refsect1>
+
+  <refsect1 id='usage'>
+    <title>USAGE</title>
+    <para>
+      Splitter requires java 1.6 or higher.
+      Basic usage is as follows.
+    </para>
+    <screen>
+<command>mkgmap-splitter</command> <replaceable><filename>file.osm</filename></replaceable> &gt; <replaceable><filename>splitter.log</filename></replaceable>
+    </screen>
+    <para>
+      If you have less than 2 GB of memory on your computer you should reduce
+      the <option>-Xmx</option> option by setting the JAVA_OPTS environment
+      variable.
+    </para>
+    <screen>
+JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</command> <replaceable><filename>file.osm</filename></replaceable> &gt; <replaceable><filename>splitter.log</filename></replaceable>
+    </screen>
+    <para>
+      This will produce a number of .osm.pbf files that can be read by
+      <citerefentry>
+        <refentrytitle>mkgmap</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>.
+      There are also other files produced:
+    </para>
+    <para>
+      The <filename>template.args</filename> file is a file that can
+      be used with the <option>-c</option> option of
+      <command>mkgmap</command> that will compile all the files.
+      You can use it as is or you can copy it and edit it to include
+      your own options.
+      For example instead of each description being "OSM Map" it could
+      be "NW Scotland" as appropriate.
+    </para>
+    <para>
+      The <filename>areas.list</filename> file is the list of bounding
+      boxes that were calculated.
+      If you want you can use this on a subsequent call the the
+      splitter using the <option>--split-file</option> option to use
+      exactly the same areas as last time.
+      This might be useful if you produce a map regularly and want to
+      keep the tile areas the same from month to month.
+      It is also useful to avoid the time it takes to regenerate the
+      file each time (currently about a third of the overall time
+      taken to perform the split).
+      Of course if the map grows enough that one of the tiles overflows
+      you will have to re-calculate the areas again.
+    </para>
+    <para>
+      The <filename>areas.poly</filename> file contains the bounding
+      polygon of the calculated areas.
+      See option <option>--polygon-file</option> how this can be used.
+    </para>
+    <para>
+      The <filename>densities-out.txt</filename> file is written when
+      no split-file is given and contains debugging information only.
+    </para>
+    <para>
+      You can also use a gzip'ed or bz2'ed compressed .osm file as the input
+      file.
+      Note that this can slow down the splitter considerably (particularly true
+      for bz2) because decompressing the .osm file can take quite a lot of CPU
+      power.
+      If you are likely to be processing a file several times you're probably
+      better off converting the file to one of the binary formats pbf or o5m.
+      The o5m format is faster to read, but requires more space on the disk.
+    </para>
+  </refsect1>
+
+  <refsect1 id='options'>
+    <title>OPTIONS</title>
+    <para>
+      There are a number of options to fine tune things that you might want to
+      try.
+    </para>
+    <variablelist>
+
+      <varlistentry>
+        <term><option>--boundary-tags=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            A comma separated list of tag values for relations.
+            Used to filter multipolygon and boundary relations for
+            problem-list processing.
+            Default: use-exclude-list
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--cache=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Deprecated, now does nothing
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--description=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Sets the desciption to be written in to the
+            <filename>template.args</filename> file.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--geonames-file=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a GeoNames file to use for determining tile names.
+            Typically <filename>cities15000.zip</filename> from
+            <ulink url="http://download.geonames.org/export/dump">geonames</ulink>.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--keep-complete=<replaceable>boolean</replaceable></option></term>
+        <listitem>
+          <para>
+            Use <option>--keep-complete=false</option> to disable two
+            additional program phases between the split and the final
+            distribution phase (not recommended).
+            The first phase, called gen-problem-list, detects all ways and
+            relations that are crossing the borders of one or more output
+            files.
+            The second phase, called handle-problem-list, collects the
+            coordinates of these ways and relations and calculates all output
+            files that are crossed or enclosed.
+            The information is passed to the final dist-phase in three
+            temporary files.
+            This avoids broken polygons, but be aware that it requires to read
+            the input files at least two additional times.
+          </para>
+          <para>
+             Do not specify it with <option>--overlap</option> unless you have
+             a good reason to do so.
+          </para>
+          <para>
+            Defaulte: true
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--mapid=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            Set the filename for the split files.
+            In the example the first file will be called
+            <filename>63240001.osm.pbf</filename> and the next one will be
+            <filename>63240002.osm.pbf</filename> and so on.
+          </para>
+          <para>
+            Default: 63240001
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--max-areas=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            The maximum number of areas that can be processed in a single pass
+            during the second stage of processing.
+            This must be a number from 1 to 4096.
+            Higher numbers mean fewer passes over the source file and hence
+            quicker overall processing, but also require more memory.
+            If you find you are running out of memory but don't want to
+            increase your <option>--max-nodes</option> value, try reducing
+            this instead.
+            Changing this will have no effect on the result of the split, it's
+            purely to let you trade off memory for performance.
+            Note that the first stage of the processing has a fixed memory
+            overhead regardless of what this is set to so if you are running
+            out of memory before the <filename>areas.list</filename> file is
+            generated, you need to either increase your <option>-Xmx</option>
+            value or reduce the size of the input file you're trying to split.
+          </para>
+          <para>
+            Default: 512
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--max-nodes=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            The maximum number of nodes that can be in any of the resultant
+            files.
+            The default is fairly conservative, you could increase it quite a
+            lot before getting any 'map too big' messages.
+            Not much experimentation has been done.
+            Also the bigger this value, the less memory is required during the
+            splitting stage.
+          </para>
+          <para>
+            Default: 1600000
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--max-threads=<replaceable>value</replaceable></option></term>
+        <listitem>
+          <para>
+            The maximum number of threads used by
+            <command>mkgmap-splitter</command>.
+          </para>
+          <para>
+            Default: 4 (auto)
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--mixed=<replaceable>boolean</replaceable></option></term>
+        <listitem>
+          <para>
+            Specify this if the input osm file has nodes, ways and relations
+            intermingled or the ids are not strictly sorted.
+            To increase performance, use the <command>osmosis</command> sort
+            function.
+          </para>
+          <para>
+            Default: false
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--no-trim=<replaceable>boolean</replaceable></option></term>
+        <listitem>
+          <para>
+            Don't trim empty space off the edges of tiles.
+            This option is ignored when <option>--polygon-file</option> is
+            used.
+          </para>
+          <para>
+            Default: false
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--num-tiles=<replaceable>value</replaceable>string</option></term>
+        <listitem>
+          <para>
+            A target value that is used when no split-file is given.
+            Splitting is done so that the given number of tiles is produced.
+            The <option>--max-nodes</option> value is ignored if this option
+            is given.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--output=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            The format in which the output files are written.
+            Possible values are xml, pbf, o5m, and simulate.
+            The default is pbf, which produces the smallest file sizes.
+            The o5m format is faster to write, but creates around 40% larger
+            files.
+            The simulate option is for debugging purposes.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--output-dir=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The directory to which splitter should write the output files.
+            If the specified path to a directory doesn't exist,
+            <command>mkgmap-splitter</command> tries to create it.
+            Defaults to the current working directory.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--overlap=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Deprecated since r279.
+            With <option>--keep-complete=false</option>,
+            <command>mkgmap-splitter</command> should include nodes outside
+            the bounding box, so that <command>mkgmap</command> can neatly
+            crop exactly at the border.
+            This parameter controls the size of that overlap.
+            It is in map units, a default of 2000 is used which means about
+            0.04 degrees of latitude or longitude.
+            If <option>--keep-complete=true</option> is active and
+            <option>--overlap</option> is given, a warning will be printed
+            because this combination rarely makes sense.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--polygon-desc-file=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            An osm file (.o5m, .pbf, .osm) with named ways that describe
+            bounding polygons with OSM ways having tags name and mapid.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--polygon-file=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a file containing a bounding polygon in the
+            <ulink url="">osmosis polygon file format</ulink>.
+            <command>mkgmap-splitter</command> uses this file when calculating
+            the areas.
+            It first calculates a grid using the given
+            <option>--resolution</option>.
+            The input file is read and for each node, a counter is increased
+            for the related grid area.
+            If the input file contains a bounding box, this is applied to the
+            grid so that nodes outside of the bounding box are ignored.
+            Next, if specified, the bounding polygon is used to zero those
+            grid elements outside of the bounding polygon area.
+            If the polygon area(s) describe(s) a rectilinear area with no more
+            than 40 vertices, <command>mkgmap-splitter</command> will try to
+            create output files that fit exactly into the area, otherwise it
+            will approximate the polygon area with rectangles.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--precomp-sea=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a directory containing precompiled sea tiles.
+            If given, <command>mkgmap-splitter</command> will use the
+            precompiled sea tiles in the same way as <command>mkgmap</command>
+            does.
+            Use this if you want to use a polygon-file or
+            <option>--no-trim=true</option> and <command>mkgmap</command>
+            creates empty *.img files combined with a message starting "There
+            is not enough room in a single garmin map for all the input data".
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--problem-file=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a file containing ways and relations that are known to
+            cause problems in the split process.
+            Use this option if <option>--keep-complete</option> requires too
+            much time or memory and <option>--overlap</option> doesn't solve
+            your problem. 
+          </para>
+          <para>
+            Syntax of problem file:
+          </para>
+          <programlisting>
+way:&lt;id&gt; # comment...
+rel:&lt;id&gt; # comment...
+          </programlisting>
+          <para>
+            example:
+          </para>
+          <programlisting>
+way:2784765 # Ferry Guernsey - Jersey
+          </programlisting>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--problem-report=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a file to write the generated problem list created with
+            <option>--keep-complete</option>.
+            The parameter is ignored if <option>--keep-complete=false</option>.
+            You can reuse this file with the <option>--problem-file</option>
+            parameter, but do this only if you use the same values for
+            <option>--max-nodes</option> and <option>--resolution</option>.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--resolution=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            The resolution of the density map produced during the first phase.
+            A value between 1 and 24.
+            Default is 13.
+            Increasing the value to 14 requires four times more memory in the
+            split phase.
+            The value is ignored if a <option>--split-file</option> is given.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--search-limit=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            Search limit in split algo.
+            Higher values may find better splits, but will take longer.
+          </para>
+          <para>
+            Default: 200000
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--split-file=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            Use the previously calculated tile areas instead of calculating
+            them from scratch.
+            The file can be in .list or .kml format.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--status-freq=<replaceable>int</replaceable></option></term>
+        <listitem>
+          <para>
+            Displays the amount of memory used by the JVM every
+            <option>--status-freq</option> seconds.
+            Set =0 to disable.
+          </para>
+          <para>
+            Default: 120
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--stop-after=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Debugging: stop after a given program phase.
+            Can be split, gen-problem-list, or handle-problem-list.
+            Default is dist which means execute all phases.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--write-kml=<replaceable>path</replaceable></option></term>
+        <listitem>
+          <para>
+            The name of a kml file to write out the areas to.
+            This is in addition to <filename>areas.list</filename>
+            (which is always written out).
+          </para>
+        </listitem>
+      </varlistentry>
+
+    </variablelist>
+
+    <para>
+      Special options
+    </para>
+    <variablelist>
+
+      <varlistentry>
+        <term><option>--version</option></term>
+        <listitem>
+          <para>
+            If the parameter <option>--version</option> is found somewhere in
+            the options, <command>mkgmap-splitter</command> will just print
+            the version info and exit.
+            Version info looks like this:
+            <screen>
+splitter 279 compiled 2013-01-12T01:45:02+0000
+            </screen>
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--help</option></term>
+        <listitem>
+          <para>
+            If the parameter <option>--help</option> is found somewhere in
+            the options, <command>mkgmap-splitter</command> will print a list
+            of all known normal options together with a short help and exit.
+          </para>
+        </listitem>
+      </varlistentry>
+
+    </variablelist>
+
+  </refsect1>
+
+  <refsect1 id='tuning'>
+    <title>TUNING</title>
+
+    <para>
+      Tuning for best performance
+    </para>
+    <para>
+      A few hints for those that are using <command>mkgmap-splitter</command>
+      to split large files.
+    </para>
+    <itemizedlist>
+
+      <listitem>
+        <para>
+          For faster processing with <option>--keep-complete=true</option>,
+          convert the input file to o5m format using:
+          <screen>
+<command>osmconvert</command> <option>--drop-version</option> <filename>file.osm</filename> <option>-o=<filename>file.o5m</filename></option>
+          </screen>
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          The option <option>--drop-version</option> is optional, it reduces
+          the file to that data that is needed by
+          <command>mkgmap-splitter</command> and <command>mkgmap</command>.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          If you still experience poor performance, look into
+          <filename>splitter.log</filename>.
+          Search for the word Distributing.
+          You may find something like this in the next line:
+          <screen>
+Processing 1502 areas in 3 passes, 501 areas at a time
+          </screen>
+          This means splitter has to read the input file input three times
+          because the <option>--max-areas</option> parameter was much smaller
+          than the number of areas.
+          If you have enough heap, set <option>--max-areas</option> value to a
+          value that is higher than the number of areas, e.g.
+          <option>--max-areas=2048</option>.
+          Execute <command>mkgmap-splitter</command> again and you should find
+          <screen>
+Processing 1502 areas in a single pass
+          </screen>
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          More areas require more memory.
+          Make sure that <command>mkgmap-splitter</command> has enough heap
+          (increase the <option>-Xmx</option> parameter) so that it doesn't
+          waste much time in the garbage collector (GC), but keep as much
+          memory as possible for the systems I/O caches.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          If available, use two different disks for input file and output
+          directory, esp. when you use o5m format for input and output.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          If you use <command>mkgmap</command> r2415 or later and disk space
+          is no concern, consider to use <option>--output=o5m</option> to
+          speed up processing.
+        </para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>
+      Tuning for low memory requirements
+    </para>
+    <para>
+      If your machine has less than 1 GB free memory (eg. a netbook), you can
+      still use <command>mkgmap-splitter</command>, but you might have to be
+      patient if you use the parameter <option>--keep-complete</option> and
+      want to split a file like <filename>germany.osm.pbf</filename> or a
+      larger one.
+      If needed, reduce the number of parrallel processed areas to 50 with the
+      <option>--max-areas</option> parameter.
+      You have to use <option>--keep-complete=false</option> when splitting an
+      area like Europe.
+    </para>
+  </refsect1>
+
+  <refsect1 id='notes'>
+    <title>NOTES</title>
+    <itemizedlist>
+
+      <listitem>
+        <para>
+          There is no longer an upper limit on the number of areas that can be
+          output (previously it was 255).
+          More areas just mean potentially more passes being required over the
+           .osm file, and hence the splitter will take longer to run.
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>
+          There is no longer a limit on how many areas a way or relation can
+          belong to (previously it was 4).
+        </para>
+      </listitem>
+
+    </itemizedlist>
+  </refsect1>
+
+  <refsect1 id='see-also'>
+    <title>SEE ALSO</title>
+
+    <citerefentry>
+      <refentrytitle>mkgmap</refentrytitle>
+      <manvolnum>1</manvolnum>
+    </citerefentry>,
+    <citerefentry>
+      <refentrytitle>osmconvert</refentrytitle>
+      <manvolnum>1</manvolnum>
+    </citerefentry>
+
+  </refsect1>
+
+</refentry>

@@ -1,0 +1,456 @@
+'\" -*- coding: us-ascii -*-
+.if \n(.g .ds T< \\FC
+.if \n(.g .ds T> \\F[\n[.fam]]
+.de URL
+\\$2 \(la\\$1\(ra\\$3
+..
+.if \n(.g .mso www.tmac
+.TH mkgmap-splitter 1 "9 January 2015" "" ""
+.SH NAME
+mkgmap-splitter \- tile splitter for mkgmap
+.SH SYNOPSIS
+'nh
+.fi
+.ad l
+\fBmkgmap-splitter\fR \kx
+.if (\nx>(\n(.l/2)) .nr x (\n(.l/5)
+'in \n(.iu+\nxu
+[\fIoptions\fR] \fIfile.osm\fR 
+'in \n(.iu-\nxu
+.ad b
+'hy
+> \fI\*(T<\fIsplitter.log\fR\*(T>\fR
+.SH DESCRIPTION
+\fBmkgmap-splitter\fR splits an .osm file that contains
+large well mapped regions into a number of smaller tiles, to fit within
+the maximum size used for the Garmin maps format.
+.PP
+The two most important features are:
+.TP 0.2i
+\(bu
+Variable sized tiles to prevent a large number of tiny files.
+.TP 0.2i
+\(bu
+Tiles join exactly with no overlap or gaps.
+.PP
+You will need a lot of memory on your computer if you intend to split a
+large area.
+A few options allow to configure how much memory you need.
+With the default parameters, you need about 4-5 bytes for every node and
+way.
+This doesn't sound a lot but there are about 1700 million nodes in the
+whole planet file and so you cannot process the whole planet in one pass
+file on a 32 bit machine using this utility as the maximum java heap
+space is 2G.
+It is possible with 64 bit java and about 7GB of heap or with multiple
+passes.
+.PP
+The Europe extract from Cloudmade or Geofabrik can be processed within
+the 2G limit if you have sufficient memory.
+With the default options europe is split into about 750 tiles.
+The Europe extract is about half of the size of the complete planet file.
+.PP
+On the other hand a single country, even a well mapped one such as
+Germany or the UK, will be possible on a modest machine, even a netbook.
+.SH USAGE
+Splitter requires java 1.6 or higher.
+Basic usage is as follows.
+.PP
+.nf
+\*(T<
+\fBmkgmap\-splitter\fR \fI\fIfile.osm\fR\fR > \fI\fIsplitter.log\fR\fR
+    \*(T>
+.fi
+.PP
+If you have less than 2 GB of memory on your computer you should reduce
+the \*(T<\fB\-Xmx\fR\*(T> option by setting the JAVA_OPTS environment
+variable.
+.PP
+.nf
+\*(T<
+JAVA_OPTS="\fI\-Xmx512m\fR" \fBmkgmap\-splitter\fR \fI\fIfile.osm\fR\fR > \fI\fIsplitter.log\fR\fR
+    \*(T>
+.fi
+.PP
+This will produce a number of .osm.pbf files that can be read by
+\fBmkgmap\fR(1).
+There are also other files produced:
+.PP
+The \*(T<\fItemplate.args\fR\*(T> file is a file that can
+be used with the \*(T<\fB\-c\fR\*(T> option of
+\fBmkgmap\fR that will compile all the files.
+You can use it as is or you can copy it and edit it to include
+your own options.
+For example instead of each description being "OSM Map" it could
+be "NW Scotland" as appropriate.
+.PP
+The \*(T<\fIareas.list\fR\*(T> file is the list of bounding
+boxes that were calculated.
+If you want you can use this on a subsequent call the the
+splitter using the \*(T<\fB\-\-split\-file\fR\*(T> option to use
+exactly the same areas as last time.
+This might be useful if you produce a map regularly and want to
+keep the tile areas the same from month to month.
+It is also useful to avoid the time it takes to regenerate the
+file each time (currently about a third of the overall time
+taken to perform the split).
+Of course if the map grows enough that one of the tiles overflows
+you will have to re-calculate the areas again.
+.PP
+The \*(T<\fIareas.poly\fR\*(T> file contains the bounding
+polygon of the calculated areas.
+See option \*(T<\fB\-\-polygon\-file\fR\*(T> how this can be used.
+.PP
+The \*(T<\fIdensities\-out.txt\fR\*(T> file is written when
+no split-file is given and contains debugging information only.
+.PP
+You can also use a gzip'ed or bz2'ed compressed .osm file as the input
+file.
+Note that this can slow down the splitter considerably (particularly true
+for bz2) because decompressing the .osm file can take quite a lot of CPU
+power.
+If you are likely to be processing a file several times you're probably
+better off converting the file to one of the binary formats pbf or o5m.
+The o5m format is faster to read, but requires more space on the disk.
+.SH OPTIONS
+There are a number of options to fine tune things that you might want to
+try.
+.TP 
+\*(T<\fB\-\-boundary\-tags=\fR\*(T>\fIstring\fR
+A comma separated list of tag values for relations.
+Used to filter multipolygon and boundary relations for
+problem-list processing.
+Default: use-exclude-list
+.TP 
+\*(T<\fB\-\-cache=\fR\*(T>\fIstring\fR
+Deprecated, now does nothing
+.TP 
+\*(T<\fB\-\-description=\fR\*(T>\fIstring\fR
+Sets the desciption to be written in to the
+\*(T<\fItemplate.args\fR\*(T> file.
+.TP 
+\*(T<\fB\-\-geonames\-file=\fR\*(T>\fIstring\fR
+The name of a GeoNames file to use for determining tile names.
+Typically \*(T<\fIcities15000.zip\fR\*(T> from
+.URL http://download.geonames.org/export/dump geonames
+\&.
+.TP 
+\*(T<\fB\-\-keep\-complete=\fR\*(T>\fIboolean\fR
+Use \*(T<\fB\-\-keep\-complete=false\fR\*(T> to disable two
+additional program phases between the split and the final
+distribution phase (not recommended).
+The first phase, called gen-problem-list, detects all ways and
+relations that are crossing the borders of one or more output
+files.
+The second phase, called handle-problem-list, collects the
+coordinates of these ways and relations and calculates all output
+files that are crossed or enclosed.
+The information is passed to the final dist-phase in three
+temporary files.
+This avoids broken polygons, but be aware that it requires to read
+the input files at least two additional times.
+
+Do not specify it with \*(T<\fB\-\-overlap\fR\*(T> unless you have
+a good reason to do so.
+
+Defaulte: true
+.TP 
+\*(T<\fB\-\-mapid=\fR\*(T>\fIint\fR
+Set the filename for the split files.
+In the example the first file will be called
+\*(T<\fI63240001.osm.pbf\fR\*(T> and the next one will be
+\*(T<\fI63240002.osm.pbf\fR\*(T> and so on.
+
+Default: 63240001
+.TP 
+\*(T<\fB\-\-max\-areas=\fR\*(T>\fIint\fR
+The maximum number of areas that can be processed in a single pass
+during the second stage of processing.
+This must be a number from 1 to 4096.
+Higher numbers mean fewer passes over the source file and hence
+quicker overall processing, but also require more memory.
+If you find you are running out of memory but don't want to
+increase your \*(T<\fB\-\-max\-nodes\fR\*(T> value, try reducing
+this instead.
+Changing this will have no effect on the result of the split, it's
+purely to let you trade off memory for performance.
+Note that the first stage of the processing has a fixed memory
+overhead regardless of what this is set to so if you are running
+out of memory before the \*(T<\fIareas.list\fR\*(T> file is
+generated, you need to either increase your \*(T<\fB\-Xmx\fR\*(T>
+value or reduce the size of the input file you're trying to split.
+
+Default: 512
+.TP 
+\*(T<\fB\-\-max\-nodes=\fR\*(T>\fIint\fR
+The maximum number of nodes that can be in any of the resultant
+files.
+The default is fairly conservative, you could increase it quite a
+lot before getting any 'map too big' messages.
+Not much experimentation has been done.
+Also the bigger this value, the less memory is required during the
+splitting stage.
+
+Default: 1600000
+.TP 
+\*(T<\fB\-\-max\-threads=\fR\*(T>\fIvalue\fR
+The maximum number of threads used by
+\fBmkgmap-splitter\fR.
+
+Default: 4 (auto)
+.TP 
+\*(T<\fB\-\-mixed=\fR\*(T>\fIboolean\fR
+Specify this if the input osm file has nodes, ways and relations
+intermingled or the ids are not strictly sorted.
+To increase performance, use the \fBosmosis\fR sort
+function.
+
+Default: false
+.TP 
+\*(T<\fB\-\-no\-trim=\fR\*(T>\fIboolean\fR
+Don't trim empty space off the edges of tiles.
+This option is ignored when \*(T<\fB\-\-polygon\-file\fR\*(T> is
+used.
+
+Default: false
+.TP 
+\*(T<\fB\-\-num\-tiles=\fR\*(T>\fIvalue\fR\*(T<\fBstring\fR\*(T>
+A target value that is used when no split-file is given.
+Splitting is done so that the given number of tiles is produced.
+The \*(T<\fB\-\-max\-nodes\fR\*(T> value is ignored if this option
+is given.
+.TP 
+\*(T<\fB\-\-output=\fR\*(T>\fIstring\fR
+The format in which the output files are written.
+Possible values are xml, pbf, o5m, and simulate.
+The default is pbf, which produces the smallest file sizes.
+The o5m format is faster to write, but creates around 40% larger
+files.
+The simulate option is for debugging purposes.
+.TP 
+\*(T<\fB\-\-output\-dir=\fR\*(T>\fIpath\fR
+The directory to which splitter should write the output files.
+If the specified path to a directory doesn't exist,
+\fBmkgmap-splitter\fR tries to create it.
+Defaults to the current working directory.
+.TP 
+\*(T<\fB\-\-overlap=\fR\*(T>\fIstring\fR
+Deprecated since r279.
+With \*(T<\fB\-\-keep\-complete=false\fR\*(T>,
+\fBmkgmap-splitter\fR should include nodes outside
+the bounding box, so that \fBmkgmap\fR can neatly
+crop exactly at the border.
+This parameter controls the size of that overlap.
+It is in map units, a default of 2000 is used which means about
+0.04 degrees of latitude or longitude.
+If \*(T<\fB\-\-keep\-complete=true\fR\*(T> is active and
+\*(T<\fB\-\-overlap\fR\*(T> is given, a warning will be printed
+because this combination rarely makes sense.
+.TP 
+\*(T<\fB\-\-polygon\-desc\-file=\fR\*(T>\fIpath\fR
+An osm file (.o5m, .pbf, .osm) with named ways that describe
+bounding polygons with OSM ways having tags name and mapid.
+.TP 
+\*(T<\fB\-\-polygon\-file=\fR\*(T>\fIpath\fR
+The name of a file containing a bounding polygon in the
+.URL "" "osmosis polygon file format"
+\&.
+\fBmkgmap-splitter\fR uses this file when calculating
+the areas.
+It first calculates a grid using the given
+\*(T<\fB\-\-resolution\fR\*(T>.
+The input file is read and for each node, a counter is increased
+for the related grid area.
+If the input file contains a bounding box, this is applied to the
+grid so that nodes outside of the bounding box are ignored.
+Next, if specified, the bounding polygon is used to zero those
+grid elements outside of the bounding polygon area.
+If the polygon area(s) describe(s) a rectilinear area with no more
+than 40 vertices, \fBmkgmap-splitter\fR will try to
+create output files that fit exactly into the area, otherwise it
+will approximate the polygon area with rectangles.
+.TP 
+\*(T<\fB\-\-precomp\-sea=\fR\*(T>\fIpath\fR
+The name of a directory containing precompiled sea tiles.
+If given, \fBmkgmap-splitter\fR will use the
+precompiled sea tiles in the same way as \fBmkgmap\fR
+does.
+Use this if you want to use a polygon-file or
+\*(T<\fB\-\-no\-trim=true\fR\*(T> and \fBmkgmap\fR
+creates empty *.img files combined with a message starting "There
+is not enough room in a single garmin map for all the input data".
+.TP 
+\*(T<\fB\-\-problem\-file=\fR\*(T>\fIpath\fR
+The name of a file containing ways and relations that are known to
+cause problems in the split process.
+Use this option if \*(T<\fB\-\-keep\-complete\fR\*(T> requires too
+much time or memory and \*(T<\fB\-\-overlap\fR\*(T> doesn't solve
+your problem. 
+
+Syntax of problem file:
+
+.nf
+\*(T<
+way:<id> # comment...
+rel:<id> # comment...
+          \*(T>
+.fi
+
+example:
+
+.nf
+\*(T<
+way:2784765 # Ferry Guernsey \- Jersey
+          \*(T>
+.fi
+.TP 
+\*(T<\fB\-\-problem\-report=\fR\*(T>\fIpath\fR
+The name of a file to write the generated problem list created with
+\*(T<\fB\-\-keep\-complete\fR\*(T>.
+The parameter is ignored if \*(T<\fB\-\-keep\-complete=false\fR\*(T>.
+You can reuse this file with the \*(T<\fB\-\-problem\-file\fR\*(T>
+parameter, but do this only if you use the same values for
+\*(T<\fB\-\-max\-nodes\fR\*(T> and \*(T<\fB\-\-resolution\fR\*(T>.
+.TP 
+\*(T<\fB\-\-resolution=\fR\*(T>\fIint\fR
+The resolution of the density map produced during the first phase.
+A value between 1 and 24.
+Default is 13.
+Increasing the value to 14 requires four times more memory in the
+split phase.
+The value is ignored if a \*(T<\fB\-\-split\-file\fR\*(T> is given.
+.TP 
+\*(T<\fB\-\-search\-limit=\fR\*(T>\fIint\fR
+Search limit in split algo.
+Higher values may find better splits, but will take longer.
+
+Default: 200000
+.TP 
+\*(T<\fB\-\-split\-file=\fR\*(T>\fIpath\fR
+Use the previously calculated tile areas instead of calculating
+them from scratch.
+The file can be in .list or .kml format.
+.TP 
+\*(T<\fB\-\-status\-freq=\fR\*(T>\fIint\fR
+Displays the amount of memory used by the JVM every
+\*(T<\fB\-\-status\-freq\fR\*(T> seconds.
+Set =0 to disable.
+
+Default: 120
+.TP 
+\*(T<\fB\-\-stop\-after=\fR\*(T>\fIstring\fR
+Debugging: stop after a given program phase.
+Can be split, gen-problem-list, or handle-problem-list.
+Default is dist which means execute all phases.
+.TP 
+\*(T<\fB\-\-write\-kml=\fR\*(T>\fIpath\fR
+The name of a kml file to write out the areas to.
+This is in addition to \*(T<\fIareas.list\fR\*(T>
+(which is always written out).
+.PP
+Special options
+.TP 
+\*(T<\fB\-\-version\fR\*(T>
+If the parameter \*(T<\fB\-\-version\fR\*(T> is found somewhere in
+the options, \fBmkgmap-splitter\fR will just print
+the version info and exit.
+Version info looks like this:
+
+.nf
+\*(T<
+splitter 279 compiled 2013\-01\-12T01:45:02+0000
+            \*(T>
+.fi
+.TP 
+\*(T<\fB\-\-help\fR\*(T>
+If the parameter \*(T<\fB\-\-help\fR\*(T> is found somewhere in
+the options, \fBmkgmap-splitter\fR will print a list
+of all known normal options together with a short help and exit.
+.SH TUNING
+Tuning for best performance
+.PP
+A few hints for those that are using \fBmkgmap-splitter\fR
+to split large files.
+.TP 0.2i
+\(bu
+For faster processing with \*(T<\fB\-\-keep\-complete=true\fR\*(T>,
+convert the input file to o5m format using:
+
+.nf
+\*(T<
+\fBosmconvert\fR \fB\-\-drop\-version\fR \fIfile.osm\fR \fB\-o=\fR\fB\fIfile.o5m\fR\fR
+          \*(T>
+.fi
+.TP 0.2i
+\(bu
+The option \*(T<\fB\-\-drop\-version\fR\*(T> is optional, it reduces
+the file to that data that is needed by
+\fBmkgmap-splitter\fR and \fBmkgmap\fR.
+.TP 0.2i
+\(bu
+If you still experience poor performance, look into
+\*(T<\fIsplitter.log\fR\*(T>.
+Search for the word Distributing.
+You may find something like this in the next line:
+
+.nf
+\*(T<
+Processing 1502 areas in 3 passes, 501 areas at a time
+          \*(T>
+.fi
+
+This means splitter has to read the input file input three times
+because the \*(T<\fB\-\-max\-areas\fR\*(T> parameter was much smaller
+than the number of areas.
+If you have enough heap, set \*(T<\fB\-\-max\-areas\fR\*(T> value to a
+value that is higher than the number of areas, e.g.
+\*(T<\fB\-\-max\-areas=2048\fR\*(T>.
+Execute \fBmkgmap-splitter\fR again and you should find
+
+.nf
+\*(T<
+Processing 1502 areas in a single pass
+          \*(T>
+.fi
+.TP 0.2i
+\(bu
+More areas require more memory.
+Make sure that \fBmkgmap-splitter\fR has enough heap
+(increase the \*(T<\fB\-Xmx\fR\*(T> parameter) so that it doesn't
+waste much time in the garbage collector (GC), but keep as much
+memory as possible for the systems I/O caches.
+.TP 0.2i
+\(bu
+If available, use two different disks for input file and output
+directory, esp. when you use o5m format for input and output.
+.TP 0.2i
+\(bu
+If you use \fBmkgmap\fR r2415 or later and disk space
+is no concern, consider to use \*(T<\fB\-\-output=o5m\fR\*(T> to
+speed up processing.
+.PP
+Tuning for low memory requirements
+.PP
+If your machine has less than 1 GB free memory (eg. a netbook), you can
+still use \fBmkgmap-splitter\fR, but you might have to be
+patient if you use the parameter \*(T<\fB\-\-keep\-complete\fR\*(T> and
+want to split a file like \*(T<\fIgermany.osm.pbf\fR\*(T> or a
+larger one.
+If needed, reduce the number of parrallel processed areas to 50 with the
+\*(T<\fB\-\-max\-areas\fR\*(T> parameter.
+You have to use \*(T<\fB\-\-keep\-complete=false\fR\*(T> when splitting an
+area like Europe.
+.SH NOTES
+.TP 0.2i
+\(bu
+There is no longer an upper limit on the number of areas that can be
+output (previously it was 255).
+More areas just mean potentially more passes being required over the
+\&.osm file, and hence the splitter will take longer to run.
+.TP 0.2i
+\(bu
+There is no longer a limit on how many areas a way or relation can
+belong to (previously it was 4).
+.SH "SEE ALSO"
+\fBmkgmap\fR(1),
+\fBosmconvert\fR(1)
