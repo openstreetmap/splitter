@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009.
+ * Copyright (c) 2009, Steve Ratcliffe
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as

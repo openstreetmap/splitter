@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009.
+ * Copyright (c) 2009, Chris Miller
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,7 +30,7 @@ import java.util.Map.Entry;
  * Splits a density map into multiple areas, none of which
  * exceed the desired threshold.
  *
- * @author GerdP
+* @author Chris Miller
  */
 public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
