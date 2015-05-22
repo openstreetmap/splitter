@@ -146,6 +146,21 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
     <variablelist>
 
       <varlistentry>
+        <term><option>--wanted-admin-level=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Specifies the lowest admin_level value of boundary relations that 
+						should be kept complete. Used to filter boundary relations for
+            problem-list processing. The default value 5 means that 
+            boundary relations are kept complete when the admin_level is
+            5 or higher (5..11). 
+						The parameter is ignored if <option>--keep-complete=false</option>.
+            Default: 5
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
         <term><option>--boundary-tags=<replaceable>string</replaceable></option></term>
         <listitem>
           <para>

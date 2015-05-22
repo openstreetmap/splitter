@@ -57,7 +57,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private boolean isFirstPass;
 	private boolean isLastPass;
 	private WriterIndex writerIndex;
-
+	private final HashSet<String> wantedBoundaryAdminLevels = new HashSet<>();
 	
 	private final HashSet<String> wantedBoundaryTagValues;
 	
@@ -89,12 +89,21 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.problemRels = problemRels;
 		this.oneTileOnlyRels = oneTileOnlyRels;
 		if (boundaryTagList != null && boundaryTagList.length > 0)
-			wantedBoundaryTagValues = new HashSet<String>(Arrays.asList(boundaryTagList));
+			wantedBoundaryTagValues = new HashSet<>(Arrays.asList(boundaryTagList));
 		else 
 			wantedBoundaryTagValues = null;
+		setWantedAdminLevel(5);
 	}
 	
-	
+	public void setWantedAdminLevel(int adminLevel) {
+		int min, max = 11;
+		min = Math.max(2, adminLevel);
+		wantedBoundaryAdminLevels.clear();
+		for (int i = min; i <= max; i++){
+			wantedBoundaryAdminLevels.add(Integer.toString(i));
+		}
+	}
+
 	@Override
 	public boolean skipTags() {
 		if (phase == PHASE1_NODES_AND_WAYS)
@@ -218,7 +227,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		}
 	}
 	// default exclude list for boundary tag
-	private final static HashSet<String> unwantedBoundaryTagValues = new HashSet<String>(
+	private final static HashSet<String> unwantedBoundaryTagValues = new HashSet<>(
 			Arrays.asList("administrative", "postal_code", "political"));
 
 	@Override
@@ -230,6 +239,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		boolean hasBoundaryTag = false;
 		boolean isWantedBoundary = (wantedBoundaryTagValues == null) ? true:false;
 		Iterator<Element.Tag> tags = rel.tagsIterator();
+		String admin_level = null;
 		while(tags.hasNext()) {
 			Element.Tag t = tags.next();
 			if ("type".equals(t.key)) {
@@ -248,6 +258,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 					if (unwantedBoundaryTagValues.contains(t.value))
 						isWantedBoundary = false;
 				}
+			} else if ("admin_level".equals(t.key)){
+				admin_level = t.value;
 			}
 			
 			if (useThis)
@@ -255,6 +267,10 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		}
 		if (isMPRelType && (isWantedBoundary || hasBoundaryTag == false))
 			useThis = true;
+		else if (isMPRelType && hasBoundaryTag  && admin_level != null){
+			if (wantedBoundaryAdminLevels.contains(admin_level))
+				useThis = true;
+		}
 		if (!useThis){
 			return;
 		}
@@ -373,4 +389,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		// but it is difficult to detect these cases.
 		return writerCombis.cardinality() > 1;
 	}
+
+
 }

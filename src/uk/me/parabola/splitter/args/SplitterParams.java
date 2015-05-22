@@ -106,6 +106,12 @@ public interface SplitterParams {
 			+ "Used to filter multipolygon and boundary relations for problem-list processing.")
 	String getBoundaryTags();
 
+	@Option(defaultValue="5", description = "The lowest admin_level value that should be kept complete. Reasonable values are 2 .. 11." 
+			+ "Used to filter boundary relations for problem-list processing. Ignored when keep-complete is false.")
+	String getWantedAdminLevel();
+	
+	
+
 	@Option(defaultValue = "200000", description = "Search limit in split algo. Higher values may find better splits, but will take longer.")
 	int getSearchLimit();
 
