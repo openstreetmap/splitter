@@ -146,27 +146,12 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
     <variablelist>
 
       <varlistentry>
-        <term><option>--wanted-admin-level=<replaceable>string</replaceable></option></term>
-        <listitem>
-          <para>
-            Specifies the lowest admin_level value of boundary relations that 
-						should be kept complete. Used to filter boundary relations for
-            problem-list processing. The default value 5 means that 
-            boundary relations are kept complete when the admin_level is
-            5 or higher (5..11). 
-						The parameter is ignored if <option>--keep-complete=false</option>.
-            Default: 5
-          </para>
-        </listitem>
-      </varlistentry>
-
-      <varlistentry>
         <term><option>--boundary-tags=<replaceable>string</replaceable></option></term>
         <listitem>
           <para>
             A comma separated list of tag values for relations.
             Used to filter multipolygon and boundary relations for
-            problem-list processing.
+            problem-list processing. See also <option>option --wanted-admin-level</option>.
             Default: use-exclude-list
           </para>
         </listitem>
@@ -537,6 +522,21 @@ way:2784765 # Ferry Guernsey - Jersey
             Debugging: stop after a given program phase.
             Can be split, gen-problem-list, or handle-problem-list.
             Default is dist which means execute all phases.
+          </para>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><option>--wanted-admin-level=<replaceable>string</replaceable></option></term>
+        <listitem>
+          <para>
+            Specifies the lowest admin_level value of boundary relations that 
+						should be kept complete. Used to filter boundary relations for
+            problem-list processing. The default value 5 means that 
+            boundary relations are kept complete when the admin_level is
+            5 or higher (5..11). 
+						The parameter is ignored if <option>--keep-complete=false</option>.
+            Default: 5
           </para>
         </listitem>
       </varlistentry>
