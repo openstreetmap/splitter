@@ -18,7 +18,7 @@ The two most important features are:
 == First ==
 
 You will need a lot of memory on your computer if you intend to split a large
-area. A few options allow to configure how much memory you need.  With the
+area. A few options allow configuring how much memory you need.  With the
 default parameters, you need about 4-5 bytes for every node and way. This
 doesn't sound a lot but there are about 1700 million nodes in the whole planet
 file and so you cannot process the whole planet in one pass file on a 32 bit
