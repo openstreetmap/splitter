@@ -151,7 +151,8 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
           <para>
             A comma separated list of tag values for relations.
             Used to filter multipolygon and boundary relations for
-            problem-list processing. See also <option>option --wanted-admin-level</option>.
+            problem-list processing.
+            See also option <option>--wanted-admin-level</option>.
             Default: use-exclude-list
           </para>
         </listitem>
