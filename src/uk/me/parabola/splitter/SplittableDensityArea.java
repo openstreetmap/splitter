@@ -114,7 +114,14 @@ public class SplittableDensityArea {
 			return Collections.emptyList();
 		prepare(null);
 		Tile startTile = new Tile(extraDensityInfo);
-		List<Tile> startTiles = checkForEmptyClusters(0, startTile, true);
+		List<Tile> startTiles = new ArrayList<>();
+		if (trimShape || allDensities.getBounds().getWidth() >= 0x1000000){
+			// if trim is wanted or tile spans over planet 
+			// we try first to find large empty areas (sea) 
+			startTiles.addAll(checkForEmptyClusters(0, startTile, true));
+		}
+		else 
+			startTiles.add(startTile);
 		
 		Solution fullSolution = new Solution(maxNodes);
 		int countNoSol;
