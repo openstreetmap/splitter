@@ -46,7 +46,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     {
       super(output);
       configBatchLimit(1000);
-      omit_metadata = true;
+//      omit_metadata = true;
     }
 
     /** Base class containing common code needed for serializing each type of primitives. */
@@ -113,6 +113,14 @@ public class BinaryMapWriter extends AbstractOSMWriter {
         //          b.addUserSid(userSid - lastuserSid);
         //          lastuserSid = userSid;
         //        }
+
+        for(Element e : entities) {
+        	b.addVersion(1);
+        	b.addTimestamp(0);
+        	b.addChangeset(0);
+        	b.addUid(0);
+        	b.addUserSid(0);
+        }
       }
 
       public Osmformat.Info.Builder serializeMetadata(Element e)
