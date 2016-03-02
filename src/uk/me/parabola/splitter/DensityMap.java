@@ -224,7 +224,10 @@ public class DensityMap {
 	public void saveMap(String fileName, Area detailBounds, Area collectorBounds) {
 		try (FileWriter f = new FileWriter(new File(fileName))){
 			f.write(detailBounds.getMinLat() + "," + detailBounds.getMinLong() + "," + detailBounds.getMaxLat() + "," + detailBounds.getMaxLong() + '\n');
-			f.write(collectorBounds.getMinLat() + "," + collectorBounds.getMinLong() + "," + collectorBounds.getMaxLat() + "," + collectorBounds.getMaxLong() + '\n');
+			if (collectorBounds != null)
+				f.write(collectorBounds.getMinLat() + "," + collectorBounds.getMinLong() + "," + collectorBounds.getMaxLat() + "," + collectorBounds.getMaxLong() + '\n');
+			else 
+				f.write("no_bounds_in_input\n");
 			//f.write(bounds.getMinLat() + "," + bounds.getMinLong() + "," + bounds.getMaxLat() + "," + bounds.getMaxLong() + '\n');
 			for (int x=0; x<width; x++){
 				if (nodeMap[x] != null){
@@ -273,14 +276,16 @@ public class DensityMap {
 			}
 			inLine = problemReader.readLine();
 			if (inLine != null){
-				items = csvSplitter.split(inLine);
-				if (items.length != 4){
-					System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
-							+ inLine);
-					return null;
+				if ("no_bounds_in_input".equals(inLine) == false){
+					items = csvSplitter.split(inLine);
+					if (items.length != 4){
+						System.out.println("Error: Invalid format in map file, line number " + problemReader.getLineNumber() + ": "   
+								+ inLine);
+						return null;
+					}
+					collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
+							Integer.parseInt(items[2]),Integer.parseInt(items[3]));
 				}
-				collectorBounds = new Area(Integer.parseInt(items[0]), Integer.parseInt(items[1]),
-						Integer.parseInt(items[2]),Integer.parseInt(items[3]));
 			}
 			while ((inLine = problemReader.readLine()) != null) {
 				items = csvSplitter.split(inLine);
