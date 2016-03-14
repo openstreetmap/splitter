@@ -111,7 +111,6 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 
 			tmp = new Node();
 			tmp.set(id, latf, lonf);
-			tmp.setVersion(nodes.getDenseinfo().getVersion(i));
 
 			if (!skipTags) {
 				if (nodes.getKeysValsCount() > 0) {
@@ -144,7 +143,6 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 			double latf = parseLat(i.getLat()), lonf = parseLon(i.getLon());
 
 			tmp.set(id, latf, lonf);
-			tmp.setVersion(i.getInfo().getVersion());
 
 			processor.processNode(tmp);
 			elemCounter.countNode(tmp.getId());
@@ -174,7 +172,6 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 
 			long id = i.getId();
 			tmp.setId(id);
-			tmp.setVersion(i.getInfo().getVersion());
 
 			processor.processWay(tmp);
 			elemCounter.countWay(i.getId());
@@ -198,7 +195,6 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 			}
 			long id = i.getId();
 			tmp.setId(id);
-			tmp.setVersion(i.getInfo().getVersion());
 
 			long last_mid=0;
 			for (int j =0; j < i.getMemidsCount() ; j++) {

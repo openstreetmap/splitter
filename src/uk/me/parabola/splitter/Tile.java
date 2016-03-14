@@ -468,142 +468,40 @@ import java.awt.Rectangle;
 		 * @return the trimmed version of the tile.
 		 */
 		public Tile trim() {
-			long sumRemovedColCounts = 0;
-			long sumRemovedRowCounts = 0;
 			int minX = -1;
 			for (int i = 0; i < width; i++) {
-				long colSum = getColSum(i) ; 
-				boolean needed = (densityInfo.getPolygonArea() == null) ? colSum > 0 : (colOutsidePolygon(i) == false);
-				if (needed){
+				if (getColSum(i) > 0){
 					minX = x + i;
 					break;
 				}
-				sumRemovedColCounts += colSum;
 			}
 			int maxX = -1;
 			for (int i = width - 1; i >= 0; i--) {
-				long colSum = getColSum(i) ; 
-				boolean needed = (densityInfo.getPolygonArea() == null) ? colSum > 0 : (colOutsidePolygon(i) == false);
-				if (needed){
+				if (getColSum(i) > 0){
 					maxX = x + i;
 					break;
 				}
-				sumRemovedColCounts += colSum;
 			}
 			int minY = -1;
 			for (int i = 0; i < height; i++) {
-				long rowSum = getRowSum(i);
-				boolean needed = (densityInfo.getPolygonArea() == null) ? rowSum > 0 : (rowOutsidePolygon(i) == false);
-				if (needed){
+				if (getRowSum(i) > 0){
 					minY = y + i;
 					break;
 				}
-				sumRemovedRowCounts += rowSum;
 			}
 			int maxY = -1;
 			for (int i = height - 1; i >= 0; i--) {
-				long rowSum = getRowSum(i);
-				boolean needed = (densityInfo.getPolygonArea() == null) ? rowSum > 0 : (rowOutsidePolygon(i) == false);
-				if (needed){
+				if (getRowSum(i) > 0){
 					maxY = y + i;
 					break;
 				}
-				sumRemovedRowCounts += rowSum;
 			}
+
 			assert minX <= maxX;
 			assert minY <= maxY;
-			assert maxX >= 0;
-			assert maxY >= 0;
-			long newCount = count;
-			int modWidth = maxX - minX + 1;
-			int modHeight = maxY - minY + 1;
-			if (densityInfo.getPolygonArea() != null){
-				if (modWidth != width || modHeight != height){
-					// tile was trimmed, try hard to avoid a new costly calculation of the count value
-					if (width == modWidth){
-						newCount = count - sumRemovedRowCounts; 
-					} else if (height == modHeight){
-						newCount = count - sumRemovedColCounts;
-					} else {
-//						System.out.printf("ouch: %d %d %d %d (%d) -> %d %d %d %d\n",x,y,width,height,count,minX,minY, maxX - minX + 1, maxY - minY + 1 );
-						return new Tile (densityInfo, new Rectangle(minX, minY, modWidth, modHeight));
-					}
-				}
-			}
-			return new Tile(densityInfo, minX, minY, modWidth, modHeight, newCount);
-		}
-
-		private boolean rowOutsidePolygon(int row) {
-			if (densityInfo.getPolygonArea() == null)
-				return false;
-			// performance critical part, check corners first
-			if (densityInfo.isGridElemInPolygon(x, y + row) || densityInfo.isGridElemInPolygon(x + width-1, y + row))
-				return false;
-			// check rest of row
-			for (int i = 1; i < width-1; i++) {
-				if (densityInfo.isGridElemInPolygon(x + i, y + row))
-					return false;
-			}
-			return true;
-		}
-
-		private boolean colOutsidePolygon(int col) {
-			if (densityInfo.getPolygonArea() == null)
-				return false;
-			// performance critical part, check corners first
-			if (densityInfo.isGridElemInPolygon(x + col, y) || densityInfo.isGridElemInPolygon(x + col, y + height - 1))
-				return false;
-			// check rest of column
-			for (int i = 1; i < height - 1; i++) {
-				if (densityInfo.isGridElemInPolygon(x + col, y + i))
-					return false;
-			}
-			return true;
-		}
-
-		public boolean outsidePolygon(){
-			java.awt.geom.Area polygonArea = densityInfo.getPolygonArea();
-			if (polygonArea == null)
-				return false;
-			if (polygonArea.intersects(getRealBBox()))
-				return false;
-			return true;
-		}
-
-		/**
-		 * Count the number of grid elements which are outside of the polygon area,
-		 * divide it by the total number of grid elements covered by this tile to
-		 * get a value between 0 and 1 (including).
-		 * @return
-		 */
-		public double calcOutsidePolygonRatio (){
-			if (densityInfo.getPolygonArea() == null)
-				return 0;
-			Rectangle realBBox = getRealBBox();
-//			if (densityInfo.getPolygonArea().contains(realBBox) )
-//				return 0;
-			// check special case: tile may contain the polygon
-			Rectangle polyBBox = densityInfo.getPolygonArea().getBounds();
-			if (realBBox.contains(polyBBox)){
-				return 0;
-			}
-			int countOutside = 0;
-			for (int i = x; i < x+width; i++){
-				for (int j = y; j < y+height; j++){
-					if (densityInfo.isGridElemInPolygon(i,j) == false)
-						countOutside++;
-				}
-			}
-			double ratio = (double) countOutside  / (width * height) ;
-			return ratio;
+			return new Tile(densityInfo, minX, minY, maxX - minX + 1, maxY - minY + 1, count);
 		}
 		
-		public Rectangle getRealBBox(){
-			int shift = densityInfo.getDensityMap().getShift();
-			int polyYPos = densityInfo.getDensityMap().getBounds().getMinLat() + (y << shift);
-			int polyXPos = densityInfo.getDensityMap().getBounds().getMinLong() + (x << shift);
-			return new Rectangle(polyXPos, polyYPos, width<<shift, height<<shift);
-		}
 		
 		@Override
 		public String toString(){

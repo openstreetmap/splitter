@@ -104,38 +104,28 @@ class OSMParser extends AbstractXppParser implements MapReader {
 			System.err.println("Node encountered with missing data. Bad/corrupt osm file? id=" + idStr + ", lat=" + latStr + ", lon=" + lonStr + ". Ignoring this node");
 			return;
 		}
+
 		long id = Long.parseLong(idStr);
 		double lat = Convert.parseDouble(latStr);
 		double lon = Convert.parseDouble(lonStr);
 
 		currentNode = new Node();
 		currentNode.set(id, lat, lon);
-		currentNode.setVersion(parseVersion());
-
 		state = State.Node;
 	}
 
 	private void startWay() {
 		currentWay = new Way();
 		currentWay.setId(getLongAttr("id"));
-		currentWay.setVersion(parseVersion());
 		state = State.Way;
 	}
 
 	private void startRelation() {
 		currentRelation = new Relation();
 		currentRelation.setId(getLongAttr("id"));
-		currentRelation.setVersion(parseVersion());
 		state = State.Relation;
 	}
 
-	private int parseVersion () {
-		String versionStr = getAttr("version");
-		if (versionStr == null)
-			return 0;
-		return Integer.parseInt(versionStr);
-		
-	}
 	private void processNode(CharSequence name) {
 		if (name.equals("tag")) {
 			if (!skipTags)

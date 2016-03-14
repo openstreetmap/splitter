@@ -189,8 +189,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
 		long delta = node.getId() - lastNodeId; lastNodeId = node.getId(); 
 		writeSignedNum(delta, stream);
-		writeVersion(node, stream);
-		//TODO : write version
+		stream.write(0x00); // no version info
 		int o5Lon = (int)(node.getLon() * FACTOR);
 		int o5Lat = (int)(node.getLat() * FACTOR);
 		int deltaLon = o5Lon - lastLon; lastLon = o5Lon;
@@ -208,7 +207,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
 		long delta = way.getId() - lastWayId; lastWayId = way.getId();
 		writeSignedNum(delta, stream);
-		writeVersion(way, stream);
+		stream.write(0x00); // no version info
 		ByteArrayOutputStream refStream = new ByteArrayOutputStream();
 		LongArrayList refs = way.getRefs();
 		int numRefs = refs.size();
@@ -230,7 +229,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		ByteArrayOutputStream stream = new ByteArrayOutputStream(256);
 		long delta = rel.getId() - lastRelId; lastRelId = rel.getId();
 		writeSignedNum(delta, stream);
-		writeVersion(rel, stream);
+		stream.write(0x00); // no version info
 		ByteArrayOutputStream memStream = new ByteArrayOutputStream(256);
 		for (Member mem: rel.getMembers()){
 			writeRelRef(mem, memStream);
@@ -258,20 +257,6 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		stw_write(REL_REF_TYPES[refType] + mem.getRole(), null, memStream); 
 	}
 
-	private void writeVersion (Element element, OutputStream stream) throws IOException {
-		if (versionMethod == REMOVE_VERSION){
-			stream.write(0x00); // no version 
-			return;
-		}
-		int version = 1;
-		if (versionMethod == KEEP_VERSION)
-			version = element.getVersion();
-		if (version != 0){
-			writeUnsignedNum(version, stream);
-		}
-		stream.write(0x00); // no author or time-stamp info  
-	}
-	
 	private void writeTags(Element element, OutputStream stream) throws IOException {
 		if (!element.hasTags())
 			return;

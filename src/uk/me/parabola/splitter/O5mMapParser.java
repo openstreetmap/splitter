@@ -248,8 +248,7 @@ public class O5mMapParser implements MapReader{
 		lastNodeId += readSignedNum64();
 		if (bytesToRead == 0)
 			return; // only nodeId: this is a delete action, we ignore it 
-		int version = readVersionTsAuthor();
-		node.setVersion(version);
+		readVersionTsAuthor();
 		if (bytesToRead == 0)
 			return; // only nodeId+version: this is a delete action, we ignore it 
 		int lon = readSignedNum32() + lastLon; lastLon = lon;
@@ -275,12 +274,11 @@ public class O5mMapParser implements MapReader{
 		if (bytesToRead == 0)
 			return; // only wayId: this is a delete action, we ignore it 
 
-		int version = readVersionTsAuthor();
+		readVersionTsAuthor();
 		if (bytesToRead == 0)
 			return; // only wayId + version: this is a delete action, we ignore it 
 		Way way = new Way();
 		way.setId(lastWayId);
-		way.setVersion(version);
 		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		
@@ -303,13 +301,12 @@ public class O5mMapParser implements MapReader{
 		lastRelId += readSignedNum64(); 
 		if (bytesToRead == 0)
 			return; // only relId: this is a delete action, we ignore it 
-		int version = readVersionTsAuthor();
+		readVersionTsAuthor();
 		if (bytesToRead == 0)
 			return; // only relId + version: this is a delete action, we ignore it 
 		
 		Relation rel = new Relation();
 		rel.setId(lastRelId);
-		rel.setVersion(version);
 		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		while(bytesToRead > stop){
@@ -368,7 +365,7 @@ public class O5mMapParser implements MapReader{
 	 * @throws IOException
 	 */
 	
-	private int readVersionTsAuthor() throws IOException {
+	private void readVersionTsAuthor() throws IOException {
 		int version = readUnsignedNum32(); 
 		if (version != 0){
 			// version info
@@ -378,7 +375,6 @@ public class O5mMapParser implements MapReader{
 				readAuthor();
 			}
 		}
-		return version;
 	}
 	/**
 	 * Read author . 

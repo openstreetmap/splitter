@@ -57,9 +57,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 
 	private void writeHeader() throws IOException {
 		writeString("<?xml version='1.0' encoding='UTF-8'?>\n");
-		String apiVersion = (versionMethod == REMOVE_VERSION) ? "version='0.5'" : "version='0.6'";
-			
-		writeString("<osm " + apiVersion + " generator='splitter' upload='false'>\n");
+		writeString("<osm version='0.5' generator='splitter' upload='false'>\n");
 
 		writeString("<bounds minlat='");
 		writeLongDouble(Utils.toDegrees(bounds.getMinLat()));
@@ -90,8 +88,6 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		writeDouble(node.getLat());
 		writeString("' lon='");
 		writeDouble(node.getLon());
-		if (versionMethod != REMOVE_VERSION)
-			writeString("' version='" + getWriteVersion(node));
 		if (node.hasTags()) {
 			writeString("'>\n");
 			writeTags(node);
@@ -99,14 +95,11 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		} else {
 			writeString("'/>\n");
 		}
-		
 	}
 
 	public void write(Way way) throws IOException {
 		writeString("<way id='");
 		writeLong(way.getId());
-		if (versionMethod != REMOVE_VERSION)
-			writeString("' version='" + getWriteVersion(way));
 		writeString("'>\n");
 		LongArrayList refs = way.getRefs();
 		for (int i = 0; i < refs.size(); i++) {
@@ -122,8 +115,6 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 	public void write(Relation rel) throws IOException {
 		writeString("<relation id='");
 		writeLong(rel.getId());
-		if (versionMethod != REMOVE_VERSION)
-			writeString("' version='" + getWriteVersion(rel));
 		writeString("'>\n");
 		List<Relation.Member> memlist = rel.getMembers();
 		for (Relation.Member m : memlist) {

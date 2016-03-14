@@ -13,7 +13,6 @@
 package uk.me.parabola.splitter;
 
 import java.awt.Rectangle;
-import java.util.BitSet;
 
 /**
  * Contains info that is needed by the {@link Tile} class. For a given
@@ -27,17 +26,13 @@ public class EnhancedDensityMap {
 	private final DensityMap densityMap;
 	private int[][] xyMap;
 	private int[][] yxMap;
-	private BitSet xyInPolygon;
 	private double[] aspectRatioFactor;
 	private int minAspectRatioFactorPos;
 	private int maxNodesInDensityMapGridElement = Integer.MIN_VALUE;
-	private int maxNodesInDensityMapGridElementInPoly = Integer.MIN_VALUE;
-	private java.awt.geom.Area polygonArea;
 
 	public EnhancedDensityMap(DensityMap densities, java.awt.geom.Area polygonArea) {
 		this.densityMap = densities;
-		this.polygonArea = polygonArea;
-		prepare();
+		prepare(polygonArea);
 	}
 
 	
@@ -45,8 +40,12 @@ public class EnhancedDensityMap {
 	 * If a polygon is given, filter the density data Compute once complex
 	 * trigonometric results for needed for proper aspect ratio calculations.
 	 * 
+	 * @param polygonArea
+	 *            if not null, this is used to filter the data in the density
+	 *            map so that grid elements outside of the polygon are 
+	 *            reduced
 	 */
-	private void prepare(){
+	private void prepare(java.awt.geom.Area polygonArea){
 		// performance: calculate only once the needed complex math results
 		aspectRatioFactor = new double[densityMap.getHeight()+1]; 
 		int minLat = densityMap.getBounds().getMinLat(); 
@@ -70,8 +69,6 @@ public class EnhancedDensityMap {
 		int width = densityMap.getWidth();
 		int height = densityMap.getHeight();
 		xyMap = new int [width][height];
-		if (polygonArea != null)
-			xyInPolygon = new BitSet(width * height);
 		int shift = densityMap.getShift();
 		for (int x = 0; x < width; x++){
 			int polyXPos = densityMap.getBounds().getMinLong() +  (x << shift);
@@ -80,17 +77,14 @@ public class EnhancedDensityMap {
 				int count = densityMap.getNodeCount(x, y);
 				if (polygonArea != null){
 					int polyYPos = densityMap.getBounds().getMinLat() + (y << shift);
-					if (polygonArea.intersects(polyXPos, polyYPos, 1<<shift, 1<<shift)){
-						xyInPolygon.set(x * height + y);
-						if (count > maxNodesInDensityMapGridElementInPoly){
-							maxNodesInDensityMapGridElementInPoly = count;
-						}
-					}
+					if (polygonArea.intersects(polyXPos, polyYPos, 1<<shift, 1<<shift))
+						count = Math.max(1, count);
+					else 
+						count = 0;
 				}
 				if (count > 0){
 					if (count > maxNodesInDensityMapGridElement)
 						maxNodesInDensityMapGridElement = count;
-
 					xCol[y] = count;
 				}
 			}
@@ -105,12 +99,6 @@ public class EnhancedDensityMap {
 		}
 	}
 
-	public boolean isGridElemInPolygon (int x, int y){
-		if (polygonArea == null)
-			return true;
-		return xyInPolygon.get(x* densityMap.getHeight() + y);
-	}
-	
 	// calculate aspect ratio of a tile which is a view on the densityMap
 	public double getAspectRatio(Rectangle r) {
 		double ratio;
@@ -152,13 +140,4 @@ public class EnhancedDensityMap {
 	public int getMaxNodesInDensityMapGridElement() {
 		return maxNodesInDensityMapGridElement;
 	}
-
-	public int getMaxNodesInDensityMapGridElementInPoly() {
-		return maxNodesInDensityMapGridElementInPoly;
-	}
-
-	public java.awt.geom.Area getPolygonArea() {
-		return polygonArea;
-	}
-	
 }
