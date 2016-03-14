@@ -149,6 +149,8 @@ public class Main {
 
 	private int searchLimit;
 	
+	private String handleElementVersion;
+	
 	public static void main(String[] args) {
 		Main m = new Main();
 		try{
@@ -577,6 +579,10 @@ public class Main {
 			searchLimit = 1000;
 			System.err.println("The --search-limit parameter must be 1000 or higher. Resetting to 1000.");
 		}
+		handleElementVersion = params.getHandleElementVersion();
+		if (Arrays.asList("remove", "fake" , "keep").contains(handleElementVersion) == false){
+			throw new IllegalArgumentException("the --handle-element-version parameter must be either remove, fake, or keep.");
+		}
 	}
 
 	/**
@@ -825,7 +831,7 @@ public class Main {
 		
 		for (int j = 0; j < allWriters.length; j++) {
 			Area area = areas.get(j);
-			OSMWriter w;
+			AbstractOSMWriter w;
 			if ("pbf".equals(outputType)) 
 				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
 			else if ("o5m".equals(outputType))
@@ -834,6 +840,16 @@ public class Main {
 				w = new PseudoOSMWriter(area, area.getMapId(), false, overlapAmount);
 			else 
 				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+			switch (handleElementVersion) {
+			case "keep": 
+				w.setVersionMethod(AbstractOSMWriter.KEEP_VERSION);
+				break;
+			case "remove": 
+				w.setVersionMethod(AbstractOSMWriter.REMOVE_VERSION);
+				break;
+			default:
+				w.setVersionMethod(AbstractOSMWriter.FAKE_VERSION);
+			}
 			allWriters[j] = w;
 		}
 

@@ -46,6 +46,7 @@ public class SplittableDensityArea {
 	private long minNodes;
 	private final int startSearchLimit;
 	private int searchLimit;
+	private double maxOutsidePolygonRatio = 0.5; // TODO: maybe reduce it when a good solution was found
 
 	private final DensityMap allDensities;
 	private EnhancedDensityMap extraDensityInfo;
@@ -330,9 +331,13 @@ public class SplittableDensityArea {
 	 */
 	private void prepare(java.awt.geom.Area polygonArea){
 		extraDensityInfo = new EnhancedDensityMap(allDensities, polygonArea);
-		if (!beQuiet)
+		if (!beQuiet){
 			System.out.println("Highest node count in a single grid element is "
-							+ Utils.format(extraDensityInfo.getMaxNodesInDensityMapGridElement()));
+					+ Utils.format(extraDensityInfo.getMaxNodesInDensityMapGridElement()));
+			if (polygonArea != null)
+			System.out.println("Highest node count in a single grid element within the bounding polygon is "
+					+ Utils.format(extraDensityInfo.getMaxNodesInDensityMapGridElementInPoly()));
+		}
 		if (polygonArea != null)
 			trimTiles = true;
 
@@ -611,7 +616,14 @@ public class SplittableDensityArea {
 		} else if (tile.width < 2 && tile.height < 2) {
 			return null;
 		} 
+		if (tile.outsidePolygon()){
+			return new Solution(maxNodes);
+		}
 		if (addAndReturn){
+			double outsidePolygonRatio = tile.calcOutsidePolygonRatio();
+			if (outsidePolygonRatio > maxOutsidePolygonRatio ){
+				return null;
+			}
 			Solution solution = new Solution(maxNodes);
 			solution.add(tile);  // can't split further
 			return solution;
@@ -678,15 +690,15 @@ public class SplittableDensityArea {
 				continue;
 
 			Tile[] parts = smi.getParts();
+			if (trimTiles){
+				parts[0] = parts[0].trim();
+				parts[1] = parts[1].trim();
+			}
 			if (parts[0].count > parts[1].count){
 				// first try the less populated part
 				Tile help = parts[0];
 				parts[0] = parts[1];
 				parts[1] = help;
-			}
-			if (trimTiles){
-				parts[0] = parts[0].trim();
-				parts[1] = parts[1].trim();
 			}
 			Solution [] sols = new Solution[2];
 			int countOK = 0;
