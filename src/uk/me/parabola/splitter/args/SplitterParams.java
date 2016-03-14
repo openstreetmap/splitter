@@ -115,4 +115,7 @@ public interface SplitterParams {
 	@Option(defaultValue = "200000", description = "Search limit in split algo. Higher values may find better splits, but will take longer.")
 	int getSearchLimit();
 
+	@Option(defaultValue = "remove", description = "Define how splitter treats version info in the osm data. Can be remove, fake, or keep")
+	String getHandleElementVersion();
+
 }

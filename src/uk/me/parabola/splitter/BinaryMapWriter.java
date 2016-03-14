@@ -115,7 +115,10 @@ public class BinaryMapWriter extends AbstractOSMWriter {
         //        }
 
         for(Element e : entities) {
-        	b.addVersion(1);
+        	int version = getWriteVersion(e);
+        	if (versionMethod != KEEP_VERSION || version == 0)
+        		version = 1; // JOSM requires a fake version
+        	b.addVersion(version);
         	b.addTimestamp(0);
         	b.addChangeset(0);
         	b.addUid(0);
@@ -127,7 +130,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
       {
         //        StringTable stable = serializer.getStringTable();
         Osmformat.Info.Builder b = Osmformat.Info.newBuilder();
-        if(!omit_metadata) {
+//        if(!omit_metadata) {
           //          if(e.getUser() == OsmUser.NONE && warncount < MAXWARN) {
           //            LOG
           //                .warning("Attention: Data being output lacks metadata. Please use omitmetadata=true");
@@ -140,6 +143,14 @@ public class BinaryMapWriter extends AbstractOSMWriter {
           //          b.setTimestamp((int)(e.getTimestamp().getTime() / date_granularity));
           //          b.setVersion(e.getVersion());
           //          b.setChangeset(e.getChangesetId());
+//        }
+        if (versionMethod != REMOVE_VERSION){
+        	int version = getWriteVersion(e);
+        	b.setVersion(version);
+        	b.setTimestamp(0);
+        	b.setChangeset(0);
+        	b.setUid(0);
+        	b.setUserSid(0);
         }
         return b;
       }

@@ -22,7 +22,7 @@ import java.util.Iterator;
 public abstract class Element {
 	protected ArrayList<Tag> tags; 
 	private long id;
-
+	private int version;
 	
 	public void setId(long id) {
 		this.id = id;
@@ -30,6 +30,14 @@ public abstract class Element {
 
 	public long getId() {
 		return id;
+	}
+
+	public int getVersion() {
+		return version;
+	}
+
+	public void setVersion(int version) {
+		this.version = version;
 	}
 
 	class Tag {

@@ -17,12 +17,15 @@ import java.awt.Rectangle;
 import java.io.File;
 
 public abstract class AbstractOSMWriter implements OSMWriter{
-	
+	final static int REMOVE_VERSION = 1;
+	final static int FAKE_VERSION = 2;
+	final static int KEEP_VERSION = 3;
 	protected final Area bounds;
 	protected final Area extendedBounds;
 	protected final File outputDir;
 	protected final int mapId;
-	protected final Rectangle bbox; 
+	protected final Rectangle bbox;
+	protected int versionMethod; 
 	
 
 	public AbstractOSMWriter(Area bounds, File outputDir, int mapId, int extra) {
@@ -36,6 +39,20 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 		this.bbox = Utils.area2Rectangle(bounds, 1);
 	}
 
+	public void setVersionMethod (int versionMethod){
+		this.versionMethod = versionMethod;
+	}
+	
+	protected int getWriteVersion (Element el){
+		if (versionMethod == REMOVE_VERSION)
+			return 0;
+		if (versionMethod == FAKE_VERSION)
+			return 1;
+		// XXX maybe return 1 if no version was read ?
+		return el.getVersion();
+
+	}
+	
 	public Area getBounds() {
 		return bounds;
 	}
