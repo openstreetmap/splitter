@@ -111,7 +111,7 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 
 			tmp = new Node();
 			tmp.set(id, latf, lonf);
-//			if (nodes.hasDenseinfo())
+			if (nodes.hasDenseinfo())
 				tmp.setVersion(nodes.getDenseinfo().getVersion(i));
 
 			if (!skipTags) {
