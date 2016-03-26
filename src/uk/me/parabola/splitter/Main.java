@@ -585,7 +585,7 @@ public class Main {
 		if (Arrays.asList("remove", "fake" , "keep").contains(handleElementVersion) == false){
 			throw new IllegalArgumentException("the --handle-element-version parameter must be either remove, fake, or keep.");
 		}
-		ignoreBoundsTags = params.getIgnoreBoundsTags();
+		ignoreBoundsTags = params.getIgnoreOsmBounds();
 	}
 
 	/**

@@ -119,6 +119,6 @@ public interface SplitterParams {
 	String getHandleElementVersion();
 
 	@Option(defaultValue = "false", description = "Specify if splitter should ignore bounds tags in input files")
-	boolean getIgnoreBoundsTags();
+	boolean getIgnoreOsmBounds();
 
 }
