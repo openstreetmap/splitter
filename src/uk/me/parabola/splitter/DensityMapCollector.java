@@ -19,11 +19,18 @@ package uk.me.parabola.splitter;
 class DensityMapCollector extends AbstractMapProcessor{
 	private final DensityMap densityMap;
 	private final MapDetails details = new MapDetails();
+	private final boolean ignoreBoundsTags; 
 	private Area bounds;
+	
 
-	DensityMapCollector(int resolution) {
+	/**
+	 * @param resolution gives the granularity of the grid
+	 * @param ignoreBoundsTags true means ignore bounds found in the input file(s)
+	 */
+	DensityMapCollector(int resolution, boolean ignoreBoundsTags) {
 		Area densityBounds = new Area(-0x400000, -0x800000, 0x400000, 0x800000);
 		densityMap = new DensityMap(densityBounds, resolution);
+		this.ignoreBoundsTags = ignoreBoundsTags;
 	}
 
 	@Override
@@ -45,8 +52,11 @@ class DensityMapCollector extends AbstractMapProcessor{
 
 	@Override
 	public void boundTag(Area fileBbox) {
-		if (this.bounds == null)
+		if (ignoreBoundsTags)
+			return;
+		if (this.bounds == null){
 			this.bounds = fileBbox;
+		}
 		else
 			this.bounds = this.bounds.add(fileBbox);
 	}

@@ -118,4 +118,7 @@ public interface SplitterParams {
 	@Option(defaultValue = "remove", description = "Define how splitter treats version info in the osm data. Can be remove, fake, or keep")
 	String getHandleElementVersion();
 
+	@Option(defaultValue = "false", description = "Specify if splitter should ignore bounds tags in input files")
+	boolean getIgnoreBoundsTags();
+
 }

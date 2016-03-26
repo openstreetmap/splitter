@@ -150,6 +150,8 @@ public class Main {
 	private int searchLimit;
 	
 	private String handleElementVersion;
+
+	private boolean ignoreBoundsTags;
 	
 	public static void main(String[] args) {
 		Main m = new Main();
@@ -583,6 +585,7 @@ public class Main {
 		if (Arrays.asList("remove", "fake" , "keep").contains(handleElementVersion) == false){
 			throw new IllegalArgumentException("the --handle-element-version parameter must be either remove, fake, or keep.");
 		}
+		ignoreBoundsTags = params.getIgnoreBoundsTags();
 	}
 
 	/**
@@ -591,7 +594,7 @@ public class Main {
 	 */
 	private AreaList calculateAreas() throws XmlPullParserException {
 
-		DensityMapCollector pass1Collector = new DensityMapCollector(resolution); 
+		DensityMapCollector pass1Collector = new DensityMapCollector(resolution, ignoreBoundsTags); 
 		MapProcessor processor = pass1Collector;
 		
 		File densityData = new File("densities.txt");
@@ -619,7 +622,7 @@ public class Main {
 		if (precompSeaDir != null){
 			System.out.println("Counting nodes of precompiled sea data ...");
 			long startSea = System.currentTimeMillis();
-			DensityMapCollector seaCollector = new DensityMapCollector(resolution);
+			DensityMapCollector seaCollector = new DensityMapCollector(resolution, true);
 			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
 			precompSeaReader.processMap(seaCollector);
 			pass1Collector.mergeSeaData(seaCollector, trim, resolution);
