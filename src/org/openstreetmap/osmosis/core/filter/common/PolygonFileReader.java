@@ -206,7 +206,7 @@ public class PolygonFileReader {
 	 *            record of a polygon section.
 	 * @return An area representing the section polygon.
 	 */
-	private Area loadSectionPolygon(BufferedReader bufferedReader) throws IOException {
+	private static Area loadSectionPolygon(BufferedReader bufferedReader) throws IOException {
 		Path2D.Double polygonPath;
 		double[] beginPoint = null;
 		
@@ -267,7 +267,7 @@ public class PolygonFileReader {
 	 * @return A pair of coordinate values, first is longitude, second is
 	 *         latitude.
 	 */
-	private double[] parseCoordinates(String coordinateLine) {
+	private static double[] parseCoordinates(String coordinateLine) {
 		String[] rawTokens;
 		double[] results;
 		int tokenCount;

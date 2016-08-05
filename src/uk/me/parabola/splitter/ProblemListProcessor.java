@@ -68,7 +68,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		if (dataStorer.getUsedWays() == null){
-			ways = SparseLong2ShortMap.createMap();
+			ways = SparseLong2ShortMap.createMap("way");
 			ways.defaultReturnValue(UNASSIGNED);
 			dataStorer.setUsedWays(ways);
 		}
@@ -79,7 +79,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		
 		writerSet = new BitSet(writerDictionary.getNumOfWriters());
 		this.writerIndex = dataStorer.getGrid();
-		this.coords = SparseLong2ShortMap.createMap();
+		this.coords = SparseLong2ShortMap.createMap("coord");
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.isFirstPass = (writerOffset == 0);
 		this.writerOffset = writerOffset;
@@ -177,7 +177,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			coords.put(node.getId(), writerIdx);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
-				System.out.println("MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
 			}
 		}
@@ -359,10 +359,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			phase++;
 			return false;
 		}
-		System.out.println("Statistics for coords map:");
-		coords.stats(1);
-		System.out.println("Statistics for ways map:");
-		ways.stats(1);
+		coords.stats(0);
+		ways.stats(0);
 		if (isLastPass){
 			System.out.println("");
 			System.out.println("  Number of stored shorts for ways: " + Utils.format(dataStorer.getUsedWays().size()));

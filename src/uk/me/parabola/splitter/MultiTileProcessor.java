@@ -43,7 +43,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private final static byte MEM_REL_TYPE  = 3;
 	private final static byte MEM_INVALID_TYPE = -1;
 	private final static int PROBLEM_WIDTH = Utils.toMapUnit(180.0);
-	private final static String[] NAME_TAGS = {"name","name:en","int_name","note"};
+	protected final static String[] NAME_TAGS = {"name","name:en","int_name","note"};
 	private final static String NOT_SORTED_MSG = "Maybe the IDs are not sorted. This is not supported with keep-complete=true or --problem-list";
 	
 	private int phase = PHASE1_RELS_ONLY;
@@ -951,10 +951,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		private final static short IS_NOT_COMPLETE = 0x40; 
 
 		private final long id;
-		private final byte[] memTypes;
-		private final String[] memRoles;
-		private final long[] memRefs;
-		private final int numMembers;
+		protected final byte[] memTypes;
+		protected final String[] memRoles;
+		protected final long[] memRefs;
+		protected final int numMembers;
 		private final String name;
 		
 		private int multiTileWriterIndex = -1;

@@ -26,8 +26,8 @@ import java.util.BitSet;
 public class WriterGrid implements WriterIndex{
 	private final Area bounds;
 	private final Grid grid;
-	private final WriterGridResult r;
-	private final WriterDictionaryShort writerDictionary;
+	protected final WriterGridResult r;
+	protected final WriterDictionaryShort writerDictionary;
 
 	/**
 	 * Create a grid to speed up the search of writer candidates.

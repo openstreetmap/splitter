@@ -48,9 +48,9 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final short unassigned = Short.MIN_VALUE;
 
 	private final InputQueueInfo[] writerInputQueues;
-	private final BlockingQueue<InputQueueInfo> toProcess;
+	protected final BlockingQueue<InputQueueInfo> toProcess;
 	private final ArrayList<Thread> workerThreads;
-	private final InputQueueInfo STOP_MSG = new InputQueueInfo(null);
+	protected final InputQueueInfo STOP_MSG = new InputQueueInfo(null);
 
 
 	// private int currentNodeAreaSet;
@@ -65,8 +65,8 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.oneTileOnlyRels = oneTileOnlyRels;
 		this.writerDictionary = dataStorer.getWriterDictionary();
 		this.writers = writerDictionary.getWriters();
-		this.coords = SparseLong2ShortMap.createMap();
-		this.ways   = SparseLong2ShortMap.createMap();
+		this.coords = SparseLong2ShortMap.createMap("coord");
+		this.ways   = SparseLong2ShortMap.createMap("way");
 		this.coords.defaultReturnValue(unassigned);
 		this.ways.defaultReturnValue(unassigned); 		
 		this.writerIndex = dataStorer.getGrid();
@@ -74,7 +74,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.writerOffset = writerOffset;
 		this.lastWriter = writerOffset + numWritersThisPass-1;
 		this.maxThreads = maxThreads;
-		this.toProcess = new ArrayBlockingQueue<InputQueueInfo>(numWritersThisPass);
+		this.toProcess = new ArrayBlockingQueue<>(numWritersThisPass);
 		this.writerInputQueues = new InputQueueInfo[numWritersThisPass];
 		for (int i = 0; i < writerInputQueues.length; i++) {
 			writerInputQueues[i] = new InputQueueInfo(this.writers[i + writerOffset]);
@@ -88,7 +88,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		usedWriters = new BitSet(); 
 
 		int noOfWorkerThreads = Math.min(this.maxThreads - 1, numWritersThisPass);
-		workerThreads = new ArrayList<Thread>(noOfWorkerThreads);
+		workerThreads = new ArrayList<>(noOfWorkerThreads);
 		for (int i = 0; i < noOfWorkerThreads; i++) {
 			Thread worker = new Thread(new OSMWriterWorker());
 			worker.setName("worker-" + i);
@@ -147,7 +147,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			ways.put(w.getId(), idx);
 			++countWays;
 			if (countWays % 1000000 == 0){
-				System.out.println("MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("way MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				ways.stats(0);
 			}
 			try {
@@ -219,11 +219,8 @@ class SplitProcessor extends AbstractMapProcessor {
 	}
 	@Override
 	public boolean endMap() {
-		System.out.println("Statistics for coords map:");
-		coords.stats(1);
-		System.out.println("");
-		System.out.println("Statistics for ways map:");
-		ways.stats(1);
+		coords.stats(0);
+		ways.stats(0);
 		Utils.printMem();
 		System.out.println("Full Node tests:  " + Utils.format(countFullTest));
 		System.out.println("Quick Node tests: " + Utils.format(countQuickTest)); 		
@@ -271,7 +268,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}
-		if (isSpecialNode || writerCandidates.l.size() > 1)
+		if (isSpecialNode || writerCandidates != null && writerCandidates.l.size() > 1)
 			usedWriters.clear();
 		if (writerCandidates != null){
 			for (int i = 0; i < writerCandidates.l.size(); i++) {
@@ -375,14 +372,14 @@ class SplitProcessor extends AbstractMapProcessor {
 	}
 
 	private class InputQueueInfo {
-		private final OSMWriter writer;
+		protected final OSMWriter writer;
 		private ArrayList<Element> staging;
-		private final BlockingQueue<ArrayList<Element>> inputQueue;
+		protected final BlockingQueue<ArrayList<Element>> inputQueue;
 
 		public InputQueueInfo(OSMWriter writer) {
-			inputQueue =  new ArrayBlockingQueue<ArrayList<Element>>(NO_ELEMENTS);
+			inputQueue =  new ArrayBlockingQueue<>(NO_ELEMENTS);
 			this.writer = writer;
-			this.staging = new ArrayList<Element>(STAGING_SIZE);
+			this.staging = new ArrayList<>(STAGING_SIZE);
 		}
 
 		void put(Element e) throws InterruptedException {
@@ -395,7 +392,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		void flush() throws InterruptedException {
 			// System.out.println("Flush");
 			inputQueue.put(staging);
-			staging = new ArrayList<Element>(STAGING_SIZE);
+			staging = new ArrayList<>(STAGING_SIZE);
 			toProcess.put(this);
 		}
 
@@ -408,6 +405,9 @@ class SplitProcessor extends AbstractMapProcessor {
 	final int STAGING_SIZE = 300;
 
 	private class OSMWriterWorker implements Runnable {
+
+		public OSMWriterWorker() {
+		}
 
 		public void processElement(Element element, OSMWriter writer)
 				throws IOException {

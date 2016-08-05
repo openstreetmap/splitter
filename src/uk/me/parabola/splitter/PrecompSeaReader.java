@@ -78,7 +78,7 @@ public class PrecompSeaReader {
 			if (is != null){
 				try{
 					if (tileName.endsWith(".pbf")){
-						BinaryMapParser binParser = new BinaryMapParser(processor, null);
+						BinaryMapParser binParser = new BinaryMapParser(processor, null, 0);
 						BlockInputStream blockinput = (new BlockInputStream(is, binParser));
 						blockinput.process();
 						blockinput.close();

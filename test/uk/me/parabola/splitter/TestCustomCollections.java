@@ -29,19 +29,19 @@ public class TestCustomCollections {
 	//}
 
 	@Test
-	public void testLongShortMap() {
-		testMap(new SparseLong2ShortMapInline(), 0L);
-		testMap(new SparseLong2ShortMapInline(), -10000L);
-		testMap(new SparseLong2ShortMapInline(), 1L << 35);
-		testMap(new SparseLong2ShortMapInline(), -1L << 35);
-		testMap(new SparseLong2ShortMapHuge(), 0L);
-		testMap(new SparseLong2ShortMapHuge(), -10000L);
-		testMap(new SparseLong2ShortMapHuge(), 1L << 35);
-		testMap(new SparseLong2ShortMapHuge(), -1L << 35);
+	public static void testLongShortMap() {
+		testMap(new SparseLong2ShortMapInline("test"), 0L);
+		testMap(new SparseLong2ShortMapInline("test"), -10000L);
+		testMap(new SparseLong2ShortMapInline("test"), 1L << 35);
+		testMap(new SparseLong2ShortMapInline("test"), -1L << 35);
+		testMap(new SparseLong2ShortMapHuge("test"), 0L);
+		testMap(new SparseLong2ShortMapHuge("test"), -10000L);
+		testMap(new SparseLong2ShortMapHuge("test"), 1L << 35);
+		testMap(new SparseLong2ShortMapHuge("test"), -1L << 35);
 	}
 
-	private void testMap(SparseLong2ShortMapFunction map, long idOffset) {
-		map.defaultReturnValue((short) Short.MIN_VALUE);
+	private static void testMap(SparseLong2ShortMapFunction map, long idOffset) {
+		map.defaultReturnValue(Short.MIN_VALUE);
 
 		for (short i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i);
@@ -153,11 +153,11 @@ public class TestCustomCollections {
 	}
 
 	@Test
-	public void testLong2IntMap() {
+	public static void testLong2IntMap() {
 		testMap(new Long2IntClosedMap("test", 10000, -1));
 	}
 
-	private void testMap(Long2IntClosedMapFunction map) {
+	private static void testMap(Long2IntClosedMapFunction map) {
 		int val;
 		for (int i = 1; i < 1000; i++) {
 			int j = map.add((long)i*10, i);

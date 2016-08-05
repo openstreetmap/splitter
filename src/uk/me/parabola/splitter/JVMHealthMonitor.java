@@ -65,7 +65,7 @@ public class JVMHealthMonitor {
 			statusThread.start();
 	}
 	
-	private static String getElapsedTime() {
+	protected static String getElapsedTime() {
 		long elapsed = (System.currentTimeMillis() - startTime) / 1000;
 		long seconds = elapsed % 60;
 		long minutes = elapsed / 60 % 60;

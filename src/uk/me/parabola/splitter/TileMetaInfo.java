@@ -263,9 +263,6 @@ class TileMetaInfo {
 			assert sum - tile.getColSum(validEndX) < minNodes;
 		}
 		if (validStartX >= 0){
-			if (tile.count == 209218100){
-				long dd = 4;
-			}
 			long sum = 0;
 			for (int i = 0; i < validStartX; i++){
 				sum += tile.getColSum(i);

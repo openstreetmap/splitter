@@ -32,7 +32,7 @@ import crosby.binary.file.FileBlock;
 
 public class BinaryMapWriter extends AbstractOSMWriter {
 
-  private PBFSerializer serializer;
+  protected PBFSerializer serializer;
 
   private BlockOutputStream output;
 
@@ -40,7 +40,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 
   protected boolean headerWritten = false;
 
-  public class PBFSerializer extends BinarySerializer {
+  private class PBFSerializer extends BinarySerializer {
 
     public PBFSerializer(BlockOutputStream output)
     {
@@ -61,7 +61,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
         contents.add(item);
       }
 
-      /** Add all of the tags of all entities in the queue to the stringtable. */
+      /** Add all of the tags of all entities in the queue to the string table. */
       public void addStringsToStringtable()
       {
         StringTable stable = getStringTable();
@@ -353,13 +353,13 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     }
 
     /* One list for each type */
-    private WayGroup ways;
+    protected WayGroup ways;
 
-    private NodeGroup nodes;
+    protected NodeGroup nodes;
 
-    private RelationGroup relations;
+    protected RelationGroup relations;
 
-    private Processor processor = new Processor();
+    protected Processor processor = new Processor();
 
     /**
      * Buffer up events into groups that are all of the same type, or all of the
@@ -420,7 +420,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
      * At the end of this function, all of the lists of unprocessed 'things'
      * must be null
      */
-    private void switchTypes()
+    protected void switchTypes()
     {
       if(nodes != null) {
         groups.add(nodes);

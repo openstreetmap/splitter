@@ -1423,7 +1423,7 @@ public class Main {
 					// Is it a binary file?
 					File file = new File(filename);
 					ShortArrayList blockTypes = blockTypeMap.get(filename);
-					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes);
+					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes, 1);
 					try(InputStream stream = new FileInputStream(file)){
 						BlockInputStream blockinput = (new BlockInputStream(stream, binParser));
 						blockinput.process();

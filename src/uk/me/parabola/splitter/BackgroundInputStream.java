@@ -27,8 +27,8 @@ public class BackgroundInputStream extends InputStream {
 	private final BlockingQueue<byte[]> inQueue;
 	private final BlockingQueue<byte[]> recycleQueue;
 	private final int bufferSize;
-	private final InputStream sourceStream;
-	private volatile boolean closed;
+	protected final InputStream sourceStream;
+	protected volatile boolean closed;
 
 	// These variables are only accessed from the reader thread
 	private byte[] currentBuffer;

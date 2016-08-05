@@ -106,6 +106,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 
 	// for statistics
+	private final String dataDesc; 
 	private long [] countChunkLen; 
 	private long expanded = 0;
 	private long uncompressedLen = 0;
@@ -123,8 +124,10 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	/**
 	 * A map that stores pairs of (OSM) IDs and short values identifying the
 	 * areas in which the object (node,way) with the ID occurs.
+	 * @param dataDesc 
 	 */
-	SparseLong2ShortMapInline() {
+	SparseLong2ShortMapInline(String dataDesc) {
+		this.dataDesc = dataDesc;
 		clear();
 	}
 
@@ -494,7 +497,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		int i;
 		
 		if (size() == 0){
-			System.out.println("Map is empty");
+			System.out.println(dataDesc + " Map is empty");
 			return;
 		}
 		for (i=1; i <=CHUNK_SIZE; i++) {
@@ -513,14 +516,12 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		totalOverhead += topMap.size() * (long)LARGE_VECTOR_SIZE * 4;
 		
 		float bytesPerKey = (size()==0) ? 0: (float)((totalBytes + totalOverhead)*100 / size()) / 100;
-		if (msgLevel > 0){
-			System.out.println();
-			System.out.println("Number of stored ids: " + Utils.format(size()) + " require ca. " + 
-					bytesPerKey + " bytes per pair. " + 
-					totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " + 
-					((totalChunks==0) ? 0 :(size() / totalChunks)) + "."); 
-		}
-		System.out.println("Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
+		System.out.println();
+		System.out.println(dataDesc + " Map: Number of stored ids: " + Utils.format(size()) + " require ca. " + 
+				bytesPerKey + " bytes per pair. " + 
+				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " + 
+				((totalChunks==0) ? 0 :(size() / totalChunks)) + "."); 
+		System.out.println(dataDesc + " Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
 				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 4/1024/1024 + " MB");  
 		if (msgLevel > 0 & uncompressedLen > 0){
 			System.out.print("RLE compresion info: compressed / uncompressed size / ratio: " + 

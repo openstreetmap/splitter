@@ -39,15 +39,17 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 	private boolean skipNodes;
 	private boolean skipWays;
 	private boolean skipRels;
-	short wantedTypeMask = 0;
+	private short wantedTypeMask = 0;
+	private int msgLevel; 
 	
-	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes) {
+	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes, int msgLevel) {
 		this.processor = processor;
 		this.knownBlockTypes = knownBlockTypes;
 		this.skipTags = processor.skipTags();
 		this.skipNodes = processor.skipNodes();
 		this.skipWays = processor.skipWays();
 		this.skipRels = processor.skipRels();
+		this.msgLevel = msgLevel;
 		
 		if (skipNodes == false){
 			wantedTypeMask |= TYPE_DENSE;
@@ -242,7 +244,8 @@ public class BinaryMapParser extends BinaryParser implements MapReader {
 			double topf = block.getBbox().getTop() * multiplier;
 			double bottomf = block.getBbox().getBottom() * multiplier;
 
-			System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
+			if (msgLevel > 0)
+				System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
 
 			Area area = new Area(
 					Utils.toMapUnit(bottomf),

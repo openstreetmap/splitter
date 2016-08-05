@@ -18,11 +18,11 @@ package uk.me.parabola.splitter;
  *
  */
 public class SparseLong2ShortMap {
-	public static SparseLong2ShortMapFunction createMap(){
+	public static SparseLong2ShortMapFunction createMap(String dataDesc){
 		long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
 		// prefer implementation with lower memory footprint when free heap is less than 2 GB
 		if (maxMem < 2048)
-			return new SparseLong2ShortMapInline();
-		return new SparseLong2ShortMapHuge();
+			return new SparseLong2ShortMapInline(dataDesc);
+		return new SparseLong2ShortMapHuge(dataDesc);
 	}
 }
