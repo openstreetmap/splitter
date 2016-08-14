@@ -911,7 +911,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				// found closed polygon or nothing more to add
 				boolean isRelevant = checkBoundingBox(relWriters, mpBbox);
 				if (isRelevant & hasMissingWays)
-					System.out.println("Incomplete multipolygon relation " + rel.getId() + " (" + rel.getName() + "): using bbox of " + 
+					System.out.println("Warning: Incomplete multipolygon relation " + rel.getId() + " (" + rel.getName() + "): using bbox of " + 
 							(closed ? "closed":"unclosed") + " polygon to calc tiles, ways: " + polygonWays);
 				mpBbox = null;
 			} 

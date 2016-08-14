@@ -196,7 +196,8 @@ public class Main {
 			e.printStackTrace();
 			return 1;
 		} catch (SplitFailedException e) {
-			e.printStackTrace();
+			if (e.getMessage() != null && e.getMessage().length() > 0)
+				e.printStackTrace();
 			return 1;
 		} catch (StopNoErrorException e){
 			if (e.getMessage() != null)
@@ -263,7 +264,7 @@ public class Main {
 				System.out.println("Failed to calculate areas.");
 				System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
 				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
-				return;
+				throw new SplitFailedException("");
 			}
 			if (mapId + areaList.getAreas().size() > 99999999){
 				System.err.println("Too many areas for initial mapid " + mapId + ", resetting to 63240001");
@@ -473,7 +474,7 @@ public class Main {
 		// plausibility checks and default handling 
 		if (keepComplete){
 			if (fileNameList.size() > 1){
-				System.err.println("warning: --keep-complete is only used for the first input file.");
+				System.err.println("Warning: --keep-complete is only used for the first input file.");
 			}
 			if (overlapAmount > 0){
 				System.err.println("Warning: --overlap is used in combination with --keep-complete=true ");
@@ -616,7 +617,12 @@ public class Main {
 		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
 		if (polgonsBoundingBox != null){
 			exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
-			System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
+			if (exactArea != null)
+				System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
+			else { 
+				System.out.println("Exact map coverage after applying bounding box of polygon-file is an empty area" );
+				return new AreaList(new ArrayList<Area>());
+			}
 		}
 
 		if (precompSeaDir != null){
@@ -630,8 +636,10 @@ public class Main {
 		}
 		Area roundedBounds = RoundingUtils.round(exactArea, resolution);
 		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(searchLimit, roundedBounds);
-		if (splittableArea.hasData() == false)
+		if (splittableArea.hasData() == false){
+			System.out.println("input file(s) have no data inside calculated bounding box"); 
 			return new AreaList(new ArrayList<Area>());
+		}
 		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
 		
 		splittableArea.setTrim(trim);

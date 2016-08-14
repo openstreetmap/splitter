@@ -71,12 +71,15 @@ public class Area {
 	 * Apply bbox to area.
 	 * @param area the area
 	 * @param bbox the bounding box
-	 * @return A new area instance that covers the intersection of area and bbox. 
+	 * @return A new area instance that covers the intersection of area and bbox
+	 * or null if they don't intersect
 	 */
 	public static Area calcArea (Area area, Rectangle bbox) {
 		Rectangle dest = new Rectangle();
 		Rectangle2D.intersect(area.getRect(), bbox, dest);
-		return new Area(dest.y, dest.x, dest.y + dest.height, dest.x + dest.width);
+		if (dest.getHeight() > 0 && dest.getWidth() > 0)
+			return new Area(dest.y, dest.x, dest.y + dest.height, dest.x + dest.width);
+		return null;
 	}
 
 
