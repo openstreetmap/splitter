@@ -21,6 +21,8 @@ import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 /**
  * Splits a map into multiple areas.
  */
@@ -34,7 +36,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final Long2IntClosedMapFunction nodeWriterMap;
 	private final Long2IntClosedMapFunction wayWriterMap;
 	private final Long2IntClosedMapFunction relWriterMap;
-	private final OSMId2ObjectMap<Short> oneTileOnlyRels;
+	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels;
 
 	//	for statistics
 	private long countQuickTest = 0;
@@ -59,7 +61,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private BitSet usedWriters;
 	
 	
-	SplitProcessor(DataStorer dataStorer, 	OSMId2ObjectMap<Short> oneTileOnlyRels,
+	SplitProcessor(DataStorer dataStorer, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
 			int writerOffset, int numWritersThisPass, int maxThreads){
 		this.dataStorer = dataStorer;
 		this.oneTileOnlyRels = oneTileOnlyRels;
@@ -161,18 +163,24 @@ class SplitProcessor extends AbstractMapProcessor {
 	@Override
 	public void processRelation(Relation rel) {
 		currentRelAreaSet.clear();
-		Short singleTileWriterIdx = oneTileOnlyRels.get(rel.getId());
+		Integer singleTileWriterIdx = oneTileOnlyRels.get(rel.getId());
 		if (singleTileWriterIdx != null){
-			if (singleTileWriterIdx < writerOffset || singleTileWriterIdx > lastWriter)
+			if (singleTileWriterIdx < 0) {
 				return;
-			currentRelAreaSet.set(singleTileWriterIdx);
+			}
+			
+			BitSet wl = dataStorer.getMultiTileWriterDictionary().getBitSet(singleTileWriterIdx);
+			// set only active writer bits
+			for (int i = wl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = wl.nextSetBit(i + 1)) {
+				currentRelAreaSet.set(i);
+			}
 		} else {
 			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
 			if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
 
 				BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
 				// set only active writer bits
-				for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
+				for (int i = cl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = cl.nextSetBit(i + 1)) {
 					currentRelAreaSet.set(i);
 				}
 			}
@@ -191,9 +199,7 @@ class SplitProcessor extends AbstractMapProcessor {
 								currentRelAreaSet.or(wl);
 							}
 							oldclIndex = clIdx;
-
 						}
-
 					} else if (mem.getType().equals("way")) {
 						short wlIdx = ways.get(id);
 

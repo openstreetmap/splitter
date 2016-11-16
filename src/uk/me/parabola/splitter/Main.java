@@ -24,6 +24,7 @@ import uk.me.parabola.splitter.geo.City;
 import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
@@ -41,11 +42,13 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
@@ -133,7 +136,7 @@ public class Main {
 	private TreeSet<Long> calculatedProblemRels = new TreeSet<>();
 	
 	// map with relations that should be complete and are written to only one tile 
-	private final OSMId2ObjectMap<Short> oneTileOnlyRels = new OSMId2ObjectMap<>();
+	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels = new Long2ObjectOpenHashMap<>();
 
 	// for faster access on blocks in pbf files
 	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<>(); 
@@ -314,15 +317,17 @@ public class Main {
 			System.out.println();
 		}
 		
+		List<Area> distinctAreas = null;
 		if (keepComplete){
-			partitionAreasForProblemListGenerator(areas);
+			distinctAreas  = genProblemLists(areas);
 			if ("gen-problem-list".equals(stopAfter)){
 				try {Thread.sleep(1000);}catch (InterruptedException e) {}
 				System.err.println("stopped after " + stopAfter); 
 				throw new StopNoErrorException("stopped after " + stopAfter);
 			}
+			
 		}
-		writeAreas(areas);
+		writeAreas(areas, distinctAreas);
 	}
 
 	private int getAreasPerPass(int areaCount) {
@@ -691,13 +696,35 @@ public class Main {
 	/**
 	 * Calculate lists of ways and relations that will be split for a given list
 	 * of areas.
-	 * @param areas	the list of areas
-	 * @param partition used for informational messages
+	 * @param distinctAreas	the list of areas
+	 * @return 
 	 * @throws IOException
 	 * @throws XmlPullParserException
 	 */
-	private void genProblemLists(List<Area> areas, int partition) throws IOException, XmlPullParserException {
-		List<Area> workAreas = addPseudoWriters(areas);
+	private  ArrayList<Area> genProblemLists(List<Area> realAreas) throws IOException, XmlPullParserException {
+		long startProblemListGenerator = System.currentTimeMillis();
+
+		ArrayList<Area> distinctAreas = getNonOverlappingAreas(realAreas);
+		if (distinctAreas.size() > realAreas.size()) {
+			System.err.println("Waring: The areas given in --split-file are overlapping. Support for this might be removed in future versions.");
+			Set<Integer> overlappingTiles = new TreeSet<>();
+			for (int i = 0; i < realAreas.size(); i++) {
+				Area a1 = realAreas.get(i);
+				for (int j = i+1; j < realAreas.size(); j++) {
+					Area a2 = realAreas.get(j);
+					if (a1.getRect().intersects(a2.getRect())) {
+						overlappingTiles.add(a1.getMapId());
+						overlappingTiles.add(a2.getMapId());
+					}
+				}
+			}
+			if (!overlappingTiles.isEmpty()) {
+				System.out.println("Overlaping tiles: " + overlappingTiles.toString());
+			}
+		}
+		System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
+		List<Area> workAreas = addPseudoWriters(distinctAreas);
+		
 		
 		// debugging
 		/*
@@ -712,9 +739,9 @@ public class Main {
 		int numPasses = getAreasPerPass(workAreas.size());
 		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
 		if (numPasses > 1) {
-			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
+			System.out.println("Processing " + distinctAreas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
 		} else {
-			System.out.println("Processing " + areas.size() + " areas in a single pass");
+			System.out.println("Processing " + distinctAreas.size() + " areas in a single pass");
 		}
 
 		OSMWriter [] writers = new OSMWriter[workAreas.size()];
@@ -729,12 +756,12 @@ public class Main {
 				System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
 		DataStorer dataStorer = new DataStorer(writers);
-		System.out.println("Starting problem-list-generator pass(es) for partition " + partition); 
+		System.out.println("Starting problem-list-generator pass(es)"); 
 		LongArrayList problemWaysThisPart = new LongArrayList();
 		LongArrayList problemRelsThisPart = new LongArrayList();
 		for (int pass = 0; pass < numPasses; pass++) {
 			System.out.println("-----------------------------------");
-			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses + " for partition " + partition);
+			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses);
 			long startThisPass = System.currentTimeMillis();
 			int writerOffset = pass * areasPerPass;
 			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
@@ -747,62 +774,33 @@ public class Main {
 			while (!done){
 				done = processMap(processor);
 			}
-			System.out.println("Problem-list-generator pass " + (pass+1) + " for partition " + partition+ " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
+			System.out.println("Problem-list-generator pass " + (pass+1) + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
 		//writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
 		calculatedProblemWays.addAll(problemWaysThisPart);
 		calculatedProblemRels.addAll(problemRelsThisPart);
-	}
-	
-	/**
-	 * Separate a list of areas into parts so that no part has overlapping areas.  
-	 * If the areas were read from a split-file, they might overlap. 
-	 * For the problem-list processing we need disjoint areas.
-	 * @param realAreas the list of areas (either from file or calculated by 1st pass)
-	 * @throws IOException
-	 * @throws XmlPullParserException
-	 */
-	private void partitionAreasForProblemListGenerator(List<Area> realAreas) throws IOException, XmlPullParserException{
-		long startProblemListGenerator = System.currentTimeMillis();
-
-		List<Area> remainingAreas = new ArrayList<>(realAreas);
-		List<Area> distinctAreas;
-		int partition = 0;
-		while (remainingAreas.size() > 0){
-			++partition;
-			List<Area> workingSet = new ArrayList<>(remainingAreas);
-			distinctAreas = getNonOverlappingAreas(workingSet, true);
-			if (distinctAreas.size() * 1.25 > maxAreasPerPass){
-				workingSet = new ArrayList<>(remainingAreas);
-				distinctAreas = getNonOverlappingAreas(workingSet, false);
-			}
-			System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
-			genProblemLists(distinctAreas, partition);
-			remainingAreas = workingSet;
-			
-		} 
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
-		if (partition > 1){
+		if (distinctAreas.size() > realAreas.size()) {
 			// correct wrong entries caused by partitioning 
 			for (Long id: calculatedProblemRels){
 				oneTileOnlyRels.remove(id);
 			}
-			System.err.println("Waring: The areas given in --split-file are overlapping. Support for this will be removed in future versions.");
 		}
 		if (problemReport != null){
 			writeProblemList(problemReport, 
 					calculatedProblemWays,
 					calculatedProblemRels);
 		}
+		return distinctAreas;
 	}
-
-
+	
 	/**
 	 * Final pass(es), we have the areas so parse the file(s) again. 
 	 *
 	 * @param areas Area list determined on the first pass.
+	 * @param distinctAreas 
 	 */
-	private void writeAreas(List<Area> areas) throws IOException, XmlPullParserException {
+	private void writeAreas(List<Area> areas, List<Area> distinctAreas) throws IOException, XmlPullParserException {
 		OSMWriter[] allWriters = new OSMWriter[areas.size()];
 		Map<String, byte[]> wellKnownTagKeys = null;
 		Map<String, byte[]> wellKnownTagVals = null;
@@ -867,6 +865,7 @@ public class Main {
 		int numPasses = getAreasPerPass(areas.size());
 		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
 		DataStorer dataStorer = new DataStorer(allWriters);
+		translateDistinctToRealAreas (dataStorer, distinctAreas, areas);
 		// add the user given problem polygons
 		problemWays.addAll(calculatedProblemWays);
 		calculatedProblemWays = null;
@@ -931,6 +930,39 @@ public class Main {
 		
 	}
 	
+	/**
+	 * If the Bitset ids in oneTileOnlyRels were produced with a different set of
+	 * writers we have to translate the values 
+	 * @param dataStorer DataStorer instance used by split processor
+	 * @param distinctAreas list of distinct (non-overlapping) areas
+	 * @param areas list of areas from split-file (or calculation)
+	 */
+	private void translateDistinctToRealAreas(DataStorer dataStorer, List<Area> distinctAreas, List<Area> areas) {
+		if (oneTileOnlyRels.isEmpty() || distinctAreas.size() == areas.size())
+			return;
+		Map<Area, Integer> map = new HashMap<>(); 
+		for (Area distinctArea : distinctAreas) {
+			if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
+				BitSet w = new BitSet();
+				for (int i = 0; i < areas.size(); i++) {
+					if (areas.get(i).contains(distinctArea)) {
+						w.set(i);
+					}
+				}					
+				int id = dataStorer.getMultiTileWriterDictionary().translate(w);	
+				map.put(distinctArea, id);
+			}
+		}
+		if (!map.isEmpty()) {
+			
+			for ( Entry<Long, Integer> e: oneTileOnlyRels.entrySet()) {
+				if (e.getValue() >= 0) {
+					e.setValue(map.get(distinctAreas.get(e.getValue())));
+				}
+			}
+		}
+	}
+
 	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
 		boolean done = processOSMFiles(processor, fileNameList);
 		return done;
@@ -1085,37 +1117,24 @@ public class Main {
 	 * Create a list of areas that do not overlap. If areas in the original
 	 * list are overlapping, they can be replaced by up to 5 disjoint areas.
 	 * This is done if parameter makeDisjoint is true
-	 * @param realAreas the list of areas (is modified in this method)
-	 * @param makeDisjoint if true, replace overlapping areas by disjoint ones
+	 * @param realAreas the list of areas 
 	 * @return the new list
 	 */
-	private static ArrayList<Area> getNonOverlappingAreas(List<Area> realAreas, boolean makeDisjoint){
+	private static ArrayList<Area> getNonOverlappingAreas(final List<Area> realAreas){
 		java.awt.geom.Area covered = new java.awt.geom.Area();
 		ArrayList<Area> splitList = new ArrayList<>();
 		int artificialId = -99999999;
 		boolean foundOverlap = false;
-		Iterator<Area> realAreaIter = realAreas.iterator();
-			
-		while (realAreaIter.hasNext()){
-			Area area1 = realAreaIter.next();
+		for (Area area1 : realAreas) {
 			Rectangle r1 = area1.getRect();
 			if (covered.intersects(r1) == false){
 				splitList.add(area1);
-				realAreaIter.remove();
 			}
 			else {
-				if (makeDisjoint == false)
-					continue;
-				//check if area is completely within covered area
-				java.awt.geom.Area copyArea = new java.awt.geom.Area(area1.getJavaArea());
-				copyArea.subtract(covered);
-				if (copyArea.isEmpty())
-					continue;
-				if (makeDisjoint && foundOverlap == false){
+				if (foundOverlap == false){
 					foundOverlap = true;
 					System.out.println("Removing overlaps from tiles...");
 				}
-				realAreaIter.remove();
 				//String msg = "splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size() + " overlapping ";	
 				// find intersecting areas in the already covered part
 				ArrayList<Area> splitAreas = new ArrayList<>();
@@ -1134,7 +1153,6 @@ public class Main {
 						//msg += area2.getMapId() + " ";
 						Area aNew = new Area(ro.y, ro.x, (int)ro.getMaxY(),(int)ro.getMaxX());
 						aNew.setMapId(artificialId++);
-						aNew.setResultOfSplitting(true);
 						aNew.setName("" + area1.getMapId());
 						aNew.setJoinable(false);
 						covered.subtract(area2.getJavaArea());
@@ -1186,7 +1204,6 @@ public class Main {
 									if (k==1 || covered.intersects(test) == false){
 										aNew = new Area(test.y,test.x,(int)test.getMaxY(),(int)test.getMaxX());
 										aNew.setMapId(areaPair[k].getMapId());
-										aNew.setResultOfSplitting(true);
 										splitAreas.add(aNew);
 										covered.add(aNew.getJavaArea());
 									}
@@ -1216,7 +1233,6 @@ public class Main {
 							if (doJoin){
 								splitArea = area.add(splitArea);
 								splitArea.setMapId(area.getMapId());
-								splitArea.setResultOfSplitting(true);
 								splitList.set(j, splitArea);
 								splitArea = null; // don't add later
 								break;
@@ -1465,4 +1481,6 @@ public class Main {
 		boolean done = processor.endMap();
 		return done;
 	}
+	
+
 }

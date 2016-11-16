@@ -188,12 +188,16 @@ public class Area {
 		);
 	}
 
-	public boolean isResultOfSplitting() {
-		return isResultOfSplitting;
-	}
-
-	public void setResultOfSplitting(boolean isResultOfSplitting) {
-		this.isResultOfSplitting = isResultOfSplitting;
+	/**
+	 * 
+	 * @param other an area
+	 * @return true if the other area is inside the Area (it may touch the boundary)
+	 */
+	public final boolean contains(Area other) {
+		return other.getMinLat() >= minLat
+				&& other.getMaxLat() <= maxLat
+				&& other.getMinLong() >= minLong
+				&& other.getMaxLong() <= maxLong;
 	}
 
 	public boolean isPseudoArea() {

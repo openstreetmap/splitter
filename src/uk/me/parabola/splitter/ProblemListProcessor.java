@@ -13,7 +13,7 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
-
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.Arrays;
@@ -43,7 +43,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final DataStorer dataStorer;
 	private LongArrayList problemWays; 
 	private LongArrayList problemRels;
-	private final OSMId2ObjectMap<Short> oneTileOnlyRels;
+	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels;
 
 	private BitSet writerSet;
 	
@@ -63,7 +63,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	
 	ProblemListProcessor(DataStorer dataStorer, int writerOffset,
 			int numWritersThisPass, LongArrayList problemWays,
-			LongArrayList problemRels, 	OSMId2ObjectMap<Short> oneTileOnlyRels,
+			LongArrayList problemRels, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
 			String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getWriterDictionary();
@@ -209,6 +209,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				maybeChanged = true;
 			}
 		}
+		
 		if (!isFirstPass && maybeChanged || isLastPass){
 			wayWriterIdx = ways.get(way.getId());
 			if (wayWriterIdx != UNASSIGNED)
@@ -328,7 +329,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 					}
 				}
 				// find out if it was already processed in a previous partition of tiles
-				Short writerInOtherPartition = oneTileOnlyRels.get(rel.getId());
+				Integer writerInOtherPartition = oneTileOnlyRels.get(rel.getId());
 				
 				if (newWriterIdx >= 0){
 					// the relation is written to a real tile in this partition
@@ -342,7 +343,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				// store the info that the rel is only in one tile, but
 				// don't overwrite the info when it was a real tile
 				if (writerInOtherPartition == null || writerInOtherPartition < 0){
-					oneTileOnlyRels.put(rel.getId(), (short) newWriterIdx);
+					oneTileOnlyRels.put(rel.getId(), new Integer(newWriterIdx));
 				} 
 			}
 			return;
