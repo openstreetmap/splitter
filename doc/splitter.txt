@@ -282,7 +282,7 @@ use --output=o5m to speed up processing.
 If your machine has less than 1GB free memory (eg. a netbook), you can still
 use splitter, but you might have to be patient if you use the
 parameter --keep-complete and want to split a file like germany.osm.pbf or a
-larger one.  If needed, reduce the number of parrallel processed areas to 50
+larger one.  If needed, reduce the number of parallel processed areas to 50
 with the max-areas parameter. You have to use --keep-complete=false when
 splitting an area like Europe. 
 

@@ -678,7 +678,7 @@ Processing 1502 areas in a single pass
       patient if you use the parameter <option>--keep-complete</option> and
       want to split a file like <filename>germany.osm.pbf</filename> or a
       larger one.
-      If needed, reduce the number of parrallel processed areas to 50 with the
+      If needed, reduce the number of parallel processed areas to 50 with the
       <option>--max-areas</option> parameter.
       You have to use <option>--keep-complete=false</option> when splitting an
       area like Europe.
