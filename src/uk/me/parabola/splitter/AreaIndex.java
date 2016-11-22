@@ -15,27 +15,27 @@ package uk.me.parabola.splitter;
 
 /**
  * 
- * @author GerdP
+ * @author Gerd Petermann
  *
  */
-public interface WriterIndex{
+public interface AreaIndex{
 	/**
-	 * @return the bounding box of the writer areas.
+	 * @return the bounding box of the areas.
 	 */
 	public Area getBounds();
 	/**
-	 * Return a set of writer candidates for this node. 
+	 * Return a set of area candidates for this node. 
 	 * @param n the node
-	 * @return a reference to a static WriterGridResult instance
+	 * @return a reference to a static AreaGridResult instance
 	 */
-	public WriterGridResult get (final Node n);
+	public AreaGridResult get (final Node n);
 
 	/**
-	 * Return a set of writer candidates for these coordinates
+	 * Return a set of area candidates for these coordinates
 	 * @param lat the latitude value in map units
 	 * @param lon the longitude value in map units
-	 * @return a reference to a static WriterGridResult instance 
+	 * @return a reference to a static AreaGridResult instance 
 	 */
-	public WriterGridResult get (int lat, int lon);
+	public AreaGridResult get (int lat, int lon);
 
 }

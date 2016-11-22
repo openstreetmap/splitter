@@ -17,56 +17,56 @@ import java.util.BitSet;
 import java.util.HashMap;
 
 /**
- * Maps a BitSet containing the used writers to an integer value.  
- * An OSM element is written to one or more writers. Every used
- * combination of writers is translated to an integer.
- * Use this dictionary if you expect many different writer combinations,
+ * Maps a BitSet containing the used areas to an integer value.  
+ * An OSM element is written to one or more areas. Every used
+ * combination of areas is translated to an integer.
+ * Use this dictionary if you expect many different area combinations,
  * e.g. for relations and their members.
- * @author GerdP
+ * @author Gerd Petermann
  *
  */
-public class WriterDictionaryInt{
+public class AreaDictionaryInt{
 	public final static int UNASSIGNED = -1;
 	private final ArrayList<BitSet> sets; 
-	private final int numOfWriters;
+	private final int numOfAreas;
 	private final HashMap<BitSet, Integer> index;
 	
 	/** 
-	 * Create a dictionary for a given number of writers
-	 * @param numOfWriters the number of writers that are used
+	 * Create a dictionary for a given array of areas
+	 * @param num the number of areas that are used
 	 */
-	WriterDictionaryInt (OSMWriter [] writers){
-		this.numOfWriters = writers.length;
-		sets = new ArrayList<BitSet>();
-		index = new HashMap<BitSet, Integer>();
+	AreaDictionaryInt (int num){
+		this.numOfAreas = num;
+		sets = new ArrayList<>();
+		index = new HashMap<>();
 		init();
 	}
 	
 	/**
-	 * initialize the dictionary with sets containing a single writer.
+	 * initialize the dictionary with sets containing a single area.
 	 */
 	private void init(){
-		ArrayList<BitSet> writerSets = new ArrayList<BitSet>(numOfWriters);
-		for (int i=0; i < numOfWriters; i++){
+		ArrayList<BitSet> areaSets = new ArrayList<>(numOfAreas);
+		for (int i = 0; i < numOfAreas; i++) {
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
-			writerSets.add(b);
+			areaSets.add(b);
 		}
 	}
 	
 	/**
 	 * Calculate the integer value for a given BitSet. The BitSet must not 
-	 * contain values higher than numOfWriters.
-	 * @param writerSet the BitSet 
+	 * contain values higher than numOfAreas.
+	 * @param areaSet the BitSet 
 	 * @return an int value that identifies this BitSet 
 	 */
-	public int translate(final BitSet writerSet){
-		Integer combiIndex = index.get(writerSet);
+	public int translate(final BitSet areaSet){
+		Integer combiIndex = index.get(areaSet);
 		if (combiIndex == null){
 			BitSet bnew = new BitSet();
 
-			bnew.or(writerSet);
+			bnew.or(areaSet);
 			combiIndex = sets.size();
 			sets.add(bnew);
 			index.put(bnew, combiIndex);
@@ -92,18 +92,4 @@ public class WriterDictionaryInt{
 	public int size(){
 		return sets.size();
 	}
-
-	public int getNumOfWriters(){
-		return numOfWriters;
-	}
-
-	/**
-	 * return the id of a single writer or 
-	 * @param writerIdx
-	 * @return
-	 */
-	public boolean isSingleWriterIdx(int writerIdx) {
-		return (writerIdx < numOfWriters);
-	}
-
 }

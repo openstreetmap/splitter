@@ -52,7 +52,7 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     /** Base class containing common code needed for serializing each type of primitives. */
     private abstract class Prim<T extends Element> {
       /** Queue that tracks the list of all primitives. */
-      ArrayList<T> contents = new ArrayList<T>();
+      ArrayList<T> contents = new ArrayList<>();
 
       /** Add to the queue.
        * @param item The entity to add */
@@ -473,12 +473,12 @@ public class BinaryMapWriter extends AbstractOSMWriter {
     Osmformat.HeaderBlock.Builder headerblock = Osmformat.HeaderBlock
         .newBuilder();
 
-    Osmformat.HeaderBBox.Builder bbox = Osmformat.HeaderBBox.newBuilder();
-    bbox.setLeft(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLong())));
-    bbox.setBottom(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLat())));
-    bbox.setRight(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLong())));
-    bbox.setTop(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLat())));
-    headerblock.setBbox(bbox);
+    Osmformat.HeaderBBox.Builder pbfBbox = Osmformat.HeaderBBox.newBuilder();
+    pbfBbox.setLeft(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLong())));
+    pbfBbox.setBottom(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMinLat())));
+    pbfBbox.setRight(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLong())));
+    pbfBbox.setTop(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLat())));
+    headerblock.setBbox(pbfBbox);
 
     //    headerblock.setSource("splitter"); //TODO: entity.getOrigin());
     finishHeader(headerblock);

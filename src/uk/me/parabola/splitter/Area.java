@@ -32,9 +32,7 @@ public class Area {
 	private final int maxLat;
 	private final int maxLong;
 	private Rectangle javaRect;
-	private java.awt.geom.Area javaArea;
 	private boolean isJoinable = true;
-	private boolean isResultOfSplitting;
 	private boolean isPseudoArea;
 	
 	public boolean isJoinable() {
@@ -111,9 +109,7 @@ public class Area {
 	}
 	
 	public java.awt.geom.Area getJavaArea(){
-		if (javaArea == null)
-			javaArea = new java.awt.geom.Area(getRect());
-		return javaArea;
+		return new java.awt.geom.Area(getRect());
 	}
 	public void setMapId(int mapId) {
 		this.mapId = mapId;
@@ -179,13 +175,8 @@ public class Area {
 				&& lon <= maxLong;
 	}
 
-	public Area add(Area area) {
-		return new Area(
-						Math.min(minLat, area.minLat),
-						Math.min(minLong, area.minLong),
-						Math.max(maxLat, area.maxLat),
-						Math.max(maxLong, area.maxLong)
-		);
+	public boolean contains(Node node) {
+		return contains(node.getMapLat(), node.getMapLon());
 	}
 
 	/**
@@ -200,6 +191,28 @@ public class Area {
 				&& other.getMaxLong() <= maxLong;
 	}
 
+	/**
+	 * Checks if this area intersects the given bounding box at least
+	 * in one point.
+	 * 
+	 * @param bbox an area
+	 * @return <code>true</code> if this area intersects the bbox; 
+	 * 		   <code>false</code> else
+	 */
+	public final boolean intersects(Area bbox) {
+		return minLat <= bbox.getMaxLat() && maxLat >= bbox.getMinLat() && 
+			minLong <= bbox.getMaxLong() && maxLong >= bbox.getMinLong();
+	}
+ 
+	public Area add(Area area) {
+		return new Area(
+						Math.min(minLat, area.minLat),
+						Math.min(minLong, area.minLong),
+						Math.max(maxLat, area.maxLat),
+						Math.max(maxLong, area.maxLong)
+		);
+	}
+
 	public boolean isPseudoArea() {
 		return isPseudoArea;
 	}
@@ -207,4 +220,5 @@ public class Area {
 	public void setPseudoArea(boolean isPseudoArea) {
 		this.isPseudoArea = isPseudoArea;
 	}
+
 }

@@ -41,18 +41,9 @@ public interface OSMWriter {
 	 */
 	public abstract void finishWrite();
 
-	public boolean nodeBelongsToThisArea(Node node);
-
-	public boolean coordsBelongToThisArea(int mapLat, int mapLon);
-	
 	public abstract void write(Node node) throws IOException;
 
 	public abstract void write(Way way) throws IOException;
 
 	public abstract void write(Relation rel) throws IOException;
-
-	/**
-	 * @return true if the area was added for the problem list generator
-	 */
-	public boolean areaIsPseudo();
 }

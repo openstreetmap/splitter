@@ -24,49 +24,47 @@ import java.util.Iterator;
 /**
  * Find ways and relations that will be incomplete.
  * Strategy:
- * - calculate the writers of each node, calculate and store a short that represents the combination of writers 
- *    (this is done by the WriterDictionary)  
- * - a way is incomplete (in at least one tile) if its nodes are written to different combinations of writers
- * - a relation is incomplete (in at least one tile) if its members are written to different combinations of writers
+ * - calculate the areas of each node, calculate and store a short that represents the combination of areas
+ *    (this is done by the AreaDictionary)  
+ * - a way is a problem way if its nodes are found in different combinations of areas
+ * - a relation is a problem relation if its members are found in different combinations of areas
  * 
  */
 class ProblemListProcessor extends AbstractMapProcessor {
 	private final static int PHASE1_NODES_AND_WAYS = 1;
 	private final static int PHASE2_RELS_ONLY = 2;
 
-	private final OSMWriter[] writers;
-
-	private SparseLong2ShortMapFunction coords;
-	private SparseLong2ShortMapFunction ways;
+	private final SparseLong2ShortMapFunction coords;
+	private final SparseLong2ShortMapFunction ways;
 	
-	private final WriterDictionaryShort writerDictionary;
+	private final AreaDictionaryShort areaDictionary;
 	private final DataStorer dataStorer;
-	private LongArrayList problemWays; 
-	private LongArrayList problemRels;
+	private final LongArrayList problemWays = new LongArrayList(); 
+	private final LongArrayList problemRels = new LongArrayList();
 	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels;
 
-	private BitSet writerSet;
+	/** each bit represents one distinct area */
+	private final BitSet areaSet = new BitSet();
 	
 	private int phase = PHASE1_NODES_AND_WAYS;
 	//	for statistics
 	//private long countQuickTest = 0;
 	//private long countFullTest = 0;
 	private long countCoords = 0;
-	private final int writerOffset;
-	private final int lastWriter;
+	private final int areaOffset;
+	private final int lastAreaOffset;
 	private boolean isFirstPass;
 	private boolean isLastPass;
-	private WriterIndex writerIndex;
+	private AreaIndex areaIndex;
 	private final HashSet<String> wantedBoundaryAdminLevels = new HashSet<>();
 	
 	private final HashSet<String> wantedBoundaryTagValues;
 	
-	ProblemListProcessor(DataStorer dataStorer, int writerOffset,
-			int numWritersThisPass, LongArrayList problemWays,
-			LongArrayList problemRels, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
+	ProblemListProcessor(DataStorer dataStorer, int areaOffset,
+			int numAreasThisPass, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
 			String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
-		this.writerDictionary = dataStorer.getWriterDictionary();
+		this.areaDictionary = dataStorer.getAreaDictionary();
 		if (dataStorer.getUsedWays() == null){
 			ways = SparseLong2ShortMap.createMap("way");
 			ways.defaultReturnValue(UNASSIGNED);
@@ -74,19 +72,14 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		}
 		else 
 			ways = dataStorer.getUsedWays(); 
-		this.writers = writerDictionary.getWriters();
-		//this.ways = dataStorer.getWays();
 		
-		writerSet = new BitSet(writerDictionary.getNumOfWriters());
-		this.writerIndex = dataStorer.getGrid();
+		this.areaIndex = dataStorer.getGrid();
 		this.coords = SparseLong2ShortMap.createMap("coord");
 		this.coords.defaultReturnValue(UNASSIGNED);
-		this.isFirstPass = (writerOffset == 0);
-		this.writerOffset = writerOffset;
-		this.lastWriter = writerOffset + numWritersThisPass-1;
-		this.isLastPass = (writerOffset + numWritersThisPass == writers.length);
-		this.problemWays = problemWays;
-		this.problemRels = problemRels;
+		this.isFirstPass = (areaOffset == 0);
+		this.areaOffset = areaOffset;
+		this.lastAreaOffset = areaOffset + numAreasThisPass - 1;
+		this.isLastPass = (areaOffset + numAreasThisPass == dataStorer.getNumOfAreas());
 		this.oneTileOnlyRels = oneTileOnlyRels;
 		if (boundaryTagList != null && boundaryTagList.length > 0)
 			wantedBoundaryTagValues = new HashSet<>(Arrays.asList(boundaryTagList));
@@ -139,24 +132,23 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	public void processNode(Node node) {
 		if (phase == PHASE2_RELS_ONLY)
 			return;
-		int countWriters = 0;
-		short lastUsedWriter = UNASSIGNED;
-		short writerIdx = UNASSIGNED;
-		WriterGridResult writerCandidates = writerIndex.get(node);
-		if (writerCandidates == null) 
+		int countAreas = 0;
+		short lastUsedArea = UNASSIGNED;
+		short areaIdx = UNASSIGNED;
+		AreaGridResult areaCandidates = areaIndex.get(node);
+		if (areaCandidates == null) 
 			return;
 		
-		if (writerCandidates.l.size() > 1)
-			writerSet.clear();
-		for (int i = 0; i < writerCandidates.l.size(); i++) {
-			int n = writerCandidates.l.getShort(i);
-			if (n < writerOffset || n > lastWriter)
+		if (areaCandidates.l.size() > 1)
+			areaSet.clear();
+		for (int i = 0; i < areaCandidates.l.size(); i++) {
+			int n = areaCandidates.l.getShort(i);
+			if (n < areaOffset || n > lastAreaOffset)
 				continue;
 
 			boolean found;
-			if (writerCandidates.testNeeded){
-				OSMWriter w = writers[n];
-				found = w.nodeBelongsToThisArea(node);
+			if (areaCandidates.testNeeded){
+				found = dataStorer.getArea(n).contains(node);
 				//++countFullTest;
 			}
 			else{ 
@@ -164,20 +156,20 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				//++countQuickTest;
 			}
 			if (found) {
-				writerSet.set(n);
-				++countWriters;
-				lastUsedWriter = (short) n;
+				areaSet.set(n);
+				++countAreas;
+				lastUsedArea = (short) n;
 			}
 		}
-		if (countWriters > 0){
-			if (countWriters > 1)
-				writerIdx = writerDictionary.translate(writerSet);
+		if (countAreas > 0){
+			if (countAreas > 1)
+				areaIdx = areaDictionary.translate(areaSet);
 			else  
-				writerIdx = (short) (lastUsedWriter  - WriterDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
-			coords.put(node.getId(), writerIdx);
+				areaIdx = (short) (lastUsedArea  - AreaDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
+			coords.put(node.getId(), areaIdx);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
-				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + areaDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
 			}
 		}
@@ -189,9 +181,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			return;
 		boolean maybeChanged = false;
 		int oldclIndex = UNASSIGNED;
-		short wayWriterIdx; 
-		//BitSet wayNodeWriterCombis = new BitSet();
-		writerSet.clear();
+		short wayAreaIdx; 
+		areaSet.clear();
 		//for (long id: way.getRefs()){
 		int refs = way.getRefs().size();
 		for (int i = 0; i < refs; i++){
@@ -202,29 +193,27 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				continue;
 			}
 			if (oldclIndex != clIdx){
-				//wayNodeWriterCombis.set(clIdx + WriterDictionaryShort.DICT_START);
-				BitSet cl = writerDictionary.getBitSet(clIdx);
-				writerSet.or(cl);
+				BitSet cl = areaDictionary.getBitSet(clIdx);
+				areaSet.or(cl);
 				oldclIndex = clIdx;
 				maybeChanged = true;
 			}
 		}
 		
 		if (!isFirstPass && maybeChanged || isLastPass){
-			wayWriterIdx = ways.get(way.getId());
-			if (wayWriterIdx != UNASSIGNED)
-				writerSet.or(writerDictionary.getBitSet(wayWriterIdx));
+			wayAreaIdx = ways.get(way.getId());
+			if (wayAreaIdx != UNASSIGNED)
+				areaSet.or(areaDictionary.getBitSet(wayAreaIdx));
 		}
 		
 		if (isLastPass){
-			if (checkIfMultipleWriters(writerSet)){
+			if (checkIfMultipleAreas(areaSet)){
 				problemWays.add(way.getId());
-				//System.out.println("gen: w" + way.getId() + " touches " + writerDictionary.getMapIds(writerSet));
 			}
 		}
-		if (maybeChanged && writerSet.isEmpty() == false){
-			wayWriterIdx = writerDictionary.translate(writerSet);
-			ways.put(way.getId(), wayWriterIdx);
+		if (maybeChanged && areaSet.isEmpty() == false){
+			wayAreaIdx = areaDictionary.translate(areaSet);
+			ways.put(way.getId(), wayAreaIdx);
 		}
 	}
 	// default exclude list for boundary tag
@@ -275,12 +264,12 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (!useThis){
 			return;
 		}
-		writerSet.clear();
-		Integer relWriterIdx;
+		areaSet.clear();
+		Integer relAreaIdx;
 		if (!isFirstPass){
-			relWriterIdx = dataStorer.getUsedRels().get(rel.getId());
-			if (relWriterIdx != null)
-				writerSet.or(dataStorer.getMultiTileWriterDictionary().getBitSet(relWriterIdx));
+			relAreaIdx = dataStorer.getUsedRels().get(rel.getId());
+			if (relAreaIdx != null)
+				areaSet.or(dataStorer.getMultiTileDictionary().getBitSet(relAreaIdx));
 		}
 		short oldclIndex = UNASSIGNED;
 		short oldwlIndex = UNASSIGNED;
@@ -292,8 +281,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 
 				if (clIdx != UNASSIGNED){
 					if (oldclIndex != clIdx){ 
-						BitSet wl = writerDictionary.getBitSet(clIdx);
-						writerSet.or(wl);
+						BitSet wl = areaDictionary.getBitSet(clIdx);
+						areaSet.or(wl);
 					}
 					oldclIndex = clIdx;
 
@@ -304,53 +293,37 @@ class ProblemListProcessor extends AbstractMapProcessor {
 
 				if (wlIdx != UNASSIGNED){
 					if (oldwlIndex != wlIdx){ 
-						BitSet wl = writerDictionary.getBitSet(wlIdx);
-						writerSet.or(wl);
+						BitSet wl = areaDictionary.getBitSet(wlIdx);
+						areaSet.or(wl);
 					}
 					oldwlIndex = wlIdx;
 				}
 			}
 			// ignore relation here
 		}
-		if (writerSet.isEmpty())
+		if (areaSet.isEmpty())
 			return;
 		if (isLastPass){
-			if (checkIfMultipleWriters(writerSet)){
+			if (checkIfMultipleAreas(areaSet)){
 				problemRels.add(rel.getId());
-				//System.out.println("gen: r" + rel.getId() + " touches " + writerDictionary.getMapIds(writerSet));
 			} else {
-				// the relation is only in one tile 
-				int newWriterIdx = -1;
-				for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i+1)){
-					if (writers[i].areaIsPseudo() == false)  {
-						// this should be the only writer
-						newWriterIdx = i;
+				// the relation is only in one distinct area
+				int newAreaIdx = -1;
+				for (int i = areaSet.nextSetBit(0); i >= 0; i = areaSet.nextSetBit(i+1)){
+					if (dataStorer.getArea(i).isPseudoArea() == false)  {
+						// this should be the only area
+						newAreaIdx = i;
 						break;
 					}
 				}
-				// find out if it was already processed in a previous partition of tiles
-				Integer writerInOtherPartition = oneTileOnlyRels.get(rel.getId());
-				
-				if (newWriterIdx >= 0){
-					// the relation is written to a real tile in this partition
-					if (writerInOtherPartition != null && writerInOtherPartition >= 0){
-						// the relation also appeared in another partition of tiles,
-						// so it is a problem rel
-						problemRels.add(rel.getId());
-						return;
-					}
-				} 
-				// store the info that the rel is only in one tile, but
-				// don't overwrite the info when it was a real tile
-				if (writerInOtherPartition == null || writerInOtherPartition < 0){
-					oneTileOnlyRels.put(rel.getId(), new Integer(newWriterIdx));
-				} 
+				// store the info that the rel is only in one distinct area
+				oneTileOnlyRels.put(rel.getId(), new Integer(newAreaIdx));
 			}
 			return;
 		}
 		
-		relWriterIdx = dataStorer.getMultiTileWriterDictionary().translate(writerSet);
-		dataStorer.getUsedRels().put(rel.getId(), relWriterIdx);
+		relAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
+		dataStorer.getUsedRels().put(rel.getId(), relAreaIdx);
 	}
 	
 	
@@ -366,7 +339,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			System.out.println("");
 			System.out.println("  Number of stored shorts for ways: " + Utils.format(dataStorer.getUsedWays().size()));
 			System.out.println("  Number of stored integers for rels: " + Utils.format(dataStorer.getUsedRels().size()));
-			System.out.println("  Number of stored combis in big dictionary: " + Utils.format(dataStorer.getMultiTileWriterDictionary().size()));
+			System.out.println("  Number of stored combis in big dictionary: " + Utils.format(dataStorer.getMultiTileDictionary().size()));
 			System.out.println("  Number of detected problem ways: " + Utils.format(problemWays.size()));
 			System.out.println("  Number of detected problem rels: " + Utils.format(problemRels.size()));
 			Utils.printMem();
@@ -378,16 +351,22 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	}
 	
 	/** 
-	 * @param writerCombis
-	 * @return true if the combination of writers can contain a problem polygon
+	 * @param areaCombis
+	 * @return true if the combination of distinct areas can contain a problem polygon
 	 */
-	static boolean checkIfMultipleWriters(BitSet writerCombis){
+	static boolean checkIfMultipleAreas(BitSet areaCombis){
 		// this returns a few false positives for those cases
 		// where a way or rel crosses two pseudo-areas at a 
-		// place that is far away from the real writers
+		// place that is far away from the real areas
 		// but it is difficult to detect these cases.
-		return writerCombis.cardinality() > 1;
+		return areaCombis.cardinality() > 1;
 	}
 
-
+	public LongArrayList getProblemWays() {
+		return problemWays;
+	}
+	
+	public LongArrayList getProblemRels() {
+		return problemRels;
+	}
 }

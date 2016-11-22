@@ -14,6 +14,7 @@
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Stores data that is needed in different passes of the program.
@@ -25,36 +26,49 @@ public class DataStorer{
 	public static final int WAY_TYPE = 1;
 	public static final int REL_TYPE = 2;
 	
-	private final int numOfWriters;
+	private final int numOfAreas;
+
 	private final Long2IntClosedMapFunction[] maps = new Long2IntClosedMapFunction[3];
 	
-	private final WriterDictionaryShort writerDictionary;
-	private final WriterDictionaryInt multiTileWriterDictionary;
-	private final WriterIndex writerIndex;
+	private final AreaDictionaryShort areaDictionary;
+	private final AreaDictionaryInt multiTileDictionary;
+	private final AreaIndex areaIndex;
 	private SparseLong2ShortMapFunction usedWays = null;
-	private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<Integer>();
+	private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<>();
 	private boolean idsAreNotSorted;
+	private OSMWriter[] writers;
 
 	/** 
 	 * Create a dictionary for a given number of writers
+	 * @param overlapAmount 
 	 * @param numOfWriters the number of writers that are used
 	 */
-	DataStorer (OSMWriter [] writers){
-		this.numOfWriters = writers.length;
-		this.writerDictionary = new WriterDictionaryShort(writers);
-		this.multiTileWriterDictionary = new WriterDictionaryInt(writers);
-		this.writerIndex = new WriterGrid(writerDictionary);
+	DataStorer (List<Area> areas, int overlapAmount){
+		this.numOfAreas = areas.size();
+		this.areaDictionary = new AreaDictionaryShort(areas.toArray(new Area[areas.size()]), overlapAmount);
+		this.multiTileDictionary = new AreaDictionaryInt(numOfAreas);
+		this.areaIndex = new AreaGrid(areaDictionary);
 		return;
 	}
 
-	public int getNumOfWriters(){
-		return numOfWriters;
+	public int getNumOfAreas(){
+		return numOfAreas;
 	}
 
-	public WriterDictionaryShort getWriterDictionary() {
-		return writerDictionary;
+	public AreaDictionaryShort getAreaDictionary() {
+		return areaDictionary;
 	}
 
+	public Area getArea (int idx) {
+		return areaDictionary.getArea(idx);
+	}
+	
+	public Area getExtendedArea (int idx) {
+		return areaDictionary.getExtendedArea(idx);
+	}
+	public void setWriters(OSMWriter[] writers) {
+		this.writers = writers;
+	}
 	
 	public void setWriterMap(int type, Long2IntClosedMapFunction nodeWriterMap){
 		maps[type] = nodeWriterMap;
@@ -63,12 +77,12 @@ public class DataStorer{
 		return maps[type];
 	}
 	
-	public WriterIndex getGrid() {
-		return writerIndex;
+	public AreaIndex getGrid() {
+		return areaIndex;
 	}
 
-	public WriterDictionaryInt getMultiTileWriterDictionary() {
-		return multiTileWriterDictionary;
+	public AreaDictionaryInt getMultiTileDictionary() {
+		return multiTileDictionary;
 	}
 
 	public SparseLong2ShortMapFunction getUsedWays() {
@@ -132,6 +146,10 @@ public class DataStorer{
 			if (map != null)
 				map.stats(prefix);
 		}		
-		
 	}
+
+	public OSMWriter[] getWriters() {
+		return writers;
+	}
+	
 }

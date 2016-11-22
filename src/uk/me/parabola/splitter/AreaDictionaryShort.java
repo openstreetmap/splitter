@@ -21,71 +21,74 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 /**
- * Maps a BitSet containing the used writers to a short value.  
- * An OSM element is written to one or more writers. Every used
- * combination of writers is translated to a short.
+ * Maps a BitSet containing the used areas to a short value.  
+ * An OSM element is written to one or more areas. Every used
+ * combination of areas is translated to a short.
  * @author GerdP
  *
  */
-public class WriterDictionaryShort{
+public class AreaDictionaryShort{
 	public final static int DICT_START = -1 * (Short.MIN_VALUE + 1);
-	private OSMWriter[] writers;
+	private final Area[] areas; 
 	private final ArrayList<BitSet> sets; 
 	private final ArrayList<ShortArrayList> arrays; 
-	private final int numOfWriters;
+	private final int numOfAreas;
 	private final HashMap<BitSet, Short> index;
-	private final HashSet<Short> simpleNeighbours = new HashSet<Short>();
+	private final HashSet<Short> simpleNeighbours = new HashSet<>();
+	private final int overlapAmount;
 	
 	/**
-	 * Create a dictionary for a given array of writers
-	 * @param writers the array of writers
+	 * Create a dictionary for a given array of areas
+	 * @param overlapAmount 
+	 * @param areas the array of areas
 	 */
-	WriterDictionaryShort (OSMWriter [] writers){
-		this.writers = writers;
-		this.numOfWriters = writers.length;
-		sets = new ArrayList<BitSet>();
-		arrays = new ArrayList<ShortArrayList>();
-		index = new HashMap<BitSet, Short>();
+	AreaDictionaryShort (Area[] areas, int overlapAmount){
+		this.areas = areas;
+		this.overlapAmount = overlapAmount;
+		this.numOfAreas = areas.length;
+		sets = new ArrayList<>();
+		arrays = new ArrayList<>();
+		index = new HashMap<>();
 		init();
 	}
 	
 	/**
-	 * initialize the dictionary with sets containing a single writer.
+	 * initialize the dictionary with sets containing a single area.
 	 */
 	private void init(){
-		ArrayList<Rectangle> rectangles = new ArrayList<Rectangle>(numOfWriters);
-		ArrayList<BitSet> writerSets = new ArrayList<BitSet>(numOfWriters);
-		for (int i=0; i < numOfWriters; i++){
+		ArrayList<Rectangle> rectangles = new ArrayList<>(numOfAreas);
+		ArrayList<BitSet> areaSets = new ArrayList<>(numOfAreas);
+		for (int i=0; i < numOfAreas; i++){
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
-			rectangles.add(Utils.area2Rectangle(writers[i].getBounds(), 0));
-			writerSets.add(b);
+			rectangles.add(Utils.area2Rectangle(areas[i], 0));
+			areaSets.add(b);
 		}
-		findSimpleNeigbours(rectangles, writerSets);
+		findSimpleNeigbours(rectangles, areaSets);
 		System.out.println("cached " + simpleNeighbours.size() + " combinations of areas that form rectangles.");
 		return;
 	}
 	
 	/**
 	 * Calculate the short value for a given BitSet. The BitSet must not 
-	 * contain values higher than numOfWriters.
-	 * @param writerSet the BitSet 
+	 * contain values higher than numOfAreas.
+	 * @param areaSet the BitSet 
 	 * @return a short value that identifies this BitSet 
 	 */
-	public short translate(final BitSet writerSet){
-		Short combiIndex = index.get(writerSet);
+	public short translate(final BitSet areaSet){
+		Short combiIndex = index.get(areaSet);
 		if (combiIndex == null){
 			BitSet bnew = new BitSet();
 
-			bnew.or(writerSet);
+			bnew.or(areaSet);
 			ShortArrayList a = new ShortArrayList();
-			for (int i = writerSet.nextSetBit(0); i >= 0; i = writerSet.nextSetBit(i + 1)) {
+			for (int i = areaSet.nextSetBit(0); i >= 0; i = areaSet.nextSetBit(i + 1)) {
 				a.add((short) i);
 			}
 			combiIndex = (short) (sets.size() - DICT_START);
 			if (combiIndex == Short.MAX_VALUE){
-				throw new SplitFailedException("writerDictionary is full. Decrease --max-areas value");
+				throw new SplitFailedException("areaDictionary is full. Decrease --max-areas value");
 			}
 			sets.add(bnew);
 			arrays.add(a);
@@ -99,9 +102,9 @@ public class WriterDictionaryShort{
 	 * added together. A way or relation that lies exactly within 
 	 * such a combination cannot cross other areas. 
 	 */
-	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<BitSet> writerSets){
-		ArrayList<Rectangle> newRectangles = new ArrayList<Rectangle>();
-		ArrayList<BitSet> newWriterSets = new ArrayList<BitSet>();
+	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<BitSet> areaSets){
+		ArrayList<Rectangle> newRectangles = new ArrayList<>();
+		ArrayList<BitSet> newAreaSets = new ArrayList<>();
 		
 		for (int i = 0; i < rectangles.size(); i++){
 			Rectangle r1 =  rectangles.get(i);
@@ -116,8 +119,8 @@ public class WriterDictionaryShort{
 					isSimple = true;
 				if (isSimple){
 					BitSet simpleNeighbour = new BitSet();
-					simpleNeighbour.or(writerSets.get(i));
-					simpleNeighbour.or(writerSets.get(j));
+					simpleNeighbour.or(areaSets.get(i));
+					simpleNeighbour.or(areaSets.get(j));
 					if (simpleNeighbour.cardinality() <= 10){
 						short idx = translate(simpleNeighbour);
 						if (simpleNeighbours.contains(idx) == false){
@@ -126,7 +129,7 @@ public class WriterDictionaryShort{
 							Rectangle pair = new Rectangle(r1);
 							pair.add(r2);
 							newRectangles.add(pair);
-							newWriterSets.add(simpleNeighbour);
+							newAreaSets.add(simpleNeighbour);
 						}
 					}
 				}
@@ -134,11 +137,11 @@ public class WriterDictionaryShort{
 		}
 		if (newRectangles.isEmpty() == false){
 			rectangles.addAll(newRectangles);
-			writerSets.addAll(newWriterSets);
+			areaSets.addAll(newAreaSets);
 			newRectangles = null;
-			newWriterSets = null;
+			newAreaSets = null;
 			if (simpleNeighbours.size() < 1000)
-				findSimpleNeigbours(rectangles,writerSets);
+				findSimpleNeigbours(rectangles,areaSets);
 		}
 	}
 	/**
@@ -153,10 +156,10 @@ public class WriterDictionaryShort{
 	}
 	
 	/**
-	 * Return a list containing the writer ids for the given 
+	 * Return a list containing the area ids for the given 
 	 * short value.  
-	 * @param idx a short value that was returned by the translate()
-	 * @return a list containing the writer ids 
+	 * @param idx a short value that was returned by the translate() method
+	 * @return a list containing the area ids 
 	 */
 	public ShortArrayList getList (final short idx){
 		return arrays.get(DICT_START + idx);
@@ -170,39 +173,29 @@ public class WriterDictionaryShort{
 		return sets.size();
 	}
 
-	public int getNumOfWriters(){
-		return numOfWriters;
+	public int getNumOfAreas(){
+		return numOfAreas;
 	}
 
-	public OSMWriter[] getWriters(){
-		return writers;
-	}
-	
-	public boolean mayCross(short writerIdx){
-		if (writerIdx + DICT_START < numOfWriters)
+	public boolean mayCross(short areaIdx){
+		if (areaIdx + DICT_START < numOfAreas)
 			return false;
-		if (simpleNeighbours.contains(writerIdx))
+		if (simpleNeighbours.contains(areaIdx))
 			return false;
 		return true;
 	}
 	
-	public String getMapIds(BitSet writerSet){
-		StringBuilder sb = new StringBuilder("{");
-		for (int k = 0;k<numOfWriters;k++){
-			if (writerSet.get(k)) {
-				sb.append(writers[k].getMapId());
-				sb.append(", ");
-			}
-		}
-		return sb.substring(0, sb.length()-2) + "}";
+	public Area getArea(int idx) {
+		return areas[idx];
 	}
 
-	/**
-	 * return the id of a single writer or 
-	 * @param writerIdx
-	 * @return
-	 */
-	public boolean isSingleWriterIdx(short writerIdx) {
-		return (writerIdx + DICT_START < numOfWriters);
+	public Area getExtendedArea(int idx) {
+		Area bounds = areas[idx];
+		if (overlapAmount == 0)
+			return bounds;
+		return new Area(bounds.getMinLat() - overlapAmount,
+				bounds.getMinLong() - overlapAmount,
+				bounds.getMaxLat() + overlapAmount,
+				bounds.getMaxLong() + overlapAmount);
 	}
 }

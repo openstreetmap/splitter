@@ -132,8 +132,6 @@ public class Main {
 	
 	private LongArrayList problemWays = new LongArrayList();
 	private LongArrayList problemRels = new LongArrayList();
-	private TreeSet<Long> calculatedProblemWays = new TreeSet<>();
-	private TreeSet<Long> calculatedProblemRels = new TreeSet<>();
 	
 	// map with relations that should be complete and are written to only one tile 
 	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels = new Long2ObjectOpenHashMap<>();
@@ -327,7 +325,10 @@ public class Main {
 			}
 			
 		}
-		writeAreas(areas, distinctAreas);
+		DataStorer dataStorer = new DataStorer(areas, overlapAmount);
+		translateDistinctToRealAreas (dataStorer, distinctAreas);
+		distinctAreas = null; // free memory
+		writeAreas(dataStorer, areas);
 	}
 
 	private int getAreasPerPass(int areaCount) {
@@ -712,7 +713,7 @@ public class Main {
 				Area a1 = realAreas.get(i);
 				for (int j = i+1; j < realAreas.size(); j++) {
 					Area a2 = realAreas.get(j);
-					if (a1.getRect().intersects(a2.getRect())) {
+					if (a1.intersects(a2)) {
 						overlappingTiles.add(a1.getMapId());
 						overlappingTiles.add(a2.getMapId());
 					}
@@ -723,7 +724,7 @@ public class Main {
 			}
 		}
 		System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
-		List<Area> workAreas = addPseudoWriters(distinctAreas);
+		List<Area> workAreas = addPseudoAreas(distinctAreas);
 		
 		
 		// debugging
@@ -744,41 +745,40 @@ public class Main {
 			System.out.println("Processing " + distinctAreas.size() + " areas in a single pass");
 		}
 
-		OSMWriter [] writers = new OSMWriter[workAreas.size()];
 		ArrayList<Area> allAreas = new ArrayList<>();
 
-		System.out.println("Pseudo-Writers:");
-		for (int j = 0;j < writers.length; j++){
+		System.out.println("Pseudo areas:");
+		for (int j = 0;j < workAreas.size(); j++){
 			Area area = workAreas.get(j);
 			allAreas.add(area);
-			writers[j] = new PseudoOSMWriter(area, area.getMapId(), area.isPseudoArea(), 0);
 			if (area.isPseudoArea())
 				System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
 		}
-		DataStorer dataStorer = new DataStorer(writers);
+		DataStorer dataStorer = new DataStorer(workAreas, overlapAmount);
 		System.out.println("Starting problem-list-generator pass(es)"); 
-		LongArrayList problemWaysThisPart = new LongArrayList();
-		LongArrayList problemRelsThisPart = new LongArrayList();
+		TreeSet<Long> calculatedProblemWays = new TreeSet<>();
+		TreeSet<Long> calculatedProblemRels = new TreeSet<>();
+		
 		for (int pass = 0; pass < numPasses; pass++) {
 			System.out.println("-----------------------------------");
 			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses);
 			long startThisPass = System.currentTimeMillis();
-			int writerOffset = pass * areasPerPass;
-			int numWritersThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
+			int areaOffset = pass * areasPerPass;
+			int numAreasThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
 			ProblemListProcessor processor = new ProblemListProcessor(
-					dataStorer, writerOffset, numWritersThisPass,
-					problemWaysThisPart, problemRelsThisPart, oneTileOnlyRels, boundaryTags);
+					dataStorer, areaOffset, numAreasThisPass,
+					oneTileOnlyRels, boundaryTags);
 			processor.setWantedAdminLevel(wantedAdminLevel);
 			
 			boolean done = false;
 			while (!done){
 				done = processMap(processor);
+				calculatedProblemWays.addAll(processor.getProblemWays());
+				calculatedProblemRels.addAll(processor.getProblemRels());
 			}
 			System.out.println("Problem-list-generator pass " + (pass+1) + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
 		}
 		//writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
-		calculatedProblemWays.addAll(problemWaysThisPart);
-		calculatedProblemRels.addAll(problemRelsThisPart);
 		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
 		if (distinctAreas.size() > realAreas.size()) {
 			// correct wrong entries caused by partitioning 
@@ -791,64 +791,25 @@ public class Main {
 					calculatedProblemWays,
 					calculatedProblemRels);
 		}
+		// add the user given problem polygons
+		problemWays.addAll(calculatedProblemWays);
+		problemRels.addAll(calculatedProblemRels);
 		return distinctAreas;
 	}
 	
-	/**
-	 * Final pass(es), we have the areas so parse the file(s) again. 
-	 *
-	 * @param areas Area list determined on the first pass.
-	 * @param distinctAreas 
-	 */
-	private void writeAreas(List<Area> areas, List<Area> distinctAreas) throws IOException, XmlPullParserException {
+	private OSMWriter[] createWriters(List<Area> areas) {
 		OSMWriter[] allWriters = new OSMWriter[areas.size()];
-		Map<String, byte[]> wellKnownTagKeys = null;
-		Map<String, byte[]> wellKnownTagVals = null;
-		if ("o5m".equals(outputType)){
-			wellKnownTagKeys = new HashMap<>();
-			wellKnownTagVals = new HashMap<>();
-			
-			String[] tagKeys = { "1", "1outer", "1inner", "type", // relation specific  
-					// 50 most often used keys (taken from taginfo 2014-05-19)
-					"source", "building",
-					"highway", "name", "addr:housenumber", "addr:street",
-					"addr:city", "addr:postcode", /*"created_by", */"addr:country", 
-					"natural", "source:date", "tiger:cfcc", "tiger:county", 
-					"tiger:reviewed", "landuse", "waterway", "wall", "surface", 
-					"attribution", "power", "tiger:source", "tiger:tlid",
-					"tiger:name_base", "oneway", "amenity", "start_date",
-					"tiger:name_type", "ref:bag", "tiger:upload_uuid",  
-					"tiger:separated", "ref", "yh:WIDTH", "tiger:zip_left", 
-					"note", "source_ref", "tiger:zip_right", "access",
-					"yh:STRUCTURE", "yh:TYPE", "yh:TOTYUMONO", "yh:WIDTH_RANK",  
-					"maxspeed", "lanes", "service", "barrier", "source:addr",
-					"tracktype", "is_in", "layer" , "place"};
-
-			for (String s:tagKeys){
-				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
-			}
-			
-			String[] tagVals = { "yes", "no", "residential", "water", "tower",
-					"footway", "Bing", "PGS", "private", "stream", "service",
-					"house", "unclassified", "track", "traffic_signals","restaurant","entrance"};
-			
-			for (String s:tagVals){
-				wellKnownTagVals.put(s, s.getBytes("UTF-8"));
-			}
-			
-		}
-		
 		for (int j = 0; j < allWriters.length; j++) {
 			Area area = areas.get(j);
 			AbstractOSMWriter w;
 			if ("pbf".equals(outputType)) 
-				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount);
 			else if ("o5m".equals(outputType))
-				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount, wellKnownTagKeys,wellKnownTagVals);
+				w = new O5mMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount);
 			else if ("simulate".equals(outputType))
-				w = new PseudoOSMWriter(area, area.getMapId(), false, overlapAmount);
+				w = new PseudoOSMWriter(area);
 			else 
-				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount );
+				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount);
 			switch (handleElementVersion) {
 			case "keep": 
 				w.setVersionMethod(AbstractOSMWriter.KEEP_VERSION);
@@ -861,16 +822,19 @@ public class Main {
 			}
 			allWriters[j] = w;
 		}
-
+		return allWriters;
+	}
+	
+	/**
+	 * Final pass(es), we have the areas so parse the file(s) again. 
+	 * @param areas 
+	 *
+	 * @param areas Area list determined on the first pass.
+	 * @param distinctAreas 
+	 */
+	private void writeAreas(DataStorer dataStorer, List<Area> areas) throws IOException, XmlPullParserException {
 		int numPasses = getAreasPerPass(areas.size());
 		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
-		DataStorer dataStorer = new DataStorer(allWriters);
-		translateDistinctToRealAreas (dataStorer, distinctAreas, areas);
-		// add the user given problem polygons
-		problemWays.addAll(calculatedProblemWays);
-		calculatedProblemWays = null;
-		problemRels.addAll(calculatedProblemRels);
-		calculatedProblemRels = null;
 		if (problemWays.size() > 0 || problemRels.size() > 0){
 			// calculate which ways and relations are written to multiple areas. 
 			MultiTileProcessor multiProcessor = new MultiTileProcessor(dataStorer, problemWays, problemRels);
@@ -905,6 +869,8 @@ public class Main {
 
 		// the final split passes
 		dataStorer.switchToSeqAccess(fileOutputDir);
+		dataStorer.setWriters(createWriters(areas));
+
 		System.out.println("Distributing data " + new Date());
 		
 		long startDistPass = System.currentTimeMillis();
@@ -914,14 +880,14 @@ public class Main {
 			System.out.println("Processing " + areas.size() + " areas in a single pass");
 		}
 		for (int i = 0; i < numPasses; i++) {
-			int writerOffset = i * areasPerPass;
-			int numWritersThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
+			int areaOffset = i * areasPerPass;
+			int numAreasThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
 			dataStorer.restartWriterMaps();
-			SplitProcessor processor = new SplitProcessor(dataStorer, oneTileOnlyRels, writerOffset, numWritersThisPass, maxThreads);
+			SplitProcessor processor = new SplitProcessor(dataStorer, oneTileOnlyRels, areaOffset, numAreasThisPass, maxThreads);
 
-			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numWritersThisPass +
+			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numAreasThisPass +
 					" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
-					areas.get(i * areasPerPass + numWritersThisPass - 1).getMapId() + ')');
+					areas.get(i * areasPerPass + numAreasThisPass - 1).getMapId() + ')');
 
 			processMap(processor); 
 		}
@@ -931,30 +897,29 @@ public class Main {
 	}
 	
 	/**
-	 * If the Bitset ids in oneTileOnlyRels were produced with a different set of
-	 * writers we have to translate the values 
+	 * If the BitSet ids in oneTileOnlyRels were produced with a different set of
+	 * areas we have to translate the values 
 	 * @param dataStorer DataStorer instance used by split processor
 	 * @param distinctAreas list of distinct (non-overlapping) areas
 	 * @param areas list of areas from split-file (or calculation)
 	 */
-	private void translateDistinctToRealAreas(DataStorer dataStorer, List<Area> distinctAreas, List<Area> areas) {
-		if (oneTileOnlyRels.isEmpty() || distinctAreas.size() == areas.size())
+	private void translateDistinctToRealAreas(DataStorer dataStorer, List<Area> distinctAreas) {
+		if (oneTileOnlyRels.isEmpty() || distinctAreas.size() == dataStorer.getNumOfAreas())
 			return;
 		Map<Area, Integer> map = new HashMap<>(); 
 		for (Area distinctArea : distinctAreas) {
 			if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
 				BitSet w = new BitSet();
-				for (int i = 0; i < areas.size(); i++) {
-					if (areas.get(i).contains(distinctArea)) {
+				for (int i = 0; i < dataStorer.getNumOfAreas(); i++) {
+					if (dataStorer.getArea(i).contains(distinctArea)) {
 						w.set(i);
 					}
 				}					
-				int id = dataStorer.getMultiTileWriterDictionary().translate(w);	
+				int id = dataStorer.getMultiTileDictionary().translate(w);	
 				map.put(distinctArea, id);
 			}
 		}
 		if (!map.isEmpty()) {
-			
 			for ( Entry<Long, Integer> e: oneTileOnlyRels.entrySet()) {
 				if (e.getValue() >= 0) {
 					e.setValue(map.get(distinctAreas.get(e.getValue())));
@@ -1061,12 +1026,12 @@ public class Main {
 	}
 	
 	/**
-	 * Make sure that our writer areas cover the planet. This is done by adding 
-	 * pseudo-writers. 
-	 * @param realAreas
-	 * @return
+	 * Make sure that our areas cover the planet. This is done by adding 
+	 * pseudo-areas if needed.
+	 * @param realAreas list of areas (read from split-file or calculated)
+	 * @return new list of areas containing the real areas and additional areas 
 	 */
-	private static List<Area> addPseudoWriters(List<Area> realAreas){
+	private static List<Area> addPseudoAreas(List<Area> realAreas){
 		ArrayList<Area> areas = new ArrayList<>(realAreas);
 		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
 

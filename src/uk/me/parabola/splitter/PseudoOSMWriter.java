@@ -13,14 +13,16 @@
  
 package uk.me.parabola.splitter;
 
+/**
+ * A do-nothing writer (used with --output=simulate) 
+ * @author Gerd Petermann
+ *
+ */
 public class PseudoOSMWriter extends AbstractOSMWriter{
-	private final boolean areaIsPseudo;
 	
-	public PseudoOSMWriter(Area bounds, int mapId, boolean areaIsPseudo, int overlap) {
+	public PseudoOSMWriter(Area bounds) {
 		// no overlap for pseudo writers !
-		super(bounds, null, mapId, overlap);
-		assert areaIsPseudo && overlap==0 || !areaIsPseudo;
-		this.areaIsPseudo = areaIsPseudo;
+		super(bounds, null, bounds.getMapId(), 0);
 	}
 	
 	@Override
@@ -37,9 +39,4 @@ public class PseudoOSMWriter extends AbstractOSMWriter{
 	
 	@Override
 	public void finishWrite() {}
-
-	@Override
-	public boolean areaIsPseudo() {
-		return areaIsPseudo;
-	}
 }

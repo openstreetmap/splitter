@@ -22,6 +22,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -56,8 +57,6 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private static final double FACTOR = 10000000;
 
 	private DataOutputStream dos;
-	private Map<String, byte[]> wellKnownTagKeys;
-	private Map<String, byte[]> wellKnownTagVals;
 
 	private byte[][][] stw__tab; // string table
 	private byte[] s1Bytes;
@@ -87,13 +86,49 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private short[] stw__tabhash;
 	
 	private byte[] numberConversionBuf;
+
+	final static Map<String, byte[]> wellKnownTagKeys = new HashMap<>();
+	final static Map<String, byte[]> wellKnownTagVals = new HashMap<>();
+	final static String[] tagKeys = { "1", "1outer", "1inner", "type", // relation specific  
+			// 50 most often used keys (taken from taginfo 2016-11-20)
+			"building", "source", 
+			"highway", "addr:housenumber", "addr:street", "name", 
+			"addr:city", "addr:postcode", "natural", "source:date", "addr:country",
+			"landuse", "surface", "created_by", "power",
+			"tiger:cfcc", "waterway", "tiger:county", 
+			"start_date", "tiger:reviewed", "wall",  
+			"amenity", "oneway", "ref:bag", "ref",  
+			"attribution", "tiger:name_base", "building:levels",
+			"maxspeed", "barrier", "tiger:name_type", "height", 
+			"service", "source:addr", "tiger:tlid", "tiger:source",  
+			"lanes", "access", "addr:place", "tiger:zip_left", 
+			"tiger:upload_uuid", "layer", "tracktype", 
+			"ele", "tiger:separated", "tiger:zip_right", 
+			"yh:WIDTH", "place", "foot"
+			};
+	final static String[] tagVals = { "yes", "no", "residential", "garage", "water", "tower",
+			"footway", "Bing", "PGS", "private", "stream", "service",
+			"house", "unclassified", "track", "traffic_signals","restaurant","entrance"
+			};
+
+	static {
+		try {
+			for (String s : tagKeys) {
+				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
+			}
+
+			for (String s : tagVals) {
+				wellKnownTagVals.put(s, s.getBytes("UTF-8"));
+			}
+		} catch (Exception e) {
+			// should not happen
+		}
+	}	
 	
 	//private long countCollisions;
 	
-	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra, Map<String, byte[]> wellKnownTagKeys, Map<String, byte[]> wellKnownTagVals) {
+	public O5mMapWriter(Area bounds, File outputDir, int mapId, int extra) {
 		super(bounds, outputDir, mapId, extra);
-		this.wellKnownTagKeys = wellKnownTagKeys; 
-		this.wellKnownTagVals= wellKnownTagVals; 
 	}
 
 	private void reset() throws IOException{

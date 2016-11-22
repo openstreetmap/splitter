@@ -67,16 +67,4 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 	public Rectangle getBBox(){
 		return bbox;
 	}
-	
-	public boolean nodeBelongsToThisArea(Node node) {
-		return (extendedBounds.contains(node.getMapLat(), node.getMapLon()));
-	}
-
-	public boolean coordsBelongToThisArea(int mapLat, int mapLon) {
-		return (extendedBounds.contains(mapLat,mapLon));
-	}
-	
-	public boolean areaIsPseudo(){
-		return false;
-	}
 }

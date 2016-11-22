@@ -16,27 +16,27 @@ package uk.me.parabola.splitter;
 import java.util.BitSet;
 
 /**
- * A grid that covers the area covered by all writers. Each grid element contains 
+ * A grid that covers the area covered by all areas. Each grid element contains 
  * information about the tiles that are intersecting the grid element and whether 
  * the grid element lies completely within such a tile area.
  * This is used to minimize the needed tests when analyzing coordinates of node coordinates.
  * @author GerdP
  *
  */
-public class WriterGrid implements WriterIndex{
+public class AreaGrid implements AreaIndex{
 	private final Area bounds;
 	private final Grid grid;
-	protected final WriterGridResult r;
-	protected final WriterDictionaryShort writerDictionary;
+	protected final AreaGridResult r;
+	protected final AreaDictionaryShort areaDictionary;
 
 	/**
-	 * Create a grid to speed up the search of writer candidates.
-	 * @param writerDictionary 
+	 * Create a grid to speed up the search of area candidates.
+	 * @param areaDictionary 
 	 * @param withOuter 
 	 */
-	WriterGrid(WriterDictionaryShort writerDictionary){
-		this.writerDictionary = writerDictionary;  
-		r = new WriterGridResult();
+	AreaGrid(AreaDictionaryShort areaDictionary){
+		this.areaDictionary = areaDictionary;  
+		r = new AreaGridResult();
 		long start = System.currentTimeMillis();
 
 		grid = new Grid(null, null);
@@ -49,11 +49,11 @@ public class WriterGrid implements WriterIndex{
 		return bounds;
 	}
 
-	public WriterGridResult get (final Node n){
+	public AreaGridResult get (final Node n){
 		return grid.get(n.getMapLat(),n.getMapLon());
 	}
 
-	public WriterGridResult get (int lat, int lon){
+	public AreaGridResult get (int lat, int lon){
 		return grid.get(lat, lon);
 	}
 
@@ -77,9 +77,9 @@ public class WriterGrid implements WriterIndex{
 		private final int gridDimLon;
 		private final int gridDimLat;
 
-		public Grid(BitSet UsedWriters, Area bounds) {
-			// each element contains an index to the writerDictionary or unassigned
-			if (UsedWriters == null){
+		public Grid(BitSet usedAreas, Area bounds) {
+			// each element contains an index to the areaDictionary or unassigned
+			if (usedAreas == null){
 				gridDimLon = TOP_GRID_DIM_LON;
 				gridDimLat = TOP_GRID_DIM_LAT;
 			}
@@ -88,33 +88,32 @@ public class WriterGrid implements WriterIndex{
 				gridDimLat = SUB_GRID_DIM_LAT;
 			}
 			grid = new short[gridDimLon + 1][gridDimLat + 1];
-			// is true for an element if the list of writers needs to be tested
+			// is true for an element if the list of areas needs to be tested
 			testGrid = new boolean[gridDimLon + 1][gridDimLat + 1];
 			this.bounds = bounds;
-			maxCompares = fillGrid(UsedWriters);
+			maxCompares = fillGrid(usedAreas);
 		}
 		public Area getBounds() {
 			return bounds;
 		}
 		/**
 		 * Create the grid and fill each element
-		 * @param usedWriters 
+		 * @param usedAreas 
 		 * @param testGrid 
 		 * @param grid 
 		 * @return 
 		 */
-		private int fillGrid(BitSet usedWriters) {
+		private int fillGrid(BitSet usedAreas) {
 			int gridStepLon, gridStepLat;
-			OSMWriter[] writers = writerDictionary.getWriters();
 			if (bounds == null){
 				// calculate grid area
 				Area tmpBounds = null;
-				for (int i = 0; i<writers.length; i++){
-					OSMWriter w = writers[i];
-					if (usedWriters == null || usedWriters.get(i))
-						tmpBounds = (tmpBounds ==null) ? w.getExtendedBounds() : tmpBounds.add(w.getExtendedBounds());
+				for (int i = 0; i < areaDictionary.getNumOfAreas(); i++) {
+					Area extBounds = areaDictionary.getExtendedArea(i);
+					if (usedAreas == null || usedAreas.get(i))
+						tmpBounds = (tmpBounds ==null) ? extBounds : tmpBounds.add(extBounds);
 				}
-				// create new Area to make sure that we don't update the writer area
+				// create new Area to make sure that we don't update the existing area
 				bounds = new Area(tmpBounds.getMinLat() , tmpBounds.getMinLong(), tmpBounds.getMaxLat(), tmpBounds.getMaxLong());
 			}
 			// save these results for later use
@@ -130,35 +129,34 @@ public class WriterGrid implements WriterIndex{
 			assert gridStepLon * gridDimLon >= gridWidth : "gridStepLon is too small";
 			assert gridStepLat * gridDimLat >= gridHeight : "gridStepLat is too small";
 
-			int maxWriterSearch = 0;
-			BitSet writerSet = new BitSet(); 
-			BitSet[][] gridWriters = new BitSet[gridDimLon+1][gridDimLat+1];
+			int maxAreaSearch = 0;
+			BitSet areaSet = new BitSet(); 
+			BitSet[][] gridAreas = new BitSet[gridDimLon+1][gridDimLat+1];
 
-			int numWriters = writerDictionary.getNumOfWriters();
-			for (int j = 0; j < numWriters; j++) {
-				OSMWriter w = writers[j];
-				if (!(usedWriters == null || usedWriters.get(j)))
+			for (int j = 0; j < areaDictionary.getNumOfAreas(); j++) {
+				Area extBounds = areaDictionary.getExtendedArea(j); 
+				if (!(usedAreas == null || usedAreas.get(j)))
 					continue;
-				int minLonWriter = w.getExtendedBounds().getMinLong();
-				int maxLonWriter = w.getExtendedBounds().getMaxLong();
-				int minLatWriter = w.getExtendedBounds().getMinLat();
-				int maxLatWriter = w.getExtendedBounds().getMaxLat();
-				int startLon = Math.max(0,(minLonWriter- gridMinLon ) / gridDivLon);
-				int endLon = Math.min(gridDimLon,(maxLonWriter - gridMinLon ) / gridDivLon);
-				int startLat = Math.max(0,(minLatWriter- gridMinLat ) / gridDivLat);
-				int endLat = Math.min(gridDimLat,(maxLatWriter - gridMinLat ) / gridDivLat);
-				// add this writer to all grid elements that intersect with the writer bbox
+				int minLonArea = extBounds.getMinLong();
+				int maxLonArea = extBounds.getMaxLong();
+				int minLatArea = extBounds.getMinLat();
+				int maxLatArea = extBounds.getMaxLat();
+				int startLon = Math.max(0,(minLonArea- gridMinLon ) / gridDivLon);
+				int endLon = Math.min(gridDimLon,(maxLonArea - gridMinLon ) / gridDivLon);
+				int startLat = Math.max(0,(minLatArea- gridMinLat ) / gridDivLat);
+				int endLat = Math.min(gridDimLat,(maxLatArea - gridMinLat ) / gridDivLat);
+				// add this area to all grid elements that intersect with it
 				for (int lon = startLon; lon <= endLon; lon++) {
 					int testMinLon = gridMinLon + gridStepLon * lon;
 					for (int lat = startLat; lat <= endLat; lat++) {
 						int testMinLat = gridMinLat + gridStepLat * lat;
-						if (gridWriters[lon][lat]== null)
-							gridWriters[lon][lat] = new BitSet();
-						// add this writer
-						gridWriters[lon][lat].set(j);
-						if (!w.getExtendedBounds().contains(testMinLat, testMinLon)
-								|| !w.getExtendedBounds().contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
-							// grid area is not completely within writer area 
+						if (gridAreas[lon][lat]== null)
+							gridAreas[lon][lat] = new BitSet();
+						// add this area
+						gridAreas[lon][lat].set(j);
+						if (!extBounds.contains(testMinLat, testMinLon)
+								|| !extBounds.contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
+							// grid area is not completely within area 
 							testGrid[lon][lat] = true;
 						}
 					}
@@ -166,12 +164,12 @@ public class WriterGrid implements WriterIndex{
 			}
 			for (int lon = 0; lon <= gridDimLon; lon++) {
 				for (int lat = 0; lat <= gridDimLat; lat++) {
-					writerSet = (gridWriters[lon][lat]);
-					if (writerSet == null)
+					areaSet = (gridAreas[lon][lat]);
+					if (areaSet == null)
 						grid[lon][lat] = AbstractMapProcessor.UNASSIGNED;
 					else {
 						if (testGrid[lon][lat]){
-							int numTests = writerSet.cardinality();
+							int numTests = areaSet.cardinality();
 							if (numTests  >  MAX_TESTS){ 
 								if (gridStepLat > MIN_GRID_LAT && gridStepLon > MIN_GRID_LON){
 									Area gridPart = new Area(gridMinLat + gridStepLat * lat, gridMinLon + gridStepLon * lon,
@@ -182,21 +180,21 @@ public class WriterGrid implements WriterIndex{
 										subGrid = new Grid [gridDimLon + 1][gridDimLat + 1];
 									usedSubGridElems++;
 
-									subGrid[lon][lat] = new Grid(writerSet, gridPart);
+									subGrid[lon][lat] = new Grid(areaSet, gridPart);
 									numTests = subGrid[lon][lat].getMaxCompares() + 1;
-									maxWriterSearch = Math.max(maxWriterSearch, numTests);
+									maxAreaSearch = Math.max(maxAreaSearch, numTests);
 									continue;
 								}
 							}
-							maxWriterSearch = Math.max(maxWriterSearch, numTests);
+							maxAreaSearch = Math.max(maxAreaSearch, numTests);
 						}
-						grid[lon][lat] = writerDictionary.translate(writerSet);
+						grid[lon][lat] = areaDictionary.translate(areaSet);
 					}
 				}
 			}
-			System.out.println("WriterGridTree [" + gridDimLon + "][" + gridDimLat + "] for grid area " + bounds + 
-					" requires max. " + maxWriterSearch + " checks for each node (" + usedSubGridElems + " sub grid(s))" );
-			return maxWriterSearch;
+			System.out.println("AreaGridTree [" + gridDimLon + "][" + gridDimLat + "] for grid area " + bounds + 
+					" requires max. " + maxAreaSearch + " checks for each node (" + usedSubGridElems + " sub grid(s))" );
+			return maxAreaSearch;
 			
 		}
 		
@@ -208,13 +206,13 @@ public class WriterGrid implements WriterIndex{
 			return maxCompares;
 		}
 		/**
-		 * For a given node, return the list of writers that may contain it 
+		 * For a given node, return the list of areas that may contain it 
 		 * @param node the node
-		 * @return a reference to an {@link WriterGridResult} instance that contains 
+		 * @return a reference to an {@link AreaGridResult} instance that contains 
 		 * the list of candidates and a boolean that shows whether this list
 		 * has to be verified or not. 
 		 */
-		public WriterGridResult get(final int lat, final int lon){
+		public AreaGridResult get(final int lat, final int lon){
 			if (!bounds.contains(lat, lon)) 
 				return null;
 			int gridLonIdx = (lon - gridMinLon ) / gridDivLon; 
@@ -223,16 +221,16 @@ public class WriterGrid implements WriterIndex{
 			if (subGrid != null){
 				Grid sub = subGrid[gridLonIdx][gridLatIdx];
 				if (sub != null){
-					// get list of writer candidates from sub grid
+					// get list of area candidates from sub grid
 					return sub.get(lat, lon);
 				}
 			}
-			// get list of writer candidates from grid
+			// get list of area candidates from grid
 			short idx = grid[gridLonIdx][gridLatIdx];
 			if (idx == AbstractMapProcessor.UNASSIGNED) 
 				return null;
 			r.testNeeded = testGrid[gridLonIdx][gridLatIdx];
-			r.l = writerDictionary.getList(idx);
+			r.l = areaDictionary.getList(idx);
 			return r; 		
 		}
 	}

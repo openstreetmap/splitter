@@ -31,7 +31,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	private SparseLong2ShortMapFunction coords;
 	private SparseLong2ShortMapFunction ways; 	
-	private final WriterDictionaryShort writerDictionary;
+	private final AreaDictionaryShort writerDictionary;
 	private final DataStorer dataStorer;
 	private final Long2IntClosedMapFunction nodeWriterMap;
 	private final Long2IntClosedMapFunction wayWriterMap;
@@ -45,7 +45,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private long countWays = 0;
 	private final int writerOffset;
 	private final int lastWriter;
-	private WriterIndex writerIndex;
+	private final AreaIndex writerIndex;
 	private final int maxThreads;
 	private final short unassigned = Short.MIN_VALUE;
 
@@ -65,8 +65,8 @@ class SplitProcessor extends AbstractMapProcessor {
 			int writerOffset, int numWritersThisPass, int maxThreads){
 		this.dataStorer = dataStorer;
 		this.oneTileOnlyRels = oneTileOnlyRels;
-		this.writerDictionary = dataStorer.getWriterDictionary();
-		this.writers = writerDictionary.getWriters();
+		this.writerDictionary = dataStorer.getAreaDictionary();
+		this.writers = dataStorer.getWriters();
 		this.coords = SparseLong2ShortMap.createMap("coord");
 		this.ways   = SparseLong2ShortMap.createMap("way");
 		this.coords.defaultReturnValue(unassigned);
@@ -112,9 +112,9 @@ class SplitProcessor extends AbstractMapProcessor {
 	@Override
 	public void processWay(Way w) {
 		currentWayAreaSet.clear();
-		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): WriterDictionaryInt.UNASSIGNED;
-		if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
-			BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): AreaDictionaryInt.UNASSIGNED;
+		if (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED){
+			BitSet cl = dataStorer.getMultiTileDictionary().getBitSet(multiTileWriterIdx);
 			// set only active writer bits
 			for(int i=cl.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=cl.nextSetBit(i+1)){
 				currentWayAreaSet.set(i);
@@ -169,16 +169,16 @@ class SplitProcessor extends AbstractMapProcessor {
 				return;
 			}
 			
-			BitSet wl = dataStorer.getMultiTileWriterDictionary().getBitSet(singleTileWriterIdx);
+			BitSet wl = dataStorer.getMultiTileDictionary().getBitSet(singleTileWriterIdx);
 			// set only active writer bits
 			for (int i = wl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = wl.nextSetBit(i + 1)) {
 				currentRelAreaSet.set(i);
 			}
 		} else {
-			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): WriterDictionaryInt.UNASSIGNED;
-			if (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED){
+			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId()): AreaDictionaryInt.UNASSIGNED;
+			if (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED){
 
-				BitSet cl = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+				BitSet cl = dataStorer.getMultiTileDictionary().getBitSet(multiTileWriterIdx);
 				// set only active writer bits
 				for (int i = cl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = cl.nextSetBit(i + 1)) {
 					currentRelAreaSet.set(i);
@@ -267,10 +267,10 @@ class SplitProcessor extends AbstractMapProcessor {
 	private void writeNode(Node currentNode) throws IOException {
 		int countWriters = 0;
 		short lastUsedWriter = unassigned;
-		WriterGridResult writerCandidates = writerIndex.get(currentNode);
-		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): WriterDictionaryInt.UNASSIGNED;
+		AreaGridResult writerCandidates = writerIndex.get(currentNode);
+		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): AreaDictionaryInt.UNASSIGNED;
 
-		boolean isSpecialNode = (multiTileWriterIdx != WriterDictionaryInt.UNASSIGNED);
+		boolean isSpecialNode = (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED);
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}
@@ -281,10 +281,10 @@ class SplitProcessor extends AbstractMapProcessor {
 				int n = writerCandidates.l.getShort(i);
 				if (n < writerOffset || n > lastWriter)
 					continue;
-				OSMWriter w = writers[n];
+				OSMWriter writer = writers[n];
 				boolean found;
 				if (writerCandidates.testNeeded){
-					found = w.nodeBelongsToThisArea(currentNode);
+					found = writer.getExtendedBounds().contains(currentNode);
 					++countFullTest;
 				}
 				else{ 
@@ -298,14 +298,14 @@ class SplitProcessor extends AbstractMapProcessor {
 					if (maxThreads > 1) {
 						addToWorkingQueue(n, currentNode);
 					} else {
-						w.write(currentNode);
+						writer.write(currentNode);
 					}
 				}
 			}
 		}
 		if (isSpecialNode){
 			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
-			BitSet nodeWriters = dataStorer.getMultiTileWriterDictionary().getBitSet(multiTileWriterIdx);
+			BitSet nodeWriters = dataStorer.getMultiTileDictionary().getBitSet(multiTileWriterIdx);
 			for(int i=nodeWriters.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=nodeWriters.nextSetBit(i+1)){
 				if (usedWriters.get(i) )
 					continue;
@@ -322,7 +322,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			if (countWriters > 1)
 				writersID = writerDictionary.translate(usedWriters);
 			else  
-				writersID = (short) (lastUsedWriter  - WriterDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
+				writersID = (short) (lastUsedWriter  - AreaDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
