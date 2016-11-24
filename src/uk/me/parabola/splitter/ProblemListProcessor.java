@@ -13,7 +13,6 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.Arrays;
@@ -41,7 +40,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final DataStorer dataStorer;
 	private final LongArrayList problemWays = new LongArrayList(); 
 	private final LongArrayList problemRels = new LongArrayList();
-	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels;
 
 	/** each bit represents one distinct area */
 	private final BitSet areaSet = new BitSet();
@@ -61,8 +59,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final HashSet<String> wantedBoundaryTagValues;
 	
 	ProblemListProcessor(DataStorer dataStorer, int areaOffset,
-			int numAreasThisPass, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
-			String[] boundaryTagList) {
+			int numAreasThisPass, String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
 		this.areaDictionary = dataStorer.getAreaDictionary();
 		if (dataStorer.getUsedWays() == null){
@@ -80,7 +77,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.areaOffset = areaOffset;
 		this.lastAreaOffset = areaOffset + numAreasThisPass - 1;
 		this.isLastPass = (areaOffset + numAreasThisPass == dataStorer.getNumOfAreas());
-		this.oneTileOnlyRels = oneTileOnlyRels;
 		if (boundaryTagList != null && boundaryTagList.length > 0)
 			wantedBoundaryTagValues = new HashSet<>(Arrays.asList(boundaryTagList));
 		else 
@@ -165,7 +161,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			if (countAreas > 1)
 				areaIdx = areaDictionary.translate(areaSet);
 			else  
-				areaIdx = (short) (lastUsedArea  - AreaDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
+				areaIdx = AreaDictionaryShort.translate(lastUsedArea); // no need to do lookup in the dictionary 
 			coords.put(node.getId(), areaIdx);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
@@ -307,17 +303,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			if (checkIfMultipleAreas(areaSet)){
 				problemRels.add(rel.getId());
 			} else {
+			    
 				// the relation is only in one distinct area
-				int newAreaIdx = -1;
-				for (int i = areaSet.nextSetBit(0); i >= 0; i = areaSet.nextSetBit(i+1)){
-					if (dataStorer.getArea(i).isPseudoArea() == false)  {
-						// this should be the only area
-						newAreaIdx = i;
-						break;
-					}
-				}
-				// store the info that the rel is only in one distinct area
-				oneTileOnlyRels.put(rel.getId(), new Integer(newAreaIdx));
+			    relAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
+				// store the info that the rel is only in one distinct area (-1 means pseudo-area)
+				dataStorer.storeRelationArea(rel.getId(), relAreaIdx);
 			}
 			return;
 		}

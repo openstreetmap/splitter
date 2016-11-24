@@ -13,44 +13,18 @@
 
 package uk.me.parabola.splitter;
 
-import crosby.binary.file.BlockInputStream;
-
-import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 import org.xmlpull.v1.XmlPullParserException;
 
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
-import uk.me.parabola.splitter.geo.City;
-import uk.me.parabola.splitter.geo.CityFinder;
-import uk.me.parabola.splitter.geo.CityLoader;
-import uk.me.parabola.splitter.geo.DefaultCityFinder;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongArrayList;
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
-
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.LineNumberReader;
-import java.io.PrintWriter;
-import java.io.Reader;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -103,8 +77,6 @@ public class Main {
 	private boolean mixed;
 	// A polygon file in osmosis polygon format
 	private String polygonFile;
-	private List<PolygonDesc> polygons = new ArrayList<>();
-	Rectangle polgonsBoundingBox = null;
 
 	// The path where the results are written out to.
 	private File fileOutputDir;
@@ -130,29 +102,21 @@ public class Main {
 	
 	private String[] boundaryTags;
 	
-	private LongArrayList problemWays = new LongArrayList();
-	private LongArrayList problemRels = new LongArrayList();
-	
-	// map with relations that should be complete and are written to only one tile 
-	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels = new Long2ObjectOpenHashMap<>();
-
-	// for faster access on blocks in pbf files
-	private final HashMap<String, ShortArrayList> blockTypeMap = new HashMap<>(); 
-	// for faster access on blocks in o5m files
-	private final HashMap<String, long[]> skipArrayMap = new HashMap<>();
-
 	private String stopAfter;
 
 	private String precompSeaDir;
 
 	private String polygonDescFile;
-	private PolygonDescProcessor polygonDescProcessor;
 
 	private int searchLimit;
 	
 	private String handleElementVersion;
 
 	private boolean ignoreBoundsTags;
+
+	private final OSMFileHandler osmFileHandler = new OSMFileHandler();
+	private final AreasCalculator areasCalculator = new AreasCalculator();
+	private final ProblemLists problemList = new ProblemLists();
 	
 	public static void main(String[] args) {
 		Main m = new Main();
@@ -187,7 +151,16 @@ public class Main {
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
 		try {
-			split();
+		    List<Area> areas = split();
+		    DataStorer dataStorer;
+		    if (keepComplete) {
+		        dataStorer = calcProblemLists(areas);
+		        useProblemLists(dataStorer);
+		    } else { 
+		        dataStorer = new DataStorer(areas, overlapAmount);
+		    }
+		    writeTiles(dataStorer);
+		    dataStorer.finish();
 		} catch (IOException e) {
 			System.err.println("Error opening or reading file " + e);
 			e.printStackTrace();
@@ -236,104 +209,96 @@ public class Main {
 		*/
 	}
 	
-	private void split() throws IOException, XmlPullParserException {
+    private List<Area> split() throws IOException, XmlPullParserException {
 
-		File outputDir = fileOutputDir;
-		if (!outputDir.exists()) {
-			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
-			if (!outputDir.mkdirs()) {
-				System.err.println("Unable to create output directory! Using default directory instead");
-				fileOutputDir = new File(DEFAULT_DIR);
-			}
-		} else if (!outputDir.isDirectory()) {
-			System.err.println("The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
-			fileOutputDir = new File(DEFAULT_DIR);
-		}
+        File outputDir = fileOutputDir;
+        if (!outputDir.exists()) {
+            System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
+            if (!outputDir.mkdirs()) {
+                System.err.println("Unable to create output directory! Using default directory instead");
+                fileOutputDir = new File(DEFAULT_DIR);
+            }
+        } else if (!outputDir.isDirectory()) {
+            System.err.println("The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
+            fileOutputDir = new File(DEFAULT_DIR);
+        }
 
-		if (fileNameList.isEmpty()) {
-			throw new IllegalArgumentException("No input files were supplied");
-		}
+        if (fileNameList.isEmpty()) {
+            throw new IllegalArgumentException("No input files were supplied");
+        }
 
-		if (areaList == null) {
-			int alignment = 1 << (24 - resolution);
-			System.out.println("Map is being split for resolution " + resolution + ':');
-			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units (" + Utils.toDegrees(alignment) + " degrees)");
-			System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
-			areaList = calculateAreas();
-			if (areaList == null || areaList.getAreas().isEmpty()){
-				System.err.println("Failed to calculate areas. See stdout messages for details.");
-				System.out.println("Failed to calculate areas.");
-				System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
-				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
-				throw new SplitFailedException("");
-			}
-			if (mapId + areaList.getAreas().size() > 99999999){
-				System.err.println("Too many areas for initial mapid " + mapId + ", resetting to 63240001");
-				mapId = 63240001;
-			}
-			for (Area area : areaList.getAreas()) {
-				area.setMapId(mapId++);
-				if (description != null)
-					area.setName(description);
-			}
-			nameAreas();
-			areaList.write(new File(fileOutputDir, "areas.list").getPath());
-			areaList.writePoly(new File(fileOutputDir, "areas.poly").getPath());
-		} else {
-			nameAreas();
-		}
+        boolean writeAreas = false;
+        if (areaList.getAreas().isEmpty()) {
+            writeAreas = true;
+            int alignment = 1 << (24 - resolution);
+            System.out.println("Map is being split for resolution " + resolution + ':');
+            System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units (" + Utils.toDegrees(alignment) + " degrees)");
+            System.out.println(" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
+            areaList.setAreas(calculateAreas());
+            if (areaList == null || areaList.getAreas().isEmpty()){
+                System.err.println("Failed to calculate areas. See stdout messages for details.");
+                System.out.println("Failed to calculate areas.");
+                System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
+                System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
+                throw new SplitFailedException("");
+            }
+            if (mapId + areaList.getAreas().size() > 99999999){
+                System.err.println("Too many areas for initial mapid " + mapId + ", resetting to 63240001");
+                mapId = 63240001;
+            }
+            areaList.setMapIds(mapId);
+        }
+        areaList.setAreaNames();
+        if (writeAreas) {
+            areaList.write(new File(fileOutputDir, "areas.list").getPath());
+            areaList.writePoly(new File(fileOutputDir, "areas.poly").getPath());
+        }
 
-		List<Area> areas = areaList.getAreas();
+        List<Area> areas = areaList.getAreas();
 
-		if (kmlOutputFile != null) {
-			File out = new File(kmlOutputFile);
-			if (!out.isAbsolute())
-				out = new File(fileOutputDir, kmlOutputFile);
-			System.out.println("Writing KML file to " + out.getPath());
-			areaList.writeKml(out.getPath());
-		}
-		if (polygonDescProcessor != null)
-			polygonDescProcessor.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
-		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
-		
-		if ("split".equals(stopAfter)){
-			try {Thread.sleep(1000);}catch (InterruptedException e) {}
-			System.err.println("stopped after " + stopAfter); 
-			throw new StopNoErrorException("stopped after " + stopAfter);
-		}
+        if (kmlOutputFile != null) {
+            File out = new File(kmlOutputFile);
+            if (!out.isAbsolute())
+                out = new File(fileOutputDir, kmlOutputFile);
+            KmlWriter.writeKml(out.getPath(), areas);
+        }
+        areasCalculator.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
+        areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
+        
+        if ("split".equals(stopAfter)){
+            try {Thread.sleep(1000);}catch (InterruptedException e) {}
+            System.err.println("stopped after " + stopAfter); 
+            throw new StopNoErrorException("stopped after " + stopAfter);
+        }
 
-		System.out.println(areas.size() + " areas:");
-		for (Area area : areas) {
-			System.out.format("Area %08d: %d,%d to %d,%d covers %s",
-					area.getMapId(),
-					area.getMinLat(), area.getMinLong(),
-					area.getMaxLat(), area.getMaxLong(),
-					area.toHexString());
-			
-			if (area.getName() != null)
-				System.out.print(' ' + area.getName());
-			System.out.println();
-		}
-		
-		List<Area> distinctAreas = null;
-		if (keepComplete){
-			distinctAreas  = genProblemLists(areas);
-			if ("gen-problem-list".equals(stopAfter)){
-				try {Thread.sleep(1000);}catch (InterruptedException e) {}
-				System.err.println("stopped after " + stopAfter); 
-				throw new StopNoErrorException("stopped after " + stopAfter);
-			}
-			
-		}
-		DataStorer dataStorer = new DataStorer(areas, overlapAmount);
-		translateDistinctToRealAreas (dataStorer, distinctAreas);
-		distinctAreas = null; // free memory
-		writeAreas(dataStorer, areas);
-	}
+        System.out.println(areas.size() + " areas:");
+        for (Area area : areas) {
+            System.out.format("Area %08d: %d,%d to %d,%d covers %s",
+                    area.getMapId(),
+                    area.getMinLat(), area.getMinLong(),
+                    area.getMaxLat(), area.getMaxLong(),
+                    area.toHexString());
+            
+            if (area.getName() != null)
+                System.out.print(' ' + area.getName());
+            System.out.println();
+        }
+        return areas;
+    }
 
-	private int getAreasPerPass(int areaCount) {
-		return (int) Math.ceil((double) areaCount / (double) maxAreasPerPass);
-	}
+    private DataStorer calcProblemLists(List<Area> areas) {
+        DataStorer dataStorer = problemList.calcProblemLists(osmFileHandler, areas, wantedAdminLevel, boundaryTags, maxAreasPerPass, overlapAmount);
+        if (problemReport != null){
+            problemList.writeProblemList(fileOutputDir, problemReport); 
+        }
+
+        if ("gen-problem-list".equals(stopAfter)){
+            try {Thread.sleep(1000);}catch (InterruptedException e) {}
+            System.err.println("stopped after " + stopAfter); 
+            throw new StopNoErrorException("stopped after " + stopAfter);
+        }
+        return dataStorer;
+    }
 
 	/**
 	 * Deal with the command line arguments.
@@ -374,6 +339,7 @@ public class Main {
 			System.out.println("Make sure that option parameters start with -- " );
 			throw new IllegalArgumentException();
 		}
+		osmFileHandler.setFileNames(fileNameList);
 		mapId = params.getMapid();
 		if (mapId > 99999999) {
 			mapId = 63240001;
@@ -400,11 +366,13 @@ public class Main {
 			}
 		}
 		description = params.getDescription();
+		areaList = new AreaList(description);
 		geoNamesFile = params.getGeonamesFile();
 		if (geoNamesFile != null){
 			if (testAndReportFname(geoNamesFile, "geonames-file") == false){
 				throw new IllegalArgumentException();
 			}
+			areaList.setGeoNamesFile (geoNamesFile);
 		}
 		resolution = params.getResolution();
 		trim = !params.isNoTrim();
@@ -419,6 +387,7 @@ public class Main {
 			resolution = 13;
 		}
 		mixed = params.isMixed();
+		osmFileHandler.setMixed(mixed);
 		statusFreq = params.getStatusFreq();
 		
 		String outputDir = params.getOutputDir();
@@ -435,7 +404,7 @@ public class Main {
 		
 		problemFile = params.getProblemFile();
 		if (problemFile != null){
-			if (!readProblemIds(problemFile))
+		    if (!problemList.readProblemIds(problemFile)) 
 				throw new IllegalArgumentException();
 		}
 		String splitFile = params.getSplitFile();
@@ -464,8 +433,7 @@ public class Main {
 		problemReport = params.getProblemReport();
 		String boundaryTagsParm = params.getBoundaryTags();
 		if ("use-exclude-list".equals(boundaryTagsParm) == false){
-			Pattern csvSplitter = Pattern.compile(Pattern.quote(","));
-			boundaryTags = csvSplitter.split(boundaryTagsParm);
+			boundaryTags = boundaryTagsParm.split(Pattern.quote(","));
 		}
 		
 		if (keepComplete){
@@ -505,7 +473,7 @@ public class Main {
 		}
 		if (splitFile != null) {
 			try {
-				areaList = new AreaList();
+				areaList = new AreaList(description);
 				areaList.read(splitFile);
 				areaList.dump();
 			} catch (IOException e) {
@@ -520,17 +488,7 @@ public class Main {
 			if (splitFile != null){
 				System.out.println("Warning: parameter polygon-file is ignored because split-file is used.");
 			} else {
-				File f = new File(polygonFile);
-
-				if (!f.exists()){
-					throw new IllegalArgumentException("polygon file doesn't exist: " + polygonFile);
-				}
-				PolygonFileReader polyReader = new PolygonFileReader(f);
-				java.awt.geom.Area polygonInDegrees = polyReader.loadPolygon();
-				PolygonDesc pd = new PolygonDesc(polyReader.getPolygonName(),
-						Utils.AreaDegreesToMapUnit(polygonInDegrees), 
-						mapId);
-				polygons.add(pd);
+			  areasCalculator.readPolygonFile(polygonFile, mapId);
 			}
 		}
 		polygonDescFile = params.getPolygonDescFile();
@@ -538,32 +496,14 @@ public class Main {
 			if (splitFile != null){
 				System.out.println("Warning: parameter polygon-desc-file is ignored because split-file is used.");
 			} else {
-				File f = new File(polygonDescFile);
-
-				if (!f.exists()){
-					System.out.println("Error: polygon desc file doesn't exist: " + polygonDescFile);  
-					System.exit(-1);
-				}
-				polygonDescProcessor = new PolygonDescProcessor(resolution);
-				try {
-					processOSMFiles(polygonDescProcessor, Arrays.asList(polygonDescFile));
-					polygons = polygonDescProcessor.getPolygons();
-				} catch (XmlPullParserException e) {
-					polygons = null;
-					polygonDescProcessor = null;
-					System.err.println("Could not read polygon desc file");
-					e.printStackTrace();
-				}
+			  areasCalculator.readPolygonDescFile(polygonDescFile);
 			}
 		}
-		if (polygons.isEmpty() == false){
-			if (polygons.size() == 1){
-				polgonsBoundingBox = polygons.get(0).area.getBounds(); 
-			}
-			if (checkPolygons() == false){
-				System.out.println("Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-			}
-		}
+    areasCalculator.setResolution(resolution);
+    if (!areasCalculator.checkPolygons()) {
+      System.out.println(
+          "Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
+    }
 		stopAfter = params.getStopAfter();
 		if (Arrays.asList("split", "gen-problem-list" , "handle-problem-list", "dist").contains(stopAfter) == false){
 			throw new IllegalArgumentException("the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
@@ -576,8 +516,9 @@ public class Main {
 				throw new IllegalArgumentException("precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);  
 			}
 		}
-		if (polygons.isEmpty() == false && numTiles > 0){
-			if (polygons.size() == 1){
+		int numPolygons = areasCalculator.getPolygons().size();
+		if (numPolygons > 0 && numTiles > 0){
+			if (numPolygons == 1){
 				System.out.println("Warning: Parameter polygon-file is only used to calculate the bounds because --num-tiles is used");
 			} else {
 				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
@@ -599,202 +540,72 @@ public class Main {
 	 * Calculate the areas that we are going to split into by getting the total area and
 	 * then subdividing down until each area has at most max-nodes nodes in it.
 	 */
-	private AreaList calculateAreas() throws XmlPullParserException {
+	private List<Area> calculateAreas() throws XmlPullParserException {
 
-		DensityMapCollector pass1Collector = new DensityMapCollector(resolution, ignoreBoundsTags); 
-		MapProcessor processor = pass1Collector;
-		
-		File densityData = new File("densities.txt");
-		File densityOutData = null;
-		if (densityData.exists() && densityData.isFile()){
-			System.err.println("reading density data from " + densityData.getAbsolutePath());
-			pass1Collector.readMap(densityData.getAbsolutePath());
-		}
-		else {
-			densityOutData = new File(fileOutputDir,"densities-out.txt");
-			processMap(processor);
-		}
-		System.out.println("in " + fileNameList.size() + (fileNameList.size() == 1 ? " file" : " files"));
-		System.out.println("Time: " + new Date());
-		if (densityOutData != null )
-			pass1Collector.saveMap(densityOutData.getAbsolutePath());
+	  DensityMapCollector pass1Collector = new DensityMapCollector(resolution, ignoreBoundsTags); 
+	  MapProcessor processor = pass1Collector;
 
-		Area exactArea = pass1Collector.getExactArea();
-		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
-		if (polgonsBoundingBox != null){
-			exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
-			if (exactArea != null)
-				System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
-			else { 
-				System.out.println("Exact map coverage after applying bounding box of polygon-file is an empty area" );
-				return new AreaList(new ArrayList<Area>());
-			}
-		}
+	  File densityData = new File("densities.txt");
+	  File densityOutData = null;
+	  if (densityData.exists() && densityData.isFile()){
+	    System.err.println("reading density data from " + densityData.getAbsolutePath());
+	    pass1Collector.readMap(densityData.getAbsolutePath());
+	  }
+	  else {
+	    densityOutData = new File(fileOutputDir,"densities-out.txt");
+	    osmFileHandler.process(processor);
+	  }
+	  System.out.println("in " + fileNameList.size() + (fileNameList.size() == 1 ? " file" : " files"));
+	  System.out.println("Time: " + new Date());
+	  if (densityOutData != null )
+	    pass1Collector.saveMap(densityOutData.getAbsolutePath());
 
-		if (precompSeaDir != null){
-			System.out.println("Counting nodes of precompiled sea data ...");
-			long startSea = System.currentTimeMillis();
-			DensityMapCollector seaCollector = new DensityMapCollector(resolution, true);
-			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
-			precompSeaReader.processMap(seaCollector);
-			pass1Collector.mergeSeaData(seaCollector, trim, resolution);
-			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
-		}
-		Area roundedBounds = RoundingUtils.round(exactArea, resolution);
-		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(searchLimit, roundedBounds);
-		if (splittableArea.hasData() == false){
-			System.out.println("input file(s) have no data inside calculated bounding box"); 
-			return new AreaList(new ArrayList<Area>());
-		}
-		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
-		
-		splittableArea.setTrim(trim);
-		splittableArea.setMapId(mapId);
-		long startSplit = System.currentTimeMillis();
-		List<Area> areas ;
-		if (numTiles >= 2){
-			System.out.println("Splitting nodes into " + numTiles + " areas");
-			areas = splittableArea.split(numTiles);
-		}
-		else {
-			System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
-			splittableArea.setMaxNodes(maxNodes);
-			areas = splittableArea.split(polygons);
-		}
-		if (areas != null && areas.isEmpty() == false)
-			System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
-		return new AreaList(areas);
-	}
-	
-	private void nameAreas() {
-		CityFinder cityFinder = null;
-		if (geoNamesFile != null){
-			CityLoader cityLoader = new CityLoader(true);
-			List<City> cities = cityLoader.load(geoNamesFile);
-			if (cities == null)
-				return;
+	  Area exactArea = pass1Collector.getExactArea();
+	  System.out.println("Exact map coverage read from input file(s) is " + exactArea);
+	  if (areasCalculator.getPolygons().size() == 1){
+	    Rectangle polgonsBoundingBox = areasCalculator.getPolygons().get(0).area.getBounds(); 
+	    exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
+	    if (exactArea != null)
+	      System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
+	    else { 
+	      System.out.println("Exact map coverage after applying bounding box of polygon-file is an empty area" );
+	      return Collections.emptyList();
+	    }
+	  }
 
-			cityFinder = new DefaultCityFinder(cities);
-		}
-		for (Area area : areaList.getAreas()) {
-			area.setName(description);
-			if (cityFinder == null)
-				continue;
+	  if (precompSeaDir != null){
+	    System.out.println("Counting nodes of precompiled sea data ...");
+	    long startSea = System.currentTimeMillis();
+	    DensityMapCollector seaCollector = new DensityMapCollector(resolution, true);
+	    PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
+	    precompSeaReader.processMap(seaCollector);
+	    pass1Collector.mergeSeaData(seaCollector, trim, resolution);
+	    System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis()-startSea) + " ms");
+	  }
+	  Area roundedBounds = RoundingUtils.round(exactArea, resolution);
+	  SplittableDensityArea splittableArea = pass1Collector.getSplitArea(searchLimit, roundedBounds);
+	  if (splittableArea.hasData() == false){
+	    System.out.println("input file(s) have no data inside calculated bounding box"); 
+	    return Collections.emptyList();
+	  }
+	  System.out.println("Rounded map coverage is " + splittableArea.getBounds());
 
-			// Decide what to call the area
-			Set<City> found = cityFinder.findCities(area);
-			City bestMatch = null;
-			for (City city : found) {
-				if (bestMatch == null || city.getPopulation() > bestMatch.getPopulation()) {
-					bestMatch = city;
-				}
-			}
-			if (bestMatch != null)
-				area.setName(bestMatch.getCountryCode() + '-' + bestMatch.getName());
-		}
-	}
-
-	/**
-	 * Calculate lists of ways and relations that will be split for a given list
-	 * of areas.
-	 * @param distinctAreas	the list of areas
-	 * @return 
-	 * @throws IOException
-	 * @throws XmlPullParserException
-	 */
-	private  ArrayList<Area> genProblemLists(List<Area> realAreas) throws IOException, XmlPullParserException {
-		long startProblemListGenerator = System.currentTimeMillis();
-
-		ArrayList<Area> distinctAreas = getNonOverlappingAreas(realAreas);
-		if (distinctAreas.size() > realAreas.size()) {
-			System.err.println("Waring: The areas given in --split-file are overlapping. Support for this might be removed in future versions.");
-			Set<Integer> overlappingTiles = new TreeSet<>();
-			for (int i = 0; i < realAreas.size(); i++) {
-				Area a1 = realAreas.get(i);
-				for (int j = i+1; j < realAreas.size(); j++) {
-					Area a2 = realAreas.get(j);
-					if (a1.intersects(a2)) {
-						overlappingTiles.add(a1.getMapId());
-						overlappingTiles.add(a2.getMapId());
-					}
-				}
-			}
-			if (!overlappingTiles.isEmpty()) {
-				System.out.println("Overlaping tiles: " + overlappingTiles.toString());
-			}
-		}
-		System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
-		List<Area> workAreas = addPseudoAreas(distinctAreas);
-		
-		
-		// debugging
-		/*
-		AreaList planet = new AreaList(workAreas);
-		String planetName = "planet-partition-" + partition + ".kml";
-		File out = new File(planetName);
-		if (!out.isAbsolute())
-			kmlOutputFile = new File(fileOutputDir, planetName).getPath();
-		System.out.println("Writing planet KML file " + kmlOutputFile);
-		planet.writeKml(kmlOutputFile);
-		*/
-		int numPasses = getAreasPerPass(workAreas.size());
-		int areasPerPass = (int) Math.ceil((double) workAreas.size() / (double) numPasses);
-		if (numPasses > 1) {
-			System.out.println("Processing " + distinctAreas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
-		} else {
-			System.out.println("Processing " + distinctAreas.size() + " areas in a single pass");
-		}
-
-		ArrayList<Area> allAreas = new ArrayList<>();
-
-		System.out.println("Pseudo areas:");
-		for (int j = 0;j < workAreas.size(); j++){
-			Area area = workAreas.get(j);
-			allAreas.add(area);
-			if (area.isPseudoArea())
-				System.out.println("Pseudo area " + area.getMapId() + " covers " + area);
-		}
-		DataStorer dataStorer = new DataStorer(workAreas, overlapAmount);
-		System.out.println("Starting problem-list-generator pass(es)"); 
-		TreeSet<Long> calculatedProblemWays = new TreeSet<>();
-		TreeSet<Long> calculatedProblemRels = new TreeSet<>();
-		
-		for (int pass = 0; pass < numPasses; pass++) {
-			System.out.println("-----------------------------------");
-			System.out.println("Starting problem-list-generator pass " + (pass+1) + " of " + numPasses);
-			long startThisPass = System.currentTimeMillis();
-			int areaOffset = pass * areasPerPass;
-			int numAreasThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
-			ProblemListProcessor processor = new ProblemListProcessor(
-					dataStorer, areaOffset, numAreasThisPass,
-					oneTileOnlyRels, boundaryTags);
-			processor.setWantedAdminLevel(wantedAdminLevel);
-			
-			boolean done = false;
-			while (!done){
-				done = processMap(processor);
-				calculatedProblemWays.addAll(processor.getProblemWays());
-				calculatedProblemRels.addAll(processor.getProblemRels());
-			}
-			System.out.println("Problem-list-generator pass " + (pass+1) + " took " + (System.currentTimeMillis() - startThisPass) + " ms"); 
-		}
-		//writeProblemList("problem-candidates-partition-" + partition + ".txt", problemWaysThisPart, problemRelsThisPart);
-		System.out.println("Problem-list-generator pass(es) took " + (System.currentTimeMillis() - startProblemListGenerator) + " ms");
-		if (distinctAreas.size() > realAreas.size()) {
-			// correct wrong entries caused by partitioning 
-			for (Long id: calculatedProblemRels){
-				oneTileOnlyRels.remove(id);
-			}
-		}
-		if (problemReport != null){
-			writeProblemList(problemReport, 
-					calculatedProblemWays,
-					calculatedProblemRels);
-		}
-		// add the user given problem polygons
-		problemWays.addAll(calculatedProblemWays);
-		problemRels.addAll(calculatedProblemRels);
-		return distinctAreas;
+	  splittableArea.setTrim(trim);
+	  splittableArea.setMapId(mapId);
+	  long startSplit = System.currentTimeMillis();
+	  List<Area> areas ;
+	  if (numTiles >= 2){
+	    System.out.println("Splitting nodes into " + numTiles + " areas");
+	    areas = splittableArea.split(numTiles);
+	  }
+	  else {
+	    System.out.println("Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
+	    splittableArea.setMaxNodes(maxNodes);
+	    areas = splittableArea.split(areasCalculator.getPolygons());
+	  }
+	  if (areas != null && areas.isEmpty() == false)
+	    System.out.println("Creating the initial areas took " + (System.currentTimeMillis()- startSplit) + " ms");
+	  return areas;
 	}
 	
 	private OSMWriter[] createWriters(List<Area> areas) {
@@ -825,54 +636,30 @@ public class Main {
 		return allWriters;
 	}
 	
+	private void useProblemLists(DataStorer dataStorer) {
+	    problemList.calcMultiTileElements(dataStorer, osmFileHandler);
+	    if ("handle-problem-list".equals(stopAfter)){
+	        try {Thread.sleep(1000);}catch (InterruptedException e) {}
+	        System.err.println("stopped after " + stopAfter); 
+	        throw new StopNoErrorException("stopped after " + stopAfter);
+	    }
+	}
+	
 	/**
 	 * Final pass(es), we have the areas so parse the file(s) again. 
-	 * @param areas 
-	 *
-	 * @param areas Area list determined on the first pass.
-	 * @param distinctAreas 
+	 * @param dataStorer collects data used in different program passes 
 	 */
-	private void writeAreas(DataStorer dataStorer, List<Area> areas) throws IOException, XmlPullParserException {
-		int numPasses = getAreasPerPass(areas.size());
-		int areasPerPass = (int) Math.ceil((double) areas.size() / (double) numPasses);
-		if (problemWays.size() > 0 || problemRels.size() > 0){
-			// calculate which ways and relations are written to multiple areas. 
-			MultiTileProcessor multiProcessor = new MultiTileProcessor(dataStorer, problemWays, problemRels);
-			// return memory to GC
-			problemRels = null;
-			problemWays = null;
-			
-			boolean done = false;
-			long startThisPhase = System.currentTimeMillis();
-			int prevPhase = -1; 
-			while(!done){
-				int phase = multiProcessor.getPhase();
-				if (prevPhase != phase){
-					startThisPhase = System.currentTimeMillis();
-					System.out.println("-----------------------------------");
-					System.out.println("Executing multi-tile analyses phase " + phase);
-				}
-				done = processMap(multiProcessor);
-				prevPhase = phase;
-				if (done || (phase != multiProcessor.getPhase())){
-					System.out.println("Multi-tile analyses phase " + phase + " took " + (System.currentTimeMillis() - startThisPhase) + " ms");
-				}
-			}
-
-			System.out.println("-----------------------------------");
-		}
-		if ("handle-problem-list".equals(stopAfter)){
-			try {Thread.sleep(1000);}catch (InterruptedException e) {}
-			System.err.println("stopped after " + stopAfter); 
-			throw new StopNoErrorException("stopped after " + stopAfter);
-		}
-
-		// the final split passes
+	private void writeTiles(DataStorer dataStorer) throws IOException {
+	    List<Area> areas = dataStorer.getAreaDictionary().getAreas();
+		// the final split passes, 
 		dataStorer.switchToSeqAccess(fileOutputDir);
 		dataStorer.setWriters(createWriters(areas));
 
 		System.out.println("Distributing data " + new Date());
 		
+        int numPasses = (int) Math.ceil((double) areas.size() / maxAreasPerPass);
+        int areasPerPass = (int) Math.ceil((double) areas.size() / numPasses);
+
 		long startDistPass = System.currentTimeMillis();
 		if (numPasses > 1) {
 			System.out.println("Processing " + areas.size() + " areas in " + numPasses + " passes, " + areasPerPass + " areas at a time");
@@ -883,495 +670,17 @@ public class Main {
 			int areaOffset = i * areasPerPass;
 			int numAreasThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
 			dataStorer.restartWriterMaps();
-			SplitProcessor processor = new SplitProcessor(dataStorer, oneTileOnlyRels, areaOffset, numAreasThisPass, maxThreads);
+			SplitProcessor processor = new SplitProcessor(dataStorer, areaOffset, numAreasThisPass, maxThreads);
 
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing " + numAreasThisPass +
 					" areas (" + areas.get(i * areasPerPass).getMapId() + " to " +
 					areas.get(i * areasPerPass + numAreasThisPass - 1).getMapId() + ')');
 
-			processMap(processor); 
+			osmFileHandler.process(processor); 
 		}
 		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms");
-		dataStorer.finish();
-		
 	}
 	
-	/**
-	 * If the BitSet ids in oneTileOnlyRels were produced with a different set of
-	 * areas we have to translate the values 
-	 * @param dataStorer DataStorer instance used by split processor
-	 * @param distinctAreas list of distinct (non-overlapping) areas
-	 * @param areas list of areas from split-file (or calculation)
-	 */
-	private void translateDistinctToRealAreas(DataStorer dataStorer, List<Area> distinctAreas) {
-		if (oneTileOnlyRels.isEmpty() || distinctAreas.size() == dataStorer.getNumOfAreas())
-			return;
-		Map<Area, Integer> map = new HashMap<>(); 
-		for (Area distinctArea : distinctAreas) {
-			if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
-				BitSet w = new BitSet();
-				for (int i = 0; i < dataStorer.getNumOfAreas(); i++) {
-					if (dataStorer.getArea(i).contains(distinctArea)) {
-						w.set(i);
-					}
-				}					
-				int id = dataStorer.getMultiTileDictionary().translate(w);	
-				map.put(distinctArea, id);
-			}
-		}
-		if (!map.isEmpty()) {
-			for ( Entry<Long, Integer> e: oneTileOnlyRels.entrySet()) {
-				if (e.getValue() >= 0) {
-					e.setValue(map.get(distinctAreas.get(e.getValue())));
-				}
-			}
-		}
-	}
-
-	private boolean processMap(MapProcessor processor) throws XmlPullParserException {
-		boolean done = processOSMFiles(processor, fileNameList);
-		return done;
-	}
-	
-	/** Read user defined problematic relations and ways */
-	private boolean readProblemIds(String problemFileName) {
-		File fProblem = new File(problemFileName);
-		boolean ok = true;
-
-		if (!fProblem.exists()) {
-			System.out.println("Error: problem file doesn't exist: " + fProblem);  
-			return false;
-		}
-		try (InputStream fileStream = new FileInputStream(fProblem);
-				LineNumberReader problemReader = new LineNumberReader(
-						new InputStreamReader(fileStream));) {
-			Pattern csvSplitter = Pattern.compile(Pattern.quote(":"));
-			Pattern commentSplitter = Pattern.compile(Pattern.quote("#"));
-			String problemLine;
-			String[] items;
-			while ((problemLine = problemReader.readLine()) != null) {
-				items = commentSplitter.split(problemLine);
-				if (items.length == 0 || items[0].trim().isEmpty()){
-					// comment or empty line
-					continue;
-				}
-				items = csvSplitter.split(items[0].trim());
-				if (items.length != 2) {
-					System.out.println("Error: Invalid format in problem file, line number " + problemReader.getLineNumber() + ": "   
-							+ problemLine);
-					ok = false;
-					continue;
-				}
-				long id = 0;
-				try{
-					id = Long.parseLong(items[1]);
-				}
-				catch(NumberFormatException exp){
-					System.out.println("Error: Invalid number format in problem file, line number " + + problemReader.getLineNumber() + ": "   
-							+ problemLine + exp);
-					ok = false;
-				}
-				if ("way".equals(items[0]))
-					problemWays.add(id);
-				else if ("rel".equals(items[0]))
-					problemRels.add(id);
-				else {
-					System.out.println("Error in problem file: Type not way or relation, line number " + + problemReader.getLineNumber() + ": "   
-							+ problemLine);
-					ok = false;
-				}
-			}
-		} catch (IOException exp) {
-			System.out.println("Error: Cannot read problem file " + fProblem +  
-					exp);
-			return false;
-		}
-		return ok;
-	}
-	
-	/**
-	 * Write a file that can be given to mkgmap that contains the correct arguments
-	 * for the split file pieces.  You are encouraged to edit the file and so it
-	 * contains a template of all the arguments that you might want to use.
-	 * @param problemRelsThisPass 
-	 * @param problemWaysThisPass 
-	 */
-	protected void writeProblemList(String fname, Set<Long> pWays, Set<Long> pRels) {
-		try (PrintWriter w = new PrintWriter(new FileWriter(new File(
-				fileOutputDir, fname)));) {
-
-			w.println("#");
-			w.println("# This file can be given to splitter using the --problem-file option");
-			w.println("#");
-			w.println("# List of relations and ways that are known to cause problems");
-			w.println("# in splitter or mkgmap");
-			w.println("# Objects listed here are specially treated by splitter to assure"); 
-			w.println("# that complete data is written to all related tiles");  
-			w.println("# Format:");
-			w.println("# way:<id>");
-			w.println("# rel:<id>");
-			w.println("# ways");
-			for (long id: pWays){
-				w.println("way: " + id + " #");
-			}
-			w.println("# rels");
-			for (long id: pRels){
-				w.println("rel: " + id + " #");
-			}
-
-			w.println();
-		} catch (IOException e) {
-			System.err.println("Warning: Could not write problem-list file " + fname + ", processing continues");
-		}
-	}
-	
-	/**
-	 * Make sure that our areas cover the planet. This is done by adding 
-	 * pseudo-areas if needed.
-	 * @param realAreas list of areas (read from split-file or calculated)
-	 * @return new list of areas containing the real areas and additional areas 
-	 */
-	private static List<Area> addPseudoAreas(List<Area> realAreas){
-		ArrayList<Area> areas = new ArrayList<>(realAreas);
-		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
-
-		while (!checkIfCovered(planetBounds, areas)){
-			boolean changed = addPseudoArea(areas);
-			
-			if (!changed){
-				throw new SplitFailedException("Failed to fill planet with pseudo-areas");
-			}
-		}
-		return areas;
-	}
-	/**
-	 * Work around for possible rounding errors in area.subtract processing
-	 * @param area an area that is considered to be empty or a rectangle
-	 * @return 
-	 */
-	private static java.awt.geom.Area simplifyArea(java.awt.geom.Area area) {
-		if (area.isEmpty() || area.isRectangular())
-			return area;
-		// area.isRectugular() may returns false although the shape is a
-		// perfect rectangle :-( If we subtract the area from its bounding
-		// box we get better results.
-		java.awt.geom.Area bbox = new java.awt.geom.Area (area.getBounds2D());
-		bbox.subtract(area);
-		if (bbox.isEmpty()) // bbox equals area: is a rectangle 
-			return new java.awt.geom.Area (area.getBounds2D());
-		return area;
-	}
-
-	private static boolean checkIfCovered(Rectangle bounds, ArrayList<Area> areas){
-		java.awt.geom.Area bbox = new java.awt.geom.Area(bounds); 
-		long sumTiles = 0;
-
-		for (Area area: areas){
-			sumTiles += (long)area.getHeight() * (long)area.getWidth();
-			bbox.subtract(area.getJavaArea());
-		}
-		long areaBox = (long) bounds.height*(long)bounds.width;
-		
-		if (sumTiles != areaBox)
-			return false;
-			
-		return bbox.isEmpty();
-	}
-
-	/**
-	 * Create a list of areas that do not overlap. If areas in the original
-	 * list are overlapping, they can be replaced by up to 5 disjoint areas.
-	 * This is done if parameter makeDisjoint is true
-	 * @param realAreas the list of areas 
-	 * @return the new list
-	 */
-	private static ArrayList<Area> getNonOverlappingAreas(final List<Area> realAreas){
-		java.awt.geom.Area covered = new java.awt.geom.Area();
-		ArrayList<Area> splitList = new ArrayList<>();
-		int artificialId = -99999999;
-		boolean foundOverlap = false;
-		for (Area area1 : realAreas) {
-			Rectangle r1 = area1.getRect();
-			if (covered.intersects(r1) == false){
-				splitList.add(area1);
-			}
-			else {
-				if (foundOverlap == false){
-					foundOverlap = true;
-					System.out.println("Removing overlaps from tiles...");
-				}
-				//String msg = "splitting " + area1.getMapId() + " " + (i+1) + "/" + realAreas.size() + " overlapping ";	
-				// find intersecting areas in the already covered part
-				ArrayList<Area> splitAreas = new ArrayList<>();
-				
-				for (int j = 0; j < splitList.size(); j++){
-					Area area2 = splitList.get(j);
-					if (area2 == null)
-						continue;
-					Rectangle r2 = area2.getRect();
-					if (r1.intersects(r2)){
-						java.awt.geom.Area overlap = new java.awt.geom.Area(area1.getRect());
-						overlap.intersect(area2.getJavaArea());
-						Rectangle ro = overlap.getBounds();
-						if (ro.height == 0 || ro.width == 0)
-							continue;
-						//msg += area2.getMapId() + " ";
-						Area aNew = new Area(ro.y, ro.x, (int)ro.getMaxY(),(int)ro.getMaxX());
-						aNew.setMapId(artificialId++);
-						aNew.setName("" + area1.getMapId());
-						aNew.setJoinable(false);
-						covered.subtract(area2.getJavaArea());
-						covered.add(overlap);
-						splitList.set(j, aNew);
- 
-						java.awt.geom.Area coveredByPair = new java.awt.geom.Area(r1);
-						coveredByPair.add(new java.awt.geom.Area(r2));
-						
-						java.awt.geom.Area originalPair = new java.awt.geom.Area(coveredByPair);
-						
-						int minX = coveredByPair.getBounds().x;
-						int minY = coveredByPair.getBounds().y;
-						int maxX = (int) coveredByPair.getBounds().getMaxX();
-						int maxY = (int) coveredByPair.getBounds().getMaxY();
-						coveredByPair.subtract(overlap);
-						if (coveredByPair.isEmpty())
-							continue; // two equal areas a
-
-						coveredByPair.subtract(covered);
-						java.awt.geom.Area testSplit = new java.awt.geom.Area(overlap);
-						
-						Rectangle[] rectPair = {r1,r2};
-						Area[] areaPair = {area1,area2};
-						int lx = minX;
-						int lw = ro.x-minX;
-						int rx = (int)ro.getMaxX();
-						int rw = maxX - rx;
-						int uy = (int)ro.getMaxY();
-						int uh = maxY - uy;
-						int by = minY;
-						int bh = ro.y - by;
-						Rectangle[] clippers = {
-								new Rectangle(lx, 	minY, lw, 	    bh),		// lower left
-								new Rectangle(ro.x,	minY, ro.width, bh),     	// lower middle
-								new Rectangle(rx, 	minY, rw, 		bh),     	// lower right
-								new Rectangle(lx, 	ro.y, lw, 		ro.height), // left
-								new Rectangle(rx, 	ro.y, rw, 		ro.height), // right
-								new Rectangle(lx, 	uy,   lw, 		uh), 		// upper left
-								new Rectangle(ro.x, uy,   ro.width, uh), 		// upper middle
-								new Rectangle(rx, 	uy,   rw, 		uh)  		// upper right
-								}; 
-						
-						for (Rectangle clipper: clippers){
-							for (int k = 0; k <= 1; k++){
-								Rectangle test = clipper.intersection(rectPair[k]);
-								if (!test.isEmpty()){
-									testSplit.add(new java.awt.geom.Area(test));
-									if (k==1 || covered.intersects(test) == false){
-										aNew = new Area(test.y,test.x,(int)test.getMaxY(),(int)test.getMaxX());
-										aNew.setMapId(areaPair[k].getMapId());
-										splitAreas.add(aNew);
-										covered.add(aNew.getJavaArea());
-									}
-								}
-							}
-						}
-						assert testSplit.equals(originalPair);
-					}
-				}
-				
-				// recombine parts that form a rectangle
-				for (Area splitArea: splitAreas){
-					if (splitArea.isJoinable()){
-						for (int j = 0; j < splitList.size(); j++){
-							Area area = splitList.get(j);
-							if (area == null || area.isJoinable() == false || area.getMapId() != splitArea.getMapId() )
-								continue;
-							boolean doJoin = false;
-							if (splitArea.getMaxLat() == area.getMaxLat()
-									&& splitArea.getMinLat() == area.getMinLat()
-									&& (splitArea.getMinLong() == area.getMaxLong() || splitArea.getMaxLong() == area.getMinLong()))
-									doJoin = true;
-							else if (splitArea.getMinLong() == area.getMinLong()
-									&& splitArea.getMaxLong()== area.getMaxLong()
-									&& (splitArea.getMinLat() == area.getMaxLat() || splitArea.getMaxLat() == area.getMinLat()))
-									doJoin = true;
-							if (doJoin){
-								splitArea = area.add(splitArea);
-								splitArea.setMapId(area.getMapId());
-								splitList.set(j, splitArea);
-								splitArea = null; // don't add later
-								break;
-							}
-						}
-					}
-					if (splitArea != null){
-						splitList.add(splitArea);
-					}
-				}
-				/*
-				if (msg.isEmpty() == false) 
-					System.out.println(msg);
-					*/
-			}
-			covered.add(new java.awt.geom.Area(r1));
-		}
-		covered.reset();
-		Iterator <Area> iter = splitList.iterator();
-		while (iter.hasNext()){
-			Area a = iter.next();
-			if (a == null)
-				iter.remove();
-			else {
-				Rectangle r1 = a.getRect();
-				if (covered.intersects(r1) == true){
-					throw new SplitFailedException("Failed to create list of distinct areas");
-				}
-				covered.add(a.getJavaArea());
-			}
-		}
-		return splitList;
-	}
-
-	/**
-	 * Fill uncovered parts of the planet with pseudo-areas.
-	 * TODO: check if better algorithm reduces run time in ProblemListProcessor
-	 * We want a small number of pseudo areas because many of them will
-	 * require more memory or more passes, esp. when processing whole planet.
-	 * Also, the total length of all edges should be small.
-	 * @param areas list of areas (either real or pseudo)
-	 * @return true if pseudo-areas were added
-	 */
-	private static boolean addPseudoArea(ArrayList<Area> areas) {
-		int oldSize = areas.size();
-		Rectangle planetBounds = new Rectangle(Utils.toMapUnit(-180.0), Utils.toMapUnit(-90.0), 2* Utils.toMapUnit(180.0), 2 * Utils.toMapUnit(90.0));
-		java.awt.geom.Area uncovered = new java.awt.geom.Area(planetBounds); 
-		java.awt.geom.Area covered = new java.awt.geom.Area(); 
-		for (Area area: areas){
-			uncovered.subtract(area.getJavaArea());
-			covered.add(area.getJavaArea());
-		}
-		Rectangle rCov = covered.getBounds();
-		Rectangle[] topAndBottom = {
-				new Rectangle(planetBounds.x,(int)rCov.getMaxY(),planetBounds.width, (int)(planetBounds.getMaxY()-rCov.getMaxY())), // top
-				new Rectangle(planetBounds.x,planetBounds.y,planetBounds.width,rCov.y-planetBounds.y)}; // bottom
-		for (Rectangle border: topAndBottom){
-			if (!border.isEmpty()){
-				uncovered.subtract(new java.awt.geom.Area(border));
-				covered.add(new java.awt.geom.Area(border));
-				Area pseudo = new Area(border.y,border.x,(int)border.getMaxY(),(int)border.getMaxX());
-				pseudo.setMapId(-1 * (areas.size()+1));
-				pseudo.setPseudoArea(true);
-				areas.add(pseudo);
-			}
-		}
-		while (uncovered.isEmpty() == false){
-			boolean changed = false;
-			List<List<Point>> shapes = Utils.areaToShapes(uncovered);
-			// we divide planet into stripes for all vertices of the uncovered area
-			int minX = uncovered.getBounds().x;
-			int nextX = Integer.MAX_VALUE;
-			for (int i = 0; i < shapes.size(); i++){
-				List<Point> shape = shapes.get(i);
-				for (Point point: shape){
-					int lon = point.x;
-					if (lon < nextX && lon > minX) 
-						nextX = lon;
-				}
-			}
-			java.awt.geom.Area stripeLon = new java.awt.geom.Area(new Rectangle(minX, planetBounds.y, nextX - minX, planetBounds.height));
-			// cut out already covered area
-			stripeLon.subtract(covered);
-			assert stripeLon.isEmpty() == false;
-			// the remaining area must be a set of zero or more disjoint rectangles
-			List<List<Point>> stripeShapes = Utils.areaToShapes(stripeLon);
-			for (int j = 0; j < stripeShapes .size(); j++){
-				List<Point> rectShape = stripeShapes .get(j);
-				java.awt.geom.Area test = Utils.shapeToArea(rectShape);
-				test = simplifyArea(test);
-				assert test.isRectangular();
-				Rectangle pseudoRect = test.getBounds();
-				if (uncovered.contains(pseudoRect)){
-					assert test.getBounds().width == stripeLon.getBounds().width;
-					boolean wasMerged = false;
-					// check if new area can be merged with last rectangles
-					for (int k=areas.size()-1; k >= oldSize; k--){
-						Area prev = areas.get(k);
-						if (prev.getMaxLong() < pseudoRect.x || prev.isPseudoArea() == false)
-							continue;
-						if (prev.getHeight() == pseudoRect.height && prev.getMaxLong() == pseudoRect.x && prev.getMinLat() == pseudoRect.y){
-							// merge
-							Area pseudo = prev.add(new Area(pseudoRect.y,pseudoRect.x,(int)pseudoRect.getMaxY(),(int)pseudoRect.getMaxX()));
-							pseudo.setMapId(prev.getMapId());
-							pseudo.setPseudoArea(true);
-							areas.set(k, pseudo);
-							//System.out.println("Enlarged pseudo area " + pseudo.getMapId() + " " + pseudo);
-							wasMerged = true;
-							break;
-						}
-					}
-					
-					if (!wasMerged){
-						Area pseudo = new Area(pseudoRect.y, pseudoRect.x, (int)pseudoRect.getMaxY(), (int)pseudoRect.getMaxX());
-						pseudo.setMapId(-1 * (areas.size()+1));
-						pseudo.setPseudoArea(true);
-						//System.out.println("Adding pseudo area " + pseudo.getMapId() + " " + pseudo); 
-						areas.add(pseudo);
-					}
-					uncovered.subtract(test);
-					covered.add(test);
-					changed = true;
-				}
-			}
-			if (!changed)
-				break;
-		}
-		return oldSize != areas.size();
-	}
-
-	/**
-	 * Check if the bounding polygons are usable.
-	 * @param polygon
-	 * @return
-	 */
-	private boolean checkPolygons() {
-		for (PolygonDesc pd : polygons){
-			if (checkPolygon(pd.area) == false)
-				return false;
-		}
-		return true;
-	}
-
-
-	/**
-	 * Check if the bounding polygon is usable.
-	 * @param polygon
-	 * @return
-	 */
-	private boolean checkPolygon(java.awt.geom.Area mapPolygonArea) {
-		List<List<Point>> shapes = Utils.areaToShapes(mapPolygonArea);
-		int shift = 24 - resolution;
-		long rectangleWidth = 1L << shift;
-		for (List<Point> shape: shapes){
-			int estimatedPoints = 0;
-			Point p1 = shape.get(0);
-			for (int i = 1; i < shape.size(); i++){
-				Point p2 = shape.get(i);
-				if (p1.x != p2.x && p1.y != p2.y){
-					// diagonal line
-					int width = Math.abs(p1.x-p2.x);
-					int height =  Math.abs(p1.y-p2.y);
-					estimatedPoints += (Math.min(width, height) / rectangleWidth) * 2;
-				}
-				
-				if (estimatedPoints > SplittableDensityArea.MAX_SINGLE_POLYGON_VERTICES)
-					return false; // too complex
-					
-				p1 = p2;
-			}
-		}
-		return true;
-	}
-
 	static boolean testAndReportFname(String fileName, String type){
 		File f = new File(fileName);
 		if (f.exists() == false || f.isFile() == false || f.canRead() == false){
@@ -1381,70 +690,6 @@ public class Main {
 			return false;
 		}
 		return true;
-	}
-
-	private boolean processOSMFiles(MapProcessor processor, List<String> filenames) throws XmlPullParserException {
-		// Create both an XML reader and a binary reader, Dispatch each input to the
-		// Appropriate parser.
-		OSMParser parser = new OSMParser(processor, mixed);
-	
-		for (int i = 0; i < filenames.size(); i++){
-			String filename = filenames.get(i);
-			System.out.println("Processing " + filename);
-			if (i == 1 && processor instanceof DensityMapCollector){
-				((DensityMapCollector) processor).checkBounds();
-			}
-			
-			try {
-				if (filename.endsWith(".o5m")) {
-					File file = new File(filename);
-					try(InputStream stream = new FileInputStream(file)){
-						long[] skipArray = skipArrayMap.get(filename);
-						O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
-						o5mParser.parse();
-						if (skipArray == null){
-							skipArray = o5mParser.getSkipArray();
-							skipArrayMap.put(filename, skipArray);
-						}
-					}
-				}
-				else if (filename.endsWith(".pbf")) {
-					// Is it a binary file?
-					File file = new File(filename);
-					ShortArrayList blockTypes = blockTypeMap.get(filename);
-					BinaryMapParser binParser = new BinaryMapParser(processor, blockTypes, 1);
-					try(InputStream stream = new FileInputStream(file)){
-						BlockInputStream blockinput = (new BlockInputStream(stream, binParser));
-						blockinput.process();
-						if (blockTypes == null){
-							// remember this file 
-							blockTypes = binParser.getBlockList();
-							blockTypeMap.put(filename, blockTypes);
-						}
-					}
-				} else {
-					// No, try XML.
-					try (Reader reader = Utils.openFile(filename, maxThreads > 1)){
-						parser.setReader(reader);
-						parser.parse();
-					}
-				}
-			} catch (FileNotFoundException e) {
-				System.out.println(e);
-				throw new SplitFailedException("ERROR: file " + filename + " was not found");
-			} catch (XmlPullParserException e) {
-				e.printStackTrace();
-				throw new SplitFailedException("ERROR: file " + filename + " is not a valid OSM XML file");
-			} catch (IllegalArgumentException e) {
-				e.printStackTrace();
-				throw new SplitFailedException("ERROR: file " + filename + " contains unexpected data");
-			} catch (IOException e) {
-				e.printStackTrace();
-				throw new SplitFailedException("ERROR: file " + filename + " caused I/O exception");
-			}
-		}
-		boolean done = processor.endMap();
-		return done;
 	}
 	
 

@@ -512,7 +512,7 @@ public class SplittableDensityArea {
 	 * @param depth recursion depth
 	 * @param tile the tile to split
 	 * @param rasteredPolygonArea an area describing a rectilinear shape
-	 * @return a solution or null if splitting failed
+	 * @return a solution (maybe empty)
 	 */
 	private Solution findSolutionWithSinglePolygon(int depth, final Tile tile, java.awt.geom.Area rasteredPolygonArea) {
 		assert rasteredPolygonArea.isSingular();
@@ -574,7 +574,7 @@ public class SplittableDensityArea {
 				return part0Sol;
 			}
 		}
-		return null;
+		return new Solution(maxNodes);
 	}
 	
 	/**
@@ -757,6 +757,8 @@ public class SplittableDensityArea {
 	private Solution solveRectangularArea(Tile startTile){
 		// start values for optimization process: we make little steps towards a good solution
 //		spread = 7;
+	    if (startTile.count == 0)
+	        return new Solution(maxNodes);
 		searchLimit = startSearchLimit;
 		minNodes = Math.max(Math.min((long)(0.05 * maxNodes), extraDensityInfo.getNodeCount()), 1); 
 

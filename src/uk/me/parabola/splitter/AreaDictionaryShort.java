@@ -16,9 +16,12 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Maps a BitSet containing the used areas to a short value.  
@@ -28,7 +31,7 @@ import java.util.HashSet;
  *
  */
 public class AreaDictionaryShort{
-	public final static int DICT_START = -1 * (Short.MIN_VALUE + 1);
+	private final static int DICT_START = Short.MAX_VALUE;
 	private final Area[] areas; 
 	private final ArrayList<BitSet> sets; 
 	private final ArrayList<ShortArrayList> arrays; 
@@ -42,10 +45,10 @@ public class AreaDictionaryShort{
 	 * @param overlapAmount 
 	 * @param areas the array of areas
 	 */
-	AreaDictionaryShort (Area[] areas, int overlapAmount){
-		this.areas = areas;
+	AreaDictionaryShort (List<Area> areas, int overlapAmount){
+		this.areas = areas.toArray(new Area[areas.size()]);
 		this.overlapAmount = overlapAmount;
-		this.numOfAreas = areas.length;
+		this.numOfAreas = areas.size();
 		sets = new ArrayList<>();
 		arrays = new ArrayList<>();
 		index = new HashMap<>();
@@ -76,7 +79,7 @@ public class AreaDictionaryShort{
 	 * @param areaSet the BitSet 
 	 * @return a short value that identifies this BitSet 
 	 */
-	public short translate(final BitSet areaSet){
+	public Short translate(final BitSet areaSet){
 		Short combiIndex = index.get(areaSet);
 		if (combiIndex == null){
 			BitSet bnew = new BitSet();
@@ -122,7 +125,7 @@ public class AreaDictionaryShort{
 					simpleNeighbour.or(areaSets.get(i));
 					simpleNeighbour.or(areaSets.get(j));
 					if (simpleNeighbour.cardinality() <= 10){
-						short idx = translate(simpleNeighbour);
+						Short idx = translate(simpleNeighbour);
 						if (simpleNeighbours.contains(idx) == false){
 							simpleNeighbours.add(idx);
 							//System.out.println("simple neighbor: " + getMapIds(simpleNeighbour));
@@ -198,4 +201,12 @@ public class AreaDictionaryShort{
 				bounds.getMaxLat() + overlapAmount,
 				bounds.getMaxLong() + overlapAmount);
 	}
+
+    public List<Area> getAreas() {
+        return Collections.unmodifiableList(Arrays.asList(areas));
+    }
+
+    public static short translate(short lastUsedWriter) {
+        return (short) (lastUsedWriter  - DICT_START); 
+    }
 }

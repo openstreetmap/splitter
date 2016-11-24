@@ -25,26 +25,36 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.geo.City;
+import uk.me.parabola.splitter.geo.CityFinder;
+import uk.me.parabola.splitter.geo.CityLoader;
+import uk.me.parabola.splitter.geo.DefaultCityFinder;
+
 /**
  * A list of areas.  It can be read and written to a file.
  */
 public class AreaList {
-	private List<Area> areas;
-
-	public AreaList(List<Area> areas) {
-		this.areas = areas;
-	}
-
+	private final List<Area> areas;
+	private final String description;
+	private String geoNamesFile;
+	
 	/**
 	 * This constructor is called when you are going to be reading in the list from
 	 * a file, rather than making it from an already constructed list.
 	 */
-	public AreaList() {
+	public AreaList(String description) {
+		this(new ArrayList<Area>(), description);
+	}
+
+	public AreaList(List<Area> areas, String description) {
+		this.description = description;
+		this.areas = areas;
 	}
 
 	/**
@@ -76,16 +86,6 @@ public class AreaList {
 		}
 	}
 
-	/**
-	 * Write out a KML file containing the areas that we calculated. This KML file
-	 * can be opened in Google Earth etc to see the areas that were split.
-	 *
-	 * @param filename The KML filename to write to.
-	 */
-	public void writeKml(String filename) {
-		KmlWriter.writeKml(filename, areas);
-	}
-
 	public void read(String filename) throws IOException {
 		String lower = filename.toLowerCase();
 		if (lower.endsWith(".kml") || lower.endsWith(".kml.gz") || lower.endsWith(".kml.bz2")) {
@@ -100,7 +100,7 @@ public class AreaList {
 	 * Obviously other tools could create the file too.
 	 */
 	private void readList(String filename) throws IOException {
-		areas = new ArrayList<>();
+		areas.clear();
 
 		Pattern pattern = Pattern.compile("([0-9]{8}):" +
 		" ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
@@ -138,14 +138,16 @@ public class AreaList {
 			KmlParser parser = new KmlParser();
 			parser.setReader(Utils.openFile(filename, false));
 			parser.parse();
-			areas = parser.getAreas();
+			List<Area> newAreas = parser.getAreas();
+			areas.clear();
+			areas.addAll(newAreas);
 		} catch (XmlPullParserException e) {
 			throw new IOException("Unable to parse KML file " + filename, e);
 		}
 	}
 
 	public List<Area> getAreas() {
-		return areas;
+		return Collections.unmodifiableList(areas);
 	}
 
 	public void dump() {
@@ -178,13 +180,12 @@ public class AreaList {
 					pw.println(i+1);
 				else 
 					pw.println("!" + (i+1));
-				Point point = null,lastPoint = null;
+				Point point = null;
 				for (int j = 0; j < shape.size(); j++){
-					if (j > 0)
-						lastPoint = point;
 					point = shape.get(j);
 					if (j > 0 && j+1 < shape.size()){
-						Point nextPoint = shape.get(j+1); 
+						Point lastPoint = shape.get(j - 1);
+						Point nextPoint = shape.get(j + 1); 
 						if (point.x == nextPoint.x && point.x == lastPoint.x)
 							continue;
 						if (point.y == nextPoint.y && point.y == lastPoint.y)
@@ -248,4 +249,50 @@ public class AreaList {
 		}
 	}
 
+	public void setAreaNames() {
+		CityFinder cityFinder = null;
+		if (geoNamesFile != null){
+			CityLoader cityLoader = new CityLoader(true);
+			List<City> cities = cityLoader.load(geoNamesFile);
+			if (cities == null)
+				return;
+
+			cityFinder = new DefaultCityFinder(cities);
+		}
+		for (Area area : getAreas()) {
+			area.setName(description);
+			if (cityFinder == null)
+				continue;
+
+			// Decide what to call the area
+			Set<City> found = cityFinder.findCities(area);
+			City bestMatch = null;
+			for (City city : found) {
+				if (bestMatch == null || city.getPopulation() > bestMatch.getPopulation()) {
+					bestMatch = city;
+				}
+			}
+			if (bestMatch != null)
+				area.setName(bestMatch.getCountryCode() + '-' + bestMatch.getName());
+		}
+	}
+
+	/**
+	 * 
+	 * @param mapId
+	 */
+	public void setMapIds(int mapId) {
+		for (Area area : getAreas()) {
+			area.setMapId(mapId++);
+		}
+	}
+
+	public void setGeoNamesFile(String geoNamesFile) {
+		this.geoNamesFile = geoNamesFile;
+	}
+
+	public void setAreas(List<Area> calculateAreas) {
+		areas.clear();
+		areas.addAll(calculateAreas);
+	}
 }

@@ -21,8 +21,6 @@ import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 /**
  * Splits a map into multiple areas.
  */
@@ -36,7 +34,6 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final Long2IntClosedMapFunction nodeWriterMap;
 	private final Long2IntClosedMapFunction wayWriterMap;
 	private final Long2IntClosedMapFunction relWriterMap;
-	private final Long2ObjectOpenHashMap<Integer> oneTileOnlyRels;
 
 	//	for statistics
 	private long countQuickTest = 0;
@@ -61,10 +58,8 @@ class SplitProcessor extends AbstractMapProcessor {
 	private BitSet usedWriters;
 	
 	
-	SplitProcessor(DataStorer dataStorer, Long2ObjectOpenHashMap<Integer> oneTileOnlyRels,
-			int writerOffset, int numWritersThisPass, int maxThreads){
+	SplitProcessor(DataStorer dataStorer, int writerOffset, int numWritersThisPass, int maxThreads){
 		this.dataStorer = dataStorer;
-		this.oneTileOnlyRels = oneTileOnlyRels;
 		this.writerDictionary = dataStorer.getAreaDictionary();
 		this.writers = dataStorer.getWriters();
 		this.coords = SparseLong2ShortMap.createMap("coord");
@@ -163,12 +158,13 @@ class SplitProcessor extends AbstractMapProcessor {
 	@Override
 	public void processRelation(Relation rel) {
 		currentRelAreaSet.clear();
-		Integer singleTileWriterIdx = oneTileOnlyRels.get(rel.getId());
+		Integer singleTileWriterIdx = dataStorer.getOneTileOnlyRels(rel.getId());
 		if (singleTileWriterIdx != null){
-			if (singleTileWriterIdx < 0) {
+			if (singleTileWriterIdx == AreaDictionaryInt.UNASSIGNED) {
+			    // we know that the relation is outside of all real areas 
 				return;
 			}
-			
+			// relation is within an area that is overlapped by the writer areas
 			BitSet wl = dataStorer.getMultiTileDictionary().getBitSet(singleTileWriterIdx);
 			// set only active writer bits
 			for (int i = wl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = wl.nextSetBit(i + 1)) {
@@ -322,7 +318,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			if (countWriters > 1)
 				writersID = writerDictionary.translate(usedWriters);
 			else  
-				writersID = (short) (lastUsedWriter  - AreaDictionaryShort.DICT_START); // no need to do lookup in the dictionary 
+				writersID = AreaDictionaryShort.translate(lastUsedWriter); // no need to do lookup in the dictionary
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
 			if (countCoords % 10000000 == 0){

@@ -55,13 +55,14 @@ public class AreaDictionaryInt{
 		}
 	}
 	
+	
 	/**
 	 * Calculate the integer value for a given BitSet. The BitSet must not 
 	 * contain values higher than numOfAreas.
 	 * @param areaSet the BitSet 
 	 * @return an int value that identifies this BitSet 
 	 */
-	public int translate(final BitSet areaSet){
+	public Integer translate(final BitSet areaSet){
 		Integer combiIndex = index.get(areaSet);
 		if (combiIndex == null){
 			BitSet bnew = new BitSet();

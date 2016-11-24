@@ -23,7 +23,7 @@ import java.util.List;
 
 /**
  * 
- * Class to read a polygon description file.
+ * Class to read a polygon description file (OSM)
  * Expected input are nodes and ways. Ways with
  * tag name=* and mapid=nnnnnnnn should describe polygons
  * which are used to calculate area lists.  
@@ -95,17 +95,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 	}
 	
 	/**
-	 * @return the combined polygon 
-	 */
-	Area getCombinedPolygon(){
-		Area combinedArea = new Area();  
-		for (PolygonDesc pd : polygonDescriptions){
-			combinedArea.add(pd.area);
-		}
-		return combinedArea;
-	}
-	
-	/**
 	 * Calculate and write the area lists for each named polygon.
 	 * @param fileOutputDir
 	 * @param areas the list of all areas 
@@ -121,7 +110,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 				if (pd.area.intersects(a.getRect()))
 					areasPart.add(a);
 			}
-			AreaList al = new AreaList(areasPart);
 			if (kmlOutputFile != null){
 				File out = new File(kmlOutputFile);
 				String kmlOutputFilePart = pd.name + "-" + out.getName();
@@ -131,9 +119,9 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 					out = new File(kmlOutputFilePart);
 				if (out.getParent() == null)
 					out = new File(fileOutputDir, kmlOutputFilePart);
-				System.out.println("Writing KML file to " + out.getPath());
-				al.writeKml(out.getPath());
+				KmlWriter.writeKml(out.getPath(), areasPart);
 			}
+			AreaList al = new AreaList(areasPart, null);
 			al.writePoly(new File(fileOutputDir, pd.name + "-" + "areas.poly").getPath());
 			al.writeArgsFile(new File(fileOutputDir, pd.name + "-" + "template.args").getPath(), outputType, pd.mapId);
 		}

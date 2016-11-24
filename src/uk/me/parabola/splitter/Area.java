@@ -108,6 +108,10 @@ public class Area {
 		return javaRect;
 	}
 	
+	/**
+	 * 
+	 * @return a new {@link java.awt.geom.Area} instance
+	 */
 	public java.awt.geom.Area getJavaArea(){
 		return new java.awt.geom.Area(getRect());
 	}

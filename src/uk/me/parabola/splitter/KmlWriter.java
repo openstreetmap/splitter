@@ -133,6 +133,7 @@ public class KmlWriter {
 	 * @param filename The KML filename to write to.
 	 */
 	public static void writeKml(String filename, List<Area> areas) {
+		System.out.println("Writing KML file to " + filename);
 		try (PrintWriter pw = new PrintWriter(filename);) {
 			writeKmlHeader(pw);
 			for (Area area : areas) {
