@@ -522,7 +522,7 @@ public class SparseLong2ShortMapHuge implements SparseLong2ShortMapFunction{
 		System.out.println(dataDesc + " Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
 				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 8/1024/1024 + " MB");  
 		if (msgLevel > 0 & uncompressedLen > 0){
-			System.out.print(dataDesc + " RLE compresion info: compressed / uncompressed size / ratio: " + 
+			System.out.print(dataDesc + " RLE compression info: compressed / uncompressed size / ratio: " + 
 					Utils.format(compressedLen) + " / "+ 
 					Utils.format(uncompressedLen) + " / "+
 					Utils.format(Math.round(100-(float) (compressedLen*100/uncompressedLen))) + "%");
