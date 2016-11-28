@@ -26,7 +26,7 @@ import java.util.BitSet;
 public class AreaGrid implements AreaIndex{
 	private final Area bounds;
 	private final Grid grid;
-	protected final AreaGridResult r;
+	protected final AreaGridResult res;
 	protected final AreaDictionaryShort areaDictionary;
 
 	/**
@@ -36,7 +36,7 @@ public class AreaGrid implements AreaIndex{
 	 */
 	AreaGrid(AreaDictionaryShort areaDictionary){
 		this.areaDictionary = areaDictionary;  
-		r = new AreaGridResult();
+		res = new AreaGridResult();
 		long start = System.currentTimeMillis();
 
 		grid = new Grid(null, null);
@@ -113,6 +113,8 @@ public class AreaGrid implements AreaIndex{
 					if (usedAreas == null || usedAreas.get(i))
 						tmpBounds = (tmpBounds ==null) ? extBounds : tmpBounds.add(extBounds);
 				}
+				if (tmpBounds == null)
+					return 0;
 				// create new Area to make sure that we don't update the existing area
 				bounds = new Area(tmpBounds.getMinLat() , tmpBounds.getMinLong(), tmpBounds.getMaxLat(), tmpBounds.getMaxLong());
 			}
@@ -229,9 +231,9 @@ public class AreaGrid implements AreaIndex{
 			short idx = grid[gridLonIdx][gridLatIdx];
 			if (idx == AbstractMapProcessor.UNASSIGNED) 
 				return null;
-			r.testNeeded = testGrid[gridLonIdx][gridLatIdx];
-			r.l = areaDictionary.getList(idx);
-			return r; 		
+			res.testNeeded = testGrid[gridLonIdx][gridLatIdx];
+			res.set = areaDictionary.getBitSet(idx);
+			return res; 		
 		}
 	}
 }
