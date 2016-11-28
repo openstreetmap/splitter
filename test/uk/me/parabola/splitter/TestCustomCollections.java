@@ -199,5 +199,123 @@ public class TestCustomCollections {
 		map.finish();
 	}
 
+	@Test
+	public static void testLongIntMap() {
+		testMap(new SparseLong2IntMap("test"), 0L);
+		testMap(new SparseLong2IntMap("test"), -10000L);
+		testMap(new SparseLong2IntMap("test"), 1L << 35);
+		testMap(new SparseLong2IntMap("test"), -1L << 35);
+	}
 
+	private static void testMap(SparseLong2IntMap map, long idOffset) {
+		map.defaultReturnValue(Integer.MIN_VALUE);
+
+		for (int i = 1; i < 1000; i++) {
+			int j = map.put(idOffset + i, i);
+			Assert.assertEquals(j, Integer.MIN_VALUE);
+			Assert.assertEquals(map.size(), i);
+		}
+
+		for (int i = 1; i < 1000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, true);
+		}
+
+
+		for (int i = 1; i < 1000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), i);
+		}
+
+		// random read access 
+		for (int i = 1; i < 1000; i++) {
+			int key = (int) Math.max(1, (Math.random() * 1000));
+			Assert.assertEquals(map.get(idOffset + key), key);
+		}
+
+		for (int i = 1000; i < 2000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+		}
+		for (int i = 1000; i < 2000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, false);
+		}
+		for (int i = 1000; i < 1200; i++) {
+			int j = map.put(idOffset + i, 333);
+			Assert.assertEquals(j, Integer.MIN_VALUE);
+			Assert.assertEquals(map.size(), i);
+		}
+		// random read access 2 
+		for (int i = 1; i < 1000; i++) {
+			int key = 1000 + (int) (Math.random() * 200);
+			Assert.assertEquals(map.get(idOffset + key), 333);
+		}
+
+
+		for (int i = -2000; i < -1000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+		}
+		for (int i = -2000; i < -1000; i++) {
+			boolean b = map.containsKey(idOffset + i);
+			Assert.assertEquals(b, false);
+		}
+		long mapSize = map.size();
+		// seq. update existing records 
+		for (int i = 1; i < 1000; i++) {
+			int j = map.put(idOffset + i, i+333);
+			Assert.assertEquals(j, i);
+			Assert.assertEquals(map.size(), mapSize);
+		}
+		// random read access 3, update existing entries 
+		for (int i = 1; i < 1000; i++) {
+			int j = map.put(idOffset + i, i+555);
+			Assert.assertEquals(true, j == i+333 | j == i+555);
+			Assert.assertEquals(map.size(), mapSize);
+		}
+				
+		Assert.assertEquals(map.get(idOffset + 123456), Integer.MIN_VALUE);
+		map.put(idOffset + 123456,  999);
+		Assert.assertEquals(map.get(idOffset + 123456), 999);
+		map.put(idOffset + 123456,  888);
+		Assert.assertEquals(map.get(idOffset + 123456), 888);
+
+		Assert.assertEquals(map.get(idOffset - 123456), Integer.MIN_VALUE);
+		map.put(idOffset - 123456,  999);
+		Assert.assertEquals(map.get(idOffset - 123456), 999);
+		map.put(idOffset - 123456,  888);
+		Assert.assertEquals(map.get(idOffset - 123456), 888);
+		map.put(idOffset + 3008,  888);
+		map.put(idOffset + 3009,  888);
+		map.put(idOffset + 3010,  876);
+		map.put(idOffset + 3011,  876);
+		map.put(idOffset + 3012,  678);
+		map.put(idOffset + 3013,  678);
+		map.put(idOffset + 3014,  678);
+		map.put(idOffset + 3015,  678);
+		map.put(idOffset + 3016,  678);
+		map.put(idOffset + 3017,  678);
+		map.put(idOffset + 4000,  888);
+		map.put(idOffset + 4001,  888);
+		map.put(idOffset + 4002,  876);
+		map.put(idOffset + 4003,  876);
+		// update the first one
+		map.put(idOffset + 3008,  889);
+		// update the 2nd one
+		map.put(idOffset + 4000,  889);
+		// add a very different key
+		map.put(idOffset + 5000,  889);
+		map.put(idOffset + 5001,  222);
+		Assert.assertEquals(map.get(idOffset + 3008), 889);
+		Assert.assertEquals(map.get(idOffset + 3009), 888);
+		Assert.assertEquals(map.get(idOffset + 3010), 876);
+		Assert.assertEquals(map.get(idOffset + 3011), 876);
+		Assert.assertEquals(map.get(idOffset + 3012), 678);
+		Assert.assertEquals(map.get(idOffset + 3013), 678);
+		Assert.assertEquals(map.get(idOffset + 3014), 678);
+		Assert.assertEquals(map.get(idOffset + 4000), 889);
+		Assert.assertEquals(map.get(idOffset + 4001), 888);
+		Assert.assertEquals(map.get(idOffset + 4002), 876);
+		Assert.assertEquals(map.get(idOffset + 4003), 876);
+		Assert.assertEquals(map.get(idOffset + 5000), 889);
+		Assert.assertEquals(map.get(idOffset + 5001), 222);
+	}  
 }

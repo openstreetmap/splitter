@@ -12,8 +12,6 @@ import java.util.List;
 
 import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
-
 public class AreasCalculator {
   private final List<PolygonDesc> polygons = new ArrayList<>();
   private int resolution = 13;

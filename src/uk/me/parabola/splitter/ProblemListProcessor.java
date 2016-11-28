@@ -34,7 +34,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final static int PHASE2_RELS_ONLY = 2;
 
 	private final SparseLong2ShortMapFunction coords;
-	private final SparseLong2ShortMapFunction ways;
+	private final SparseLong2IntMap ways;
 	
 	private final AreaDictionaryShort areaDictionary;
 	private final DataStorer dataStorer;
@@ -63,7 +63,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.dataStorer = dataStorer;
 		this.areaDictionary = dataStorer.getAreaDictionary();
 		if (dataStorer.getUsedWays() == null){
-			ways = SparseLong2ShortMap.createMap("way");
+			ways = new SparseLong2IntMap("way");
 			ways.defaultReturnValue(UNASSIGNED);
 			dataStorer.setUsedWays(ways);
 		}
@@ -177,7 +177,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			return;
 		boolean maybeChanged = false;
 		int oldclIndex = UNASSIGNED;
-		short wayAreaIdx; 
+		int wayAreaIdx; 
 		areaSet.clear();
 		//for (long id: way.getRefs()){
 		int refs = way.getRefs().size();
@@ -199,7 +199,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (!isFirstPass && maybeChanged || isLastPass){
 			wayAreaIdx = ways.get(way.getId());
 			if (wayAreaIdx != UNASSIGNED)
-				areaSet.or(areaDictionary.getBitSet(wayAreaIdx));
+				areaSet.or(dataStorer.getMultiTileDictionary().getBitSet(wayAreaIdx));
 		}
 		
 		if (isLastPass){
@@ -208,7 +208,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			}
 		}
 		if (maybeChanged && areaSet.isEmpty() == false){
-			wayAreaIdx = areaDictionary.translate(areaSet);
+			wayAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
 			ways.put(way.getId(), wayAreaIdx);
 		}
 	}
@@ -268,7 +268,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				areaSet.or(dataStorer.getMultiTileDictionary().getBitSet(relAreaIdx));
 		}
 		short oldclIndex = UNASSIGNED;
-		short oldwlIndex = UNASSIGNED;
+		int oldwlIndex = UNASSIGNED;
 		//System.out.println("r" + rel.getId() + " " + rel.getMembers().size());
 		for (Member mem : rel.getMembers()) {
 			long id = mem.getRef();
@@ -285,11 +285,11 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				}
 
 			} else if (mem.getType().equals("way")) {
-				short wlIdx = ways.get(id);
+				int wlIdx = ways.get(id);
 
 				if (wlIdx != UNASSIGNED){
 					if (oldwlIndex != wlIdx){ 
-						BitSet wl = areaDictionary.getBitSet(wlIdx);
+						BitSet wl = dataStorer.getMultiTileDictionary().getBitSet(wlIdx);
 						areaSet.or(wl);
 					}
 					oldwlIndex = wlIdx;
@@ -315,7 +315,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		relAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
 		dataStorer.getUsedRels().put(rel.getId(), relAreaIdx);
 	}
-	
 	
 	@Override
 	public boolean endMap() {

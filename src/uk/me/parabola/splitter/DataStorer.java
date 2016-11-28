@@ -39,7 +39,7 @@ public class DataStorer {
     private final AreaDictionaryShort areaDictionary;
     private final AreaDictionaryInt multiTileDictionary;
     private final AreaIndex areaIndex;
-    private SparseLong2ShortMapFunction usedWays = null;
+    private SparseLong2IntMap usedWays = null;
     private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<>();
     private boolean idsAreNotSorted;
     private OSMWriter[] writers;
@@ -98,7 +98,7 @@ public class DataStorer {
         return multiTileDictionary;
     }
 
-    public SparseLong2ShortMapFunction getUsedWays() {
+    public SparseLong2IntMap getUsedWays() {
         return usedWays;
     }
 
@@ -106,7 +106,7 @@ public class DataStorer {
         return usedRels;
     }
 
-    public void setUsedWays(SparseLong2ShortMapFunction ways) {
+    public void setUsedWays(SparseLong2IntMap ways) {
         usedWays = ways;
     }
 

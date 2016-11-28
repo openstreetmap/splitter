@@ -28,7 +28,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
 
 	private SparseLong2ShortMapFunction coords;
-	private SparseLong2ShortMapFunction ways; 	
+	private SparseLong2IntMap ways; 	
 	private final AreaDictionaryShort writerDictionary;
 	private final DataStorer dataStorer;
 	private final Long2IntClosedMapFunction nodeWriterMap;
@@ -63,7 +63,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.writerDictionary = dataStorer.getAreaDictionary();
 		this.writers = dataStorer.getWriters();
 		this.coords = SparseLong2ShortMap.createMap("coord");
-		this.ways   = SparseLong2ShortMap.createMap("way");
+		this.ways   = new SparseLong2IntMap("way");
 		this.coords.defaultReturnValue(unassigned);
 		this.ways.defaultReturnValue(unassigned); 		
 		this.writerIndex = dataStorer.getGrid();
@@ -140,7 +140,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		if (!currentWayAreaSet.isEmpty()){
 			// store these areas in ways map
-			short idx = writerDictionary.translate(currentWayAreaSet);
+			int idx = dataStorer.getMultiTileDictionary().translate(currentWayAreaSet);
 			ways.put(w.getId(), idx);
 			++countWays;
 			if (countWays % 1000000 == 0){
@@ -182,7 +182,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			}
 			else{
 				short oldclIndex = unassigned;
-				short oldwlIndex = unassigned;
+				int oldwlIndex = unassigned;
 				for (Member mem : rel.getMembers()) {
 					// String role = mem.getRole();
 					long id = mem.getRef();
@@ -197,20 +197,17 @@ class SplitProcessor extends AbstractMapProcessor {
 							oldclIndex = clIdx;
 						}
 					} else if (mem.getType().equals("way")) {
-						short wlIdx = ways.get(id);
+						int wlIdx = ways.get(id);
 
 						if (wlIdx != unassigned){
 							if (oldwlIndex != wlIdx){ 
-								BitSet wl = writerDictionary.getBitSet(wlIdx);
+								BitSet wl = dataStorer.getMultiTileDictionary().getBitSet(wlIdx);
 								currentRelAreaSet.or(wl);
 							}
 							oldwlIndex = wlIdx;
 						}
 					}
 				}
-//				if (currentRelAreaSet.cardinality() > 1 && relWriterMap != null){
-//					System.out.println("relation " + rel.getId() + " " + rel.tags + " might be incomplete in some tiles");
-//				}
 			}
 		}
 		try {

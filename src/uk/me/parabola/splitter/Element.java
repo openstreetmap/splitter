@@ -40,7 +40,7 @@ public abstract class Element {
 		this.version = version;
 	}
 
-	class Tag {
+	static class Tag {
 		public Tag(String key,String value) {
 			this.key = key;
 			this.value = value;
