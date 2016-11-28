@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Gerd Petermann
+ * Copyright (c) 2016, Gerd Petermann
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,124 +16,167 @@ package uk.me.parabola.splitter;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import java.util.Arrays;
 
 
 
 /**
- * {@link SparseLong2ShortInline} implements {@link SparseLong2ShortMapFunction}  
- * optimized for low memory requirements and inserts in sequential order.
- * Don't use this for a rather small number of pairs. 
+ * Intended usage: Store many pairs of OSM id and a short which represents the position.
+ * Optimized for low memory requirements and inserts in sequential order.
+ * Don't use this for a rather small number of pairs.
  *
  * Inspired by SparseInt2ShortMapInline.
- * 
- * A HashMap is used to address large vectors which address chunks. The HashMap 
- * is the only part that stores long values, and it will be very small as long 
- * as long as input is normal OSM data and not something with random numbers. 
+ *
+ * A HashMap is used to address large vectors which address chunks. The HashMap
+ * is the only part that stores long values, and it will be very small as long
+ * as long as input is normal OSM data and not something with random numbers.
  * A chunk stores up to CHUNK_SIZE values. A separately stored bit-mask is used
- * to separate used and unused entries in the chunk. Thus, the chunk length 
+ * to separate used and unused entries in the chunk. Thus, the chunk length
  * depends on the number of used entries, not on the highest used entry.
  * A typical (uncompressed) chunk looks like this:
  * v1,v1,v1,v1,v1,v1,v2,v2,v2,v2,v1,v1,v1,v1,v1,u,?,?,...}
  * v1,v2: values stored in the chunk
  * u: "unassigned" value
  * ?: anything
- * 
+ *
  * After applying Run Length Encryption on this the chunk looks like this:
  * {u,6,v1,4,v2,5,v1,?,?,?}
  * The unassigned value on index 0 signals a compressed chunk.
- * 
+ *
  * An (uncompressed) ONE_VALUE_CHUNK may look like this:
  * {v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,v1,u,?,?,...}
  * This is stored without run length info in the shortest possible trunk:
  * {v1}
- * 
+ *
  * Fortunately, OSM data is distributed in a way that most(!) chunks contain
- * just one distinct value, so most chunks can be stored in 24 or 32 bytes
- * instead of 152 bytes for the worst case (counting also the padding bytes).
+ * just one distinct value.
 
- * Since we have keys with 64 bits, we have to divide the key into 3 parts:
+ * Since we have OSM ids with 64 bits, we have to divide the key into 3 parts:
  * 37 bits for the value that is stored in the HashMap.
- * 21 bits for the chunkId (this gives the required length of a large vector)       
+ * 21 bits for the chunkId (this gives the required length of a large vector)
  * 6 bits for the position in the chunk
- * 
+ *
  * The chunkId identifies the position of a 32-bit value (stored in the large vector).
  * A chunk is stored in a chunkStore which is a 3-dimensional array.
- * We group chunks of equally length together in stores of 64 entries. 
+ * We group chunks of equally length together in stores of 64 entries.
  * To find the right position of a new chunk, we need three values: x,y, and z.
  * x is the length of the chunk (the number of required shorts) (1-64, we store the value decremented by 1 to have 0-63)
- * y is the position of the store (0-524287)
+ * y is the position of the store (0-1048575), we store a value incremented by 1 to ensure a non-zero value for used chunks
  * z is the position of the chunk within the store. (0-63)
- * The maximum values for these three values are chosen so that we can place them 
- * together into one int (32 bits). 
+ * The maximum values for these three values are chosen so that we can place them
+ * together into one int (32 bits).
  */
 
-public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
+public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
 	private static final long CHUNK_ID_MASK = 0x7ffffffL; 		// the part of the key that is not saved in the top HashMap
 	private static final long TOP_ID_MASK = ~CHUNK_ID_MASK;  	// the part of the key that is saved in the top HashMap
-	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);	
+	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);
 
-	private static final int CHUNK_STORE_BITS_FOR_Z = 6; 		  
-	private static final int CHUNK_STORE_BITS_FOR_Y = 19; 		  
-	private static final int CHUNK_STORE_BITS_FOR_X = 6; 		  
+	private static final int CHUNK_SIZE = 64; 							// 64  = 1<< 6 (last 6 bits of the key)
+	/** number of entries addressed by one topMap entry */
+	private static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); 
+
+	private static final int CHUNK_STORE_BITS_FOR_Z = 6;
+	private static final int CHUNK_STORE_BITS_FOR_Y = 20; 
+	private static final int CHUNK_STORE_BITS_FOR_X = 6;
+	
 	private static final int CHUNK_STORE_ELEMS = 1 << CHUNK_STORE_BITS_FOR_X;
 	private static final int CHUNK_STORE_X_MASK = (1 << CHUNK_STORE_BITS_FOR_X) - 1;
 	private static final int CHUNK_STORE_Y_MASK = (1 << CHUNK_STORE_BITS_FOR_Y) - 1;
 	private static final int CHUNK_STORE_Z_MASK = (1 << CHUNK_STORE_BITS_FOR_Z) - 1;
-	private static final int CHUNK_STORE_USED_FLAG_MASK = 1<<31; 	
 	private static final int CHUNK_STORE_Y_SHIFT = CHUNK_STORE_BITS_FOR_X;
 	private static final int CHUNK_STORE_Z_SHIFT = CHUNK_STORE_BITS_FOR_X + CHUNK_STORE_BITS_FOR_Y;
-	
-	private static final int CHUNK_SIZE = 64; 							// 64  = 1<< 6 (last 6 bits of the key) 
+
+	private static final int MAX_Y_VAL = CHUNK_STORE_Y_MASK -1; // we don't use the first y entry
 	private static final long CHUNK_OFFSET_MASK = CHUNK_SIZE-1;  		// the part of the key that contains the offset in the chunk
 	private static final long OLD_CHUNK_ID_MASK = ~CHUNK_OFFSET_MASK;	// first 58 bits of a long. If this part of the key changes, a different chunk is needed
-	
-	private static final long INVALID_CHUNK_ID = 1L; // must NOT be divisible by CHUNK_SIZE 
-	private static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); // number of entries addressed by one topMap entry 
 
-	private static final int ONE_VALUE_CHUNK_SIZE = 1; 
+	private static final long INVALID_CHUNK_ID = 1L; // must NOT be divisible by CHUNK_SIZE
+
+	private static final int ONE_VALUE_CHUNK_SIZE = 1;
 
 	/** What to return on unassigned indices */
 	private short unassigned = UNASSIGNED;
 	private long size;
 
-	
-	private long currentChunkId = INVALID_CHUNK_ID; 
-	private short [] currentChunk = new short[CHUNK_SIZE];  // stores the values in the real position 
+	private long currentChunkId = INVALID_CHUNK_ID;
+	private short [] currentChunk = new short[CHUNK_SIZE];  // stores the values in the real position
 	private short [] tmpWork = new short[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
 	private short [] RLEWork = new short[CHUNK_SIZE];  // for the RLE-compressed chunk
 
 
 	// for statistics
-	private final String dataDesc; 
-	private long [] countChunkLen; 
+	private final String dataDesc;
 	private long expanded = 0;
 	private long uncompressedLen = 0;
 	private long compressedLen = 0;
 	private int storedLengthOfCurrentChunk = 0;
 	private int currentChunkIdInStore = 0;
 
-	private Long2ObjectOpenHashMap<int[]> topMap; 
-	private short[][][] chunkStore; 
-	private long[][][] maskStore; 
-	private int[] freePosInSore;
-	// maps chunks that can be reused  
-	private Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
+	private Long2ObjectOpenHashMap<Mem> topMap;
+
+	final static long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+	final static int pointerSize = (maxMem < 32768) ? 4 : 8; // presuming that compressedOOps is enabled
+
+	/**
+	 * Helper class to manage memory for chunks
+	 * @author Gerd Petermann
+	 *
+	 */
+	static class Mem {
+		long estimatedBytes; // estimate the allocated bytes
+		final int[] largeVector;
+		short[][][] chunkStore;
+		long[][][] maskStore;
+		final int[] freePosInStore;
+		final int[] countChunkLen;
+		/**  maps chunks that can be reused */
+		Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
+		
+		public Mem() {
+			largeVector = new int[LARGE_VECTOR_SIZE];
+			chunkStore = new short[CHUNK_SIZE + 1][][];
+			maskStore = new long[CHUNK_SIZE + 1][][];
+			freePosInStore = new int[CHUNK_SIZE + 1];
+			countChunkLen = new int[CHUNK_SIZE + 1]; // used for statistics
+			reusableChunks = new Int2ObjectOpenHashMap<>(0);
+			estimatedBytes = LARGE_VECTOR_SIZE * Integer.BYTES + (CHUNK_SIZE + 1) * (2 * 8 + 2 * Integer.BYTES) + 5 * (24 + 16) + 190 + 8; 
+		}
+
+		public void grow(int x) {
+			int oldCapacity = chunkStore[x].length;
+	        int newCapacity = oldCapacity * 2;
+	        if (newCapacity >= MAX_Y_VAL) 
+	            newCapacity = MAX_Y_VAL;
+	        if (newCapacity <= oldCapacity)
+	        	return;
+	        chunkStore[x] = Arrays.copyOf(chunkStore[x], newCapacity);
+	        maskStore[x] = Arrays.copyOf(maskStore[x], newCapacity);
+	        estimatedBytes += (newCapacity - oldCapacity) * (pointerSize * 2); 
+		}
+
+		public void startChunk(int x) {
+			chunkStore[x] = new short[2][];
+			maskStore[x] = new long[2][];
+			estimatedBytes += 2 * (24 + 2 * (pointerSize * 2));
+		}
+	}
 	
 	/**
 	 * A map that stores pairs of (OSM) IDs and short values identifying the
-	 * areas in which the object (node,way) with the ID occurs.
-	 * @param dataDesc 
+	 * areas in which the object with the ID occurs. 
+	 * @param dataDesc
 	 */
 	SparseLong2ShortMapInline(String dataDesc) {
+		long reserve = (1L << CHUNK_STORE_BITS_FOR_Y - 1) * CHUNK_SIZE - LARGE_VECTOR_SIZE;
+		assert reserve > 0;
 		this.dataDesc = dataDesc;
 		clear();
 	}
 
 	/**
 	 * Count how many of the lowest X bits in mask are set
-	 * 
+	 *
 	 * @return
 	 */
 	private static int countUnder(long mask, int lowest) {
@@ -142,24 +185,24 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 	/**
 	 * Try to use Run Length Encoding to compress the chunk stored in tmpWork. In most
-	 * cases this works very well because chunks often have only one 
+	 * cases this works very well because chunks often have only one
 	 * or two distinct values.
-	 * @param maxlen: number of elements in the chunk. 
-	 * @return -1 if compression doesn't save space, else the number of elements in the 
+	 * @param maxlen: number of elements in the chunk.
+	 * @return -1 if compression doesn't save space, else the number of elements in the
 	 * compressed chunk stored in buffer RLEWork.
 	 */
 	private int chunkCompressRLE (int maxlen){
 		int opos =  1;
 		for (int i = 0; i < maxlen; i++) {
-			short runLength = 1;
+			int runLength = 1;
 			while (i+1 < maxlen && tmpWork[i] == tmpWork[i+1]) {
 				runLength++;
 				i++;
 			}
-			if (opos+2 >= tmpWork.length) 
+			if (opos+2 >= tmpWork.length)
 				return -1; // compressed record is not shorter
-			RLEWork[opos++] = runLength;
-			RLEWork[opos++] = tmpWork[i]; 
+			RLEWork[opos++] = (short) runLength;
+			RLEWork[opos++] = tmpWork[i];
 		}
 		if (opos == 3){
 			// special case: the chunk contains only one distinct value
@@ -175,7 +218,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		}
 		return -1;
 	}
-	
+
 	/**
 	 * Try to compress the data in currentChunk and store the result in the chunkStore.
 	 */
@@ -239,7 +282,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		currentChunk[chunkoffset] = val;
 		if (out == unassigned)
 			size++;
-		
+
 		return out;
 	}
 
@@ -247,7 +290,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 	/**
 	 * Check if we already have a chunk for the given key. If no,
 	 * fill currentChunk with default value, else with the saved
-	 * chunk. 
+	 * chunk.
 	 * @param key
 	 */
 	private void fillCurrentChunk(long key) {
@@ -255,28 +298,29 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		storedLengthOfCurrentChunk = 0;
 		currentChunkIdInStore = 0;
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = topMap.get(topID);
-		if (largeVector == null)
+		Mem mem = topMap.get(topID);
+		if (mem == null)
 			return;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
-		
-		int idx = largeVector[chunkid];
+
+		int idx = mem.largeVector[chunkid];
 		if (idx == 0)
 			return;
 		currentChunkIdInStore = idx;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
+		y--; // we store the y value incremented by 1
 		int chunkLen = x +  1;
-		short [] store = chunkStore[x][y];
+		short[] store = mem.chunkStore[x][y];
 		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 
-		long chunkMask = maskStore[x][y][z];
+		long chunkMask = mem.maskStore[x][y][z];
 		long elementmask = 0;
 
 		++expanded;
 		storedLengthOfCurrentChunk = x;
 		int startPos = z * chunkLen + 1;
-		boolean isCompressed = (chunkLen == ONE_VALUE_CHUNK_SIZE || store[startPos] == unassigned); 
+		boolean isCompressed = (chunkLen == ONE_VALUE_CHUNK_SIZE || store[startPos] == unassigned);
 		if (isCompressed){
 			int opos = 0;
 			if (chunkLen == ONE_VALUE_CHUNK_SIZE) {
@@ -296,8 +340,8 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 				short val = store[ipos++];
 				while (len > 0){
 					while (len > 0 && opos < currentChunk.length){
-						if ((chunkMask & 1L << opos) != 0){ 
-							currentChunk[opos] = val; 
+						if ((chunkMask & 1L << opos) != 0){
+							currentChunk[opos] = val;
 							--len;
 						}
 						++opos;
@@ -315,7 +359,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			int ipos = startPos;
 			elementmask = 1;
 			for (int opos=0; opos < CHUNK_SIZE; opos++) {
-				if ((chunkMask & elementmask) != 0) 
+				if ((chunkMask & elementmask) != 0)
 					currentChunk[opos] = store[ipos++];
 				elementmask <<= 1;
 			}
@@ -328,62 +372,60 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 		int chunkoffset = (int) (key & CHUNK_OFFSET_MASK);
 
 		if (currentChunkId == chunkId)
-			 return currentChunk[chunkoffset];
-		
+			return currentChunk[chunkoffset];
+
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = topMap.get(topID);
-		if (largeVector == null)
+		Mem mem = topMap.get(topID);
+		if (mem == null)
 			return unassigned;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
-		
-		int idx = largeVector[chunkid];
+
+		int idx = mem.largeVector[chunkid];
 		if (idx == 0)
 			return unassigned;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
-		int chunkLen = x +  1;
-		short [] store = chunkStore[x][y];
+		y--; // we store the y value incremented by 1
+
+		int chunkLen = x + 1;
+		short[] store = mem.chunkStore[x][y];
 		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
-		
-		long chunkMask = maskStore[x][y][z];
+
+		long chunkMask = mem.maskStore[x][y][z];
 
 		long elementmask = 1L << chunkoffset;
-		if ((chunkMask & elementmask) == 0) 
-			return unassigned; // not in chunk 
+		if ((chunkMask & elementmask) == 0)
+			return unassigned; // not in chunk
 		int startOfChunk = z * chunkLen + 1;
 		// the map contains the key, extract the value
 		short firstAfterMask = store[startOfChunk];
 		if (chunkLen == ONE_VALUE_CHUNK_SIZE)
 			return firstAfterMask;
 		int index = countUnder(chunkMask, chunkoffset);
-		if (firstAfterMask == unassigned){
-			// extract from compressed chunk 
-			short len; 
-			for (int j=1; j < chunkLen; j+=2){
-				len =  store[j+startOfChunk];
+		if (firstAfterMask == unassigned) {
+			// extract from compressed chunk
+			int len;
+			for (int j = 1; j < chunkLen; j += 2) {
+				len = store[j + startOfChunk];
 				index -= len;
-				if (index < 0) return store[j+startOfChunk+1];
+				if (index < 0)
+					return store[j + startOfChunk + 1];
 			}
 			return unassigned; // should not happen
 		}
 		// extract from uncompressed chunk
-		return store[index +  startOfChunk];
+		return store[index + startOfChunk];
 	}
 
 	@Override
 	public void clear() {
-		System.out.println(this.getClass().getSimpleName() + ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
+		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
 		topMap = new Long2ObjectOpenHashMap<>();
-		chunkStore = new short[CHUNK_SIZE+1][][];
-		maskStore = new long[CHUNK_SIZE+1][][];
-		freePosInSore = new int[CHUNK_SIZE+1];
-		countChunkLen = new long[CHUNK_SIZE +  1 ]; // used for statistics
-		reusableChunks = new Int2ObjectOpenHashMap<>();
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
 		expanded = 0;
-		//test();
+		// test();
 	}
 
 	@Override
@@ -403,147 +445,128 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 
 	/**
 	 * Find the place were a chunk has to be stored and copy the content
-	 * to this place. 
+	 * to this place.
 	 * @param key the (OSM) id
-	 * @param chunk  the chunk 
+	 * @param chunk  the chunk
 	 * @param len the number of used bytes in the chunk
 	 */
-	private void putChunk (long key, short[] chunk, int len, long mask) {
+	private void putChunk(long key, short[] chunk, int len, long mask) {
 		long topID = key >> TOP_ID_SHIFT;
-		int[] largeVector = topMap.get(topID);
-		if (largeVector == null){
-			largeVector = new int[LARGE_VECTOR_SIZE];
-			topMap.put(topID, largeVector);
+		Mem mem = topMap.get(topID);
+		if (mem == null) {
+			mem = new Mem();
+			topMap.put(topID, mem);
 		}
-		
+
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 		int x = len - 1;
-		if (storedLengthOfCurrentChunk > 0){
-			// this is a rewrite, add the previously used chunk to the reusable list 
-			IntArrayList reusableChunk = reusableChunks.get(storedLengthOfCurrentChunk);
-			if (reusableChunk == null){
+		if (storedLengthOfCurrentChunk > 0) {
+			// this is a rewrite, add the previously used chunk to the reusable list
+			IntArrayList reusableChunk = mem.reusableChunks.get(storedLengthOfCurrentChunk);
+			if (reusableChunk == null) {
 				reusableChunk = new IntArrayList(8);
-				reusableChunks.put(storedLengthOfCurrentChunk, reusableChunk);
+				mem.reusableChunks.put(storedLengthOfCurrentChunk, reusableChunk);
+				mem.estimatedBytes += 8 * Integer.BYTES + 24 + Integer.BYTES + pointerSize + 16; // for the IntArrayList instance 
+				mem.estimatedBytes += 20; // estimate for the hash map entry
 			}
 			reusableChunk.add(currentChunkIdInStore);
 		}
-		if (chunkStore[x] == null){
-			chunkStore[x] = new short[2][];
-			maskStore[x] = new long[2][];
+		if (mem.chunkStore[x] == null) {
+			mem.startChunk(x);
 		}
-		IntArrayList reusableChunk = reusableChunks.get(x); 
-		int y,z;
-		short []store;
-		if (reusableChunk != null && reusableChunk.isEmpty() == false){
-			int reusedIdx = reusableChunk.removeInt(reusableChunk.size()-1);
+		IntArrayList reusableChunk = mem.reusableChunks.get(x);
+		int y, z;
+		short[] store;
+		if (reusableChunk != null && !reusableChunk.isEmpty()) {
+			int reusedIdx = reusableChunk.removeInt(reusableChunk.size() - 1);
 			y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
+			y--; // we store the y value incremented by 1
 			z = (reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
-			store = chunkStore[x][y];
+			store = mem.chunkStore[x][y];
 		} else {
-			y = ++freePosInSore[x] / CHUNK_STORE_ELEMS;
-			if (y >= chunkStore[x].length){
-				// resize
-				int newElems = Math.min(y*2,1<<CHUNK_STORE_BITS_FOR_Y);
-				if (y >= newElems){
-					stats(1);
-					System.err.println(this.getClass().getSimpleName()
-							+ ": reached limit of possible length-" + len
-							+ " chunks: "
-							+ Utils.format(newElems * CHUNK_STORE_ELEMS));
-					Utils.printMem();
-					throw new SplitFailedException("Try to increase max heap to a value > 2GB or reduce the max-area value so that one more pass is used.");
-				}
-				short[][] tmp = new short[newElems][]; 
-				System.arraycopy(chunkStore[x], 0, tmp, 0, y);
-				chunkStore[x] = tmp;
-				long[][] tmpMask = new long[newElems][]; 
-				System.arraycopy(maskStore[x], 0, tmpMask, 0, y);
-				maskStore[x] = tmpMask;
+			y = ++mem.freePosInStore[x] / CHUNK_STORE_ELEMS;
+			if (y >= mem.chunkStore[x].length) 
+				mem.grow(x);
+			if (mem.chunkStore[x][y] == null) {
+				mem.chunkStore[x][y] = new short[len * (CHUNK_STORE_ELEMS) + 2];
+				mem.estimatedBytes += 24 + (len * (CHUNK_STORE_ELEMS) + 2) * Short.BYTES;
+				int padding = (mem.chunkStore[x][y].length * Short.BYTES) % 8;
+				if (padding > 0)
+					mem.estimatedBytes += 8 - padding;
+				mem.maskStore[x][y] = new long[CHUNK_STORE_ELEMS];
+				mem.estimatedBytes += 24 + CHUNK_STORE_ELEMS * Long.BYTES;
 			}
-			if (chunkStore[x][y] == null){
-				chunkStore[x][y] = new short[len * (CHUNK_STORE_ELEMS)+2];
-				maskStore[x][y] = new long[CHUNK_STORE_ELEMS];
-			}
-			store = chunkStore[x][y];
+			store = mem.chunkStore[x][y];
 			z = store[0]++;
-			++countChunkLen[len];
+			++mem.countChunkLen[len];
 		}
-		maskStore[x][y][z] = mask;
+
+		mem.maskStore[x][y][z] = mask;
+		y++; // we store the y value incremented by 1
 
 		if (len > 1)
-			System.arraycopy(chunk, 0, store, z*len+1, len);
-		else 
-			store[z*len+1] = chunk[0];
-		assert x < 1<<CHUNK_STORE_BITS_FOR_X;
-		assert y < 1<<CHUNK_STORE_BITS_FOR_Y;
-		assert z < 1<<CHUNK_STORE_BITS_FOR_Z;
-		int idx = CHUNK_STORE_USED_FLAG_MASK 
-				| (z & CHUNK_STORE_Z_MASK)<<CHUNK_STORE_Z_SHIFT 
-				| (y & CHUNK_STORE_Y_MASK)<< CHUNK_STORE_Y_SHIFT 
+			System.arraycopy(chunk, 0, store, z * len + 1, len);
+		else
+			store[z * len + 1] = chunk[0];
+		assert x < 1 << CHUNK_STORE_BITS_FOR_X;
+		assert y < 1 << CHUNK_STORE_BITS_FOR_Y;
+		assert z < 1 << CHUNK_STORE_BITS_FOR_Z;
+		int idx = (z & CHUNK_STORE_Z_MASK) << CHUNK_STORE_Z_SHIFT 
+				| (y & CHUNK_STORE_Y_MASK) << CHUNK_STORE_Y_SHIFT
 				| (x & CHUNK_STORE_X_MASK);
-					
-		assert idx  != 0;
-		largeVector[chunkid] = idx;
+
+		assert idx != 0;
+		mem.largeVector[chunkid] = idx;
 	}
 
-	@Override
 	/**
-	 * calculate and print performance values regarding memory 
+	 * calculate and print performance values regarding memory
 	 */
+	@Override
 	public void stats(int msgLevel) {
-		long totalOverhead = 0;
-		long totalBytes = 0;
-		long totalChunks = 0;
-		int i;
-		
+		long totalBytes = CHUNK_SIZE * Short.BYTES;
+		long totalChunks = 1; // current chunk
+			
 		if (size() == 0){
 			System.out.println(dataDesc + " Map is empty");
 			return;
 		}
-		for (i=1; i <=CHUNK_SIZE; i++) {
-			long bytes = countChunkLen[i] * (i*2+8) ; // 2 bytes for the shorts + 8 bytes for the mask
-			totalChunks += countChunkLen[i];
-			int freePos = freePosInSore[i-1];
-			long overhead = (freePos == 0) ? 0: (64 - freePos % 64) * i * 2 + 
-					chunkStore[i-1].length * 4 + maskStore[i-1].length * 8;
-			if (msgLevel > 0) { 
-				System.out.println("Length-" + i + " chunks: " + Utils.format(countChunkLen[i]) + ", used Bytes including overhead: " + Utils.format(bytes+overhead));
-				//System.out.println("Length-" + i + " stores: " + Utils.format(chunkStore[i-1].length) + " pos " + freePosInSore[i-1]);
+		for (Mem mem : topMap.values()) {
+			for (int x = 1; x <= CHUNK_SIZE; x++) {
+				totalChunks += mem.countChunkLen[x];
 			}
-			totalBytes += bytes;
-			totalOverhead += overhead;
+			totalBytes += mem.estimatedBytes;
 		}
-		totalOverhead += topMap.size() * (long)LARGE_VECTOR_SIZE * 4;
-		
-		float bytesPerKey = (size()==0) ? 0: (float)((totalBytes + totalOverhead)*100 / size()) / 100;
+
+		float bytesPerKey = (size()==0) ? 0: (float)(totalBytes*100 / size()) / 100;
+		System.out.println(dataDesc + " Map: Number of stored long/short pairs: " + Utils.format(size()) + " require ca. " +
+				bytesPerKey + " bytes per pair. " +
+				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " +
+				((totalChunks==0) ? 0 :(size() / totalChunks)) + ".");
+		System.out.println(dataDesc + " Map details: bytes " + Utils.format(totalBytes) + ", including " +
+				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
 		System.out.println();
-		System.out.println(dataDesc + " Map: Number of stored ids: " + Utils.format(size()) + " require ca. " + 
-				bytesPerKey + " bytes per pair. " + 
-				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " + 
-				((totalChunks==0) ? 0 :(size() / totalChunks)) + "."); 
-		System.out.println(dataDesc + " Map details: bytes/overhead " + Utils.format(totalBytes) + " / " + Utils.format(totalOverhead) + ", overhead includes " + 
-				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * 4/1024/1024 + " MB");  
 		if (msgLevel > 0 & uncompressedLen > 0){
-			System.out.print("RLE compression info: compressed / uncompressed size / ratio: " + 
-					Utils.format(compressedLen) + " / "+ 
+			System.out.print(dataDesc + " RLE compression info: compressed / uncompressed size / ratio: " + 
+					Utils.format(compressedLen) + " / "+
 					Utils.format(uncompressedLen) + " / "+
 					Utils.format(Math.round(100-(float) (compressedLen*100/uncompressedLen))) + "%");
 			if (expanded > 0 )
 				System.out.print(", times fully expanded: " + Utils.format(expanded));
 			System.out.println();
 		}
-		
 	}
+
 	/*
 	void  test(){
+		int[] yVals = { 0, 1, 2, MAX_Y_VAL - 2, MAX_Y_VAL - 1, MAX_Y_VAL };
 		for (int z = 0; z < 64; z++){
-			for (int y = 0; y < 10; y++){
+			for (int y : yVals){
 				for (int x=0; x < 64; x++){
-					int idx = CHUNK_STORE_USED_FLAG_MASK 
-							| (z & CHUNK_STORE_Z_MASK)<<CHUNK_STORE_Z_SHIFT 
-							| (y & CHUNK_STORE_Y_MASK)<< CHUNK_STORE_Y_SHIFT 
+					int idx = (z & CHUNK_STORE_Z_MASK)<<CHUNK_STORE_Z_SHIFT
+							| (y & CHUNK_STORE_Y_MASK)<< CHUNK_STORE_Y_SHIFT
 							| (x & CHUNK_STORE_X_MASK);
-					// extract 
+					// extract
 					int x2 = idx & CHUNK_STORE_X_MASK;
 					int y2 = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 					int z2 = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
@@ -554,9 +577,8 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction{
 			}
 		}
 	}
-	*/
+	 */
 }
 
 
 
- 

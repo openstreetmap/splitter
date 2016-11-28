@@ -34,10 +34,6 @@ public class TestCustomCollections {
 		testMap(new SparseLong2ShortMapInline("test"), -10000L);
 		testMap(new SparseLong2ShortMapInline("test"), 1L << 35);
 		testMap(new SparseLong2ShortMapInline("test"), -1L << 35);
-		testMap(new SparseLong2ShortMapHuge("test"), 0L);
-		testMap(new SparseLong2ShortMapHuge("test"), -10000L);
-		testMap(new SparseLong2ShortMapHuge("test"), 1L << 35);
-		testMap(new SparseLong2ShortMapHuge("test"), -1L << 35);
 	}
 
 	private static void testMap(SparseLong2ShortMapFunction map, long idOffset) {

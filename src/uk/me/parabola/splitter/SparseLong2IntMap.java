@@ -144,8 +144,7 @@ public class SparseLong2IntMap {
 		}
 
 		public void grow(int x) {
-			int[][] elementData = chunkStore[x];
-	        int oldCapacity = elementData.length;
+			int oldCapacity = chunkStore[x].length;
 	        int newCapacity = oldCapacity * 2;
 	        if (newCapacity >= MAX_Y_VAL) 
 	            newCapacity = MAX_Y_VAL;
@@ -416,8 +415,7 @@ public class SparseLong2IntMap {
 	}
 
 	public void clear() {
-		System.out.println(this.getClass().getSimpleName()
-				+ ": Allocating three-tier structure to save area info (HashMap->vector->chunkvector)");
+		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
 		topMap = new Long2ObjectOpenHashMap<>();
 		size = 0;
 		uncompressedLen = 0;
@@ -534,7 +532,7 @@ public class SparseLong2IntMap {
 				bytesPerKey + " bytes per pair. " +
 				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " +
 				((totalChunks==0) ? 0 :(size() / totalChunks)) + ".");
-		System.out.println(dataDesc + " Map details: bytes " + Utils.format(totalBytes) + ", using " +
+		System.out.println(dataDesc + " Map details: bytes " + Utils.format(totalBytes) + ", including " +
 				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
 		System.out.println();
 		if (msgLevel > 0 & uncompressedLen > 0){
