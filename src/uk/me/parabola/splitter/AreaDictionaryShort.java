@@ -206,7 +206,7 @@ public class AreaDictionaryShort{
         return Collections.unmodifiableList(Arrays.asList(areas));
     }
 
-    public static short translate(short lastUsedWriter) {
-        return (short) (lastUsedWriter  - DICT_START); 
+    public static short translate(int singleWriterId) {
+        return (short) (singleWriterId  - DICT_START); 
     }
 }

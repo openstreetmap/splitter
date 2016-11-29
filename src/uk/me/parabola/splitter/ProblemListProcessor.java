@@ -37,6 +37,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final SparseLong2IntMap ways;
 	
 	private final AreaDictionaryShort areaDictionary;
+	private final AreaDictionaryInt multiTileDictionary;
 	private final DataStorer dataStorer;
 	private final LongArrayList problemWays = new LongArrayList(); 
 	private final LongArrayList problemRels = new LongArrayList();
@@ -45,9 +46,6 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final BitSet areaSet = new BitSet();
 	
 	private int phase = PHASE1_NODES_AND_WAYS;
-	//	for statistics
-	//private long countQuickTest = 0;
-	//private long countFullTest = 0;
 	private long countCoords = 0;
 	private final int areaOffset;
 	private final int lastAreaOffset;
@@ -62,6 +60,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			int numAreasThisPass, String[] boundaryTagList) {
 		this.dataStorer = dataStorer;
 		this.areaDictionary = dataStorer.getAreaDictionary();
+		this.multiTileDictionary = dataStorer.getMultiTileDictionary();
 		if (dataStorer.getUsedWays() == null){
 			ways = new SparseLong2IntMap("way");
 			ways.defaultReturnValue(UNASSIGNED);
@@ -129,7 +128,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (phase == PHASE2_RELS_ONLY)
 			return;
 		int countAreas = 0;
-		short lastUsedArea = UNASSIGNED;
+		int lastUsedArea = UNASSIGNED;
 		short areaIdx = UNASSIGNED;
 		AreaGridResult areaCandidates = areaIndex.get(node);
 		if (areaCandidates == null) 
@@ -137,24 +136,16 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		
 		if (areaCandidates.l.size() > 1)
 			areaSet.clear();
+		
 		for (int i = 0; i < areaCandidates.l.size(); i++) {
 			int n = areaCandidates.l.getShort(i);
 			if (n < areaOffset || n > lastAreaOffset)
 				continue;
 
-			boolean found;
-			if (areaCandidates.testNeeded){
-				found = dataStorer.getArea(n).contains(node);
-				//++countFullTest;
-			}
-			else{ 
-				found = true;
-				//++countQuickTest;
-			}
-			if (found) {
+			if (areaCandidates.testNeeded ? areaDictionary.getArea(n).contains(node) : true) {
 				areaSet.set(n);
 				++countAreas;
-				lastUsedArea = (short) n;
+				lastUsedArea = n;
 			}
 		}
 		if (countAreas > 0){
@@ -199,7 +190,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (!isFirstPass && maybeChanged || isLastPass){
 			wayAreaIdx = ways.get(way.getId());
 			if (wayAreaIdx != UNASSIGNED)
-				areaSet.or(dataStorer.getMultiTileDictionary().getBitSet(wayAreaIdx));
+				areaSet.or(multiTileDictionary.getBitSet(wayAreaIdx));
 		}
 		
 		if (isLastPass){
@@ -208,7 +199,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			}
 		}
 		if (maybeChanged && areaSet.isEmpty() == false){
-			wayAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
+			wayAreaIdx = multiTileDictionary.translate(areaSet);
 			ways.put(way.getId(), wayAreaIdx);
 		}
 	}
@@ -265,7 +256,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (!isFirstPass){
 			relAreaIdx = dataStorer.getUsedRels().get(rel.getId());
 			if (relAreaIdx != null)
-				areaSet.or(dataStorer.getMultiTileDictionary().getBitSet(relAreaIdx));
+				areaSet.or(multiTileDictionary.getBitSet(relAreaIdx));
 		}
 		short oldclIndex = UNASSIGNED;
 		int oldwlIndex = UNASSIGNED;
@@ -289,7 +280,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 
 				if (wlIdx != UNASSIGNED){
 					if (oldwlIndex != wlIdx){ 
-						BitSet wl = dataStorer.getMultiTileDictionary().getBitSet(wlIdx);
+						BitSet wl = multiTileDictionary.getBitSet(wlIdx);
 						areaSet.or(wl);
 					}
 					oldwlIndex = wlIdx;
@@ -305,14 +296,13 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			} else {
 			    
 				// the relation is only in one distinct area
-			    relAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
-				// store the info that the rel is only in one distinct area (-1 means pseudo-area)
-				dataStorer.storeRelationArea(rel.getId(), relAreaIdx);
+				// store the info that the rel is only in one distinct area
+				dataStorer.storeRelationAreas(rel.getId(), areaSet);
 			}
 			return;
 		}
 		
-		relAreaIdx = dataStorer.getMultiTileDictionary().translate(areaSet);
+		relAreaIdx = multiTileDictionary.translate(areaSet);
 		dataStorer.getUsedRels().put(rel.getId(), relAreaIdx);
 	}
 	
@@ -328,7 +318,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			System.out.println("");
 			System.out.println("  Number of stored shorts for ways: " + Utils.format(dataStorer.getUsedWays().size()));
 			System.out.println("  Number of stored integers for rels: " + Utils.format(dataStorer.getUsedRels().size()));
-			System.out.println("  Number of stored combis in big dictionary: " + Utils.format(dataStorer.getMultiTileDictionary().size()));
+			System.out.println("  Number of stored combis in big dictionary: " + Utils.format(multiTileDictionary.size()));
 			System.out.println("  Number of detected problem ways: " + Utils.format(problemWays.size()));
 			System.out.println("  Number of detected problem rels: " + Utils.format(problemRels.size()));
 			Utils.printMem();

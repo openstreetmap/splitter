@@ -46,4 +46,6 @@ public interface OSMWriter {
 	public abstract void write(Way way) throws IOException;
 
 	public abstract void write(Relation rel) throws IOException;
+	
+	public abstract void write(Element el) throws IOException;
 }

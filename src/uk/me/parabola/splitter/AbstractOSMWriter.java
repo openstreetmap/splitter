@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import java.awt.Rectangle;
 import java.io.File;
+import java.io.IOException;
 
 public abstract class AbstractOSMWriter implements OSMWriter{
 	final static int REMOVE_VERSION = 1;
@@ -66,5 +67,15 @@ public abstract class AbstractOSMWriter implements OSMWriter{
 	
 	public Rectangle getBBox(){
 		return bbox;
+	}
+	
+	public void write (Element element) throws IOException {
+		if (element instanceof Node) {
+			write((Node) element);
+		} else if (element instanceof Way) {
+			write((Way) element);
+		} else if (element instanceof Relation) {
+			write((Relation) element);
+		}
 	}
 }

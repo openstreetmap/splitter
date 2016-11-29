@@ -166,8 +166,8 @@ public class DataStorer {
         return writers;
     }
 
-    public void storeRelationArea(long id, Integer areaIdx) {
-        oneDistinctAreaOnlyRels.put(id, areaIdx);
+    public void storeRelationAreas(long id, BitSet areaSet) {
+        oneDistinctAreaOnlyRels.put(id, multiTileDictionary.translate(areaSet));
     }
 
     public Integer getOneTileOnlyRels(long id) {
