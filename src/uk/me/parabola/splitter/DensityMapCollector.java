@@ -34,10 +34,6 @@ class DensityMapCollector extends AbstractMapProcessor{
 	}
 
 	@Override
-	public boolean isStartNodeOnly() {
-		return true;
-	}
-	@Override
 	public boolean skipTags() {
 		return true;
 	}

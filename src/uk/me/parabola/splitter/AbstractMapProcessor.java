@@ -16,9 +16,6 @@ package uk.me.parabola.splitter;
 public abstract class AbstractMapProcessor implements MapProcessor {
 	public static final short UNASSIGNED = Short.MIN_VALUE;
 
-	public boolean isStartNodeOnly(){
-		return false;
-	}
 	public boolean skipTags(){
 		return false;
 	}
