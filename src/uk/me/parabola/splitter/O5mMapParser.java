@@ -25,7 +25,7 @@ import java.util.Arrays;
  * @author GerdP  
  *
  */
-public class O5mMapParser implements MapReader{
+public class O5mMapParser {
 	// O5M data set constants
 	private static final int NODE_DATASET = 0x10;
 	private static final int WAY_DATASET = 0x11;

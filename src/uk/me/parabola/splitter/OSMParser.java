@@ -18,7 +18,7 @@ import org.xmlpull.v1.XmlPullParserException;
  * Parses an OSM file, calling the appropriate methods on a
  * {@code MapProcessor} as it progresses.
  */
-class OSMParser extends AbstractXppParser implements MapReader {
+class OSMParser extends AbstractXppParser {
 
 
 	private enum State {

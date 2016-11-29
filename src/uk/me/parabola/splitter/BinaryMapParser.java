@@ -22,7 +22,7 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.util.List;
 
-public class BinaryMapParser extends BinaryParser implements MapReader {
+public class BinaryMapParser extends BinaryParser {
 	private static final short TYPE_DENSE = 0x1; 
 	private static final short TYPE_NODES = 0x2; 
 	private static final short TYPE_WAYS = 0x4; 
