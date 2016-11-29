@@ -652,12 +652,13 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			return false;
 
 		boolean foundWriter = false;
-		for (int i = writerCandidates.set.nextSetBit(0); i >= 0; i = writerCandidates.set.nextSetBit(i+1)) {
-			Area extbbox = dataStorer.getExtendedArea(i);
+		for (int i = 0; i < writerCandidates.l.size(); i++) {
+			int n = writerCandidates.l.getShort(i);
+			Area extbbox = dataStorer.getExtendedArea(n);
 			boolean found = (writerCandidates.testNeeded) ? extbbox.contains(mapLat, mapLon) : true;
 			foundWriter |= found;
 			if (found) 
-				writerSet.set(i);
+				writerSet.set(n);
 		}
 		return foundWriter;
 	}
@@ -930,7 +931,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * @author GerdP
 	 *
 	 */
-	private static class MTRelation {
+	private class MTRelation {
 
 		private final static short IS_MP     = 0x01; 
 		private final static short ON_LOOP   = 0x02; 

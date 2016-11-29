@@ -135,8 +135,13 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (areaCandidates == null) 
 			return;
 		
-		areaSet.clear();
-		for (int n = areaCandidates.set.nextSetBit(areaOffset); n >= 0 && n <= lastAreaOffset; n = areaCandidates.set.nextSetBit(n+1)) {
+		if (areaCandidates.l.size() > 1)
+			areaSet.clear();
+		for (int i = 0; i < areaCandidates.l.size(); i++) {
+			int n = areaCandidates.l.getShort(i);
+			if (n < areaOffset || n > lastAreaOffset)
+				continue;
+
 			boolean found;
 			if (areaCandidates.testNeeded){
 				found = dataStorer.getArea(n).contains(node);

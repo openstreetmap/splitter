@@ -34,6 +34,7 @@ public class AreaDictionaryShort{
 	private final static int DICT_START = Short.MAX_VALUE;
 	private final Area[] areas; 
 	private final ArrayList<BitSet> sets; 
+	private final ArrayList<ShortArrayList> arrays; 
 	private final int numOfAreas;
 	private final HashMap<BitSet, Short> index;
 	private final HashSet<Short> simpleNeighbours = new HashSet<>();
@@ -49,6 +50,7 @@ public class AreaDictionaryShort{
 		this.overlapAmount = overlapAmount;
 		this.numOfAreas = areas.size();
 		sets = new ArrayList<>();
+		arrays = new ArrayList<>();
 		index = new HashMap<>();
 		init();
 	}
@@ -92,6 +94,7 @@ public class AreaDictionaryShort{
 				throw new SplitFailedException("areaDictionary is full. Decrease --max-areas value");
 			}
 			sets.add(bnew);
+			arrays.add(a);
 			index.put(bnew, combiIndex);
 		}
 		return combiIndex;
@@ -153,6 +156,16 @@ public class AreaDictionaryShort{
 	 */
 	public BitSet getBitSet (final short idx){
 		return sets.get(idx + DICT_START);
+	}
+	
+	/**
+	 * Return a list containing the area ids for the given 
+	 * short value.  
+	 * @param idx a short value that was returned by the translate() method
+	 * @return a list containing the area ids 
+	 */
+	public ShortArrayList getList (final short idx){
+		return arrays.get(DICT_START + idx);
 	}
 	
 	/**

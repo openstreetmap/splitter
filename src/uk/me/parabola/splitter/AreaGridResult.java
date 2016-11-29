@@ -13,7 +13,7 @@
 
 package uk.me.parabola.splitter;
 
-import java.util.BitSet;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 /**
  * A helper class to combine the results of the {@link AreaGrid} 
@@ -21,7 +21,7 @@ import java.util.BitSet;
  *
  */
 public class AreaGridResult{
-	BitSet set;	// indexes to the area dictionary, caller must not modify it
+	ShortArrayList l;	// list of indexes to the area dictionary
 	boolean testNeeded; // true: the list must be checked with the Area.contains() method 
 }
 
