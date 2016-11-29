@@ -28,181 +28,185 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
  *
  */
 public class DataStorer {
-    public static final int NODE_TYPE = 0;
-    public static final int WAY_TYPE = 1;
-    public static final int REL_TYPE = 2;
+	public static final int NODE_TYPE = 0;
+	public static final int WAY_TYPE = 1;
+	public static final int REL_TYPE = 2;
 
-    private final int numOfAreas;
+	private final int numOfAreas;
 
-    private final Long2IntClosedMapFunction[] maps = new Long2IntClosedMapFunction[3];
+	private final Long2IntClosedMapFunction[] maps = new Long2IntClosedMapFunction[3];
 
-    private final AreaDictionaryShort areaDictionary;
-    private final AreaDictionaryInt multiTileDictionary;
-    private final AreaIndex areaIndex;
-    private SparseLong2IntMap usedWays = null;
-    private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<>();
-    private boolean idsAreNotSorted;
-    private OSMWriter[] writers;
-    /** map with relations that should be complete and are written to only one tile */
-    private final Long2ObjectOpenHashMap<Integer> oneDistinctAreaOnlyRels = new Long2ObjectOpenHashMap<>();
-    private final OSMId2ObjectMap<Integer> oneTileOnlyRels = new OSMId2ObjectMap<>(); 
+	private final AreaDictionaryShort areaDictionary;
+	private final AreaDictionaryInt multiTileDictionary;
+	private final AreaIndex areaIndex;
+	private SparseLong2IntMap usedWays = null;
+	private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<>();
+	private boolean idsAreNotSorted;
+	private OSMWriter[] writers;
+	/**
+	 * map with relations that should be complete and are written to only one
+	 * tile
+	 */
+	private final Long2ObjectOpenHashMap<Integer> oneDistinctAreaOnlyRels = new Long2ObjectOpenHashMap<>();
+	private final OSMId2ObjectMap<Integer> oneTileOnlyRels = new OSMId2ObjectMap<>();
 
-    /**
-     * Create a dictionary for a given number of writers
-     * 
-     * @param overlapAmount
-     * @param numOfWriters
-     *            the number of writers that are used
-     */
-    DataStorer(List<Area> areas, int overlapAmount) {
-        this.numOfAreas = areas.size();
-        this.areaDictionary = new AreaDictionaryShort(areas, overlapAmount);
-        this.multiTileDictionary = new AreaDictionaryInt(numOfAreas);
-        this.areaIndex = new AreaGrid(areaDictionary);
-        return;
-    }
+	/**
+	 * Create a dictionary for a given number of writers
+	 * 
+	 * @param overlapAmount
+	 * @param numOfWriters
+	 *            the number of writers that are used
+	 */
+	DataStorer(List<Area> areas, int overlapAmount) {
+		this.numOfAreas = areas.size();
+		this.areaDictionary = new AreaDictionaryShort(areas, overlapAmount);
+		this.multiTileDictionary = new AreaDictionaryInt(numOfAreas);
+		this.areaIndex = new AreaGrid(areaDictionary);
+		return;
+	}
 
-    public int getNumOfAreas() {
-        return numOfAreas;
-    }
+	public int getNumOfAreas() {
+		return numOfAreas;
+	}
 
-    public AreaDictionaryShort getAreaDictionary() {
-        return areaDictionary;
-    }
+	public AreaDictionaryShort getAreaDictionary() {
+		return areaDictionary;
+	}
 
-    public Area getArea(int idx) {
-        return areaDictionary.getArea(idx);
-    }
+	public Area getArea(int idx) {
+		return areaDictionary.getArea(idx);
+	}
 
-    public Area getExtendedArea(int idx) {
-        return areaDictionary.getExtendedArea(idx);
-    }
+	public Area getExtendedArea(int idx) {
+		return areaDictionary.getExtendedArea(idx);
+	}
 
-    public void setWriters(OSMWriter[] writers) {
-        this.writers = writers;
-    }
+	public void setWriters(OSMWriter[] writers) {
+		this.writers = writers;
+	}
 
-    public void setWriterMap(int type, Long2IntClosedMapFunction nodeWriterMap) {
-        maps[type] = nodeWriterMap;
-    }
+	public void setWriterMap(int type, Long2IntClosedMapFunction nodeWriterMap) {
+		maps[type] = nodeWriterMap;
+	}
 
-    public Long2IntClosedMapFunction getWriterMap(int type) {
-        return maps[type];
-    }
+	public Long2IntClosedMapFunction getWriterMap(int type) {
+		return maps[type];
+	}
 
-    public AreaIndex getGrid() {
-        return areaIndex;
-    }
+	public AreaIndex getGrid() {
+		return areaIndex;
+	}
 
-    public AreaDictionaryInt getMultiTileDictionary() {
-        return multiTileDictionary;
-    }
+	public AreaDictionaryInt getMultiTileDictionary() {
+		return multiTileDictionary;
+	}
 
-    public SparseLong2IntMap getUsedWays() {
-        return usedWays;
-    }
+	public SparseLong2IntMap getUsedWays() {
+		return usedWays;
+	}
 
-    public OSMId2ObjectMap<Integer> getUsedRels() {
-        return usedRels;
-    }
+	public OSMId2ObjectMap<Integer> getUsedRels() {
+		return usedRels;
+	}
 
-    public void setUsedWays(SparseLong2IntMap ways) {
-        usedWays = ways;
-    }
+	public void setUsedWays(SparseLong2IntMap ways) {
+		usedWays = ways;
+	}
 
-    public boolean isIdsAreNotSorted() {
-        return idsAreNotSorted;
-    }
+	public boolean isIdsAreNotSorted() {
+		return idsAreNotSorted;
+	}
 
-    public void setIdsAreNotSorted(boolean idsAreNotSorted) {
-        this.idsAreNotSorted = idsAreNotSorted;
-    }
+	public void setIdsAreNotSorted(boolean idsAreNotSorted) {
+		this.idsAreNotSorted = idsAreNotSorted;
+	}
 
-    public void restartWriterMaps() {
-        for (Long2IntClosedMapFunction map : maps) {
-            if (map != null) {
-                try {
-                    map.close();
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
-        }
+	public void restartWriterMaps() {
+		for (Long2IntClosedMapFunction map : maps) {
+			if (map != null) {
+				try {
+					map.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
 
-    }
+	}
 
-    public void switchToSeqAccess(File fileOutputDir) throws IOException {
-        boolean msgWritten = false;
-        long start = System.currentTimeMillis();
-        for (Long2IntClosedMapFunction map : maps) {
-            if (map != null) {
-                if (!msgWritten) {
-                    System.out.println("Writing results of MultiTileAnalyser to temp files ...");
-                    msgWritten = true;
-                }
-                map.switchToSeqAccess(fileOutputDir);
-            }
-        }
-        System.out
-                .println("Writing temp files took " + (System.currentTimeMillis() - start) + " ms");
-    }
+	public void switchToSeqAccess(File fileOutputDir) throws IOException {
+		boolean msgWritten = false;
+		long start = System.currentTimeMillis();
+		for (Long2IntClosedMapFunction map : maps) {
+			if (map != null) {
+				if (!msgWritten) {
+					System.out.println("Writing results of MultiTileAnalyser to temp files ...");
+					msgWritten = true;
+				}
+				map.switchToSeqAccess(fileOutputDir);
+			}
+		}
+		System.out.println("Writing temp files took " + (System.currentTimeMillis() - start) + " ms");
+	}
 
-    public void finish() {
-        for (Long2IntClosedMapFunction map : maps) {
-            if (map != null)
-                map.finish();
-        }
-    }
+	public void finish() {
+		for (Long2IntClosedMapFunction map : maps) {
+			if (map != null)
+				map.finish();
+		}
+	}
 
-    public void stats(final String prefix) {
-        for (Long2IntClosedMapFunction map : maps) {
-            if (map != null)
-                map.stats(prefix);
-        }
-    }
+	public void stats(final String prefix) {
+		for (Long2IntClosedMapFunction map : maps) {
+			if (map != null)
+				map.stats(prefix);
+		}
+	}
 
-    public OSMWriter[] getWriters() {
-        return writers;
-    }
+	public OSMWriter[] getWriters() {
+		return writers;
+	}
 
-    public void storeRelationAreas(long id, BitSet areaSet) {
-        oneDistinctAreaOnlyRels.put(id, multiTileDictionary.translate(areaSet));
-    }
+	public void storeRelationAreas(long id, BitSet areaSet) {
+		oneDistinctAreaOnlyRels.put(id, multiTileDictionary.translate(areaSet));
+	}
 
-    public Integer getOneTileOnlyRels(long id) {
-        return oneTileOnlyRels.get(id);
-    }
+	public Integer getOneTileOnlyRels(long id) {
+		return oneTileOnlyRels.get(id);
+	}
 
-    /**
-     * If the BitSet ids in oneTileOnlyRels were produced with a different set of
-     * areas we have to translate the values 
-     * @param distinctAreas list of distinct (non-overlapping) areas
-     * @param distinctDataStorer 
-     */
-    public void translateDistinctToRealAreas(DataStorer distinctDataStorer) {
-        List<Area> distinctAreas = distinctDataStorer.getAreaDictionary().getAreas();
-        Map<Area, Integer> map = new HashMap<>(); 
-        for (Area distinctArea : distinctAreas) {
-            if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
-                BitSet w = new BitSet();
-                for (int i = 0; i < getNumOfAreas(); i++) {
-                    if (this.areaDictionary.getArea(i).contains(distinctArea)) {
-                        w.set(i);
-                    }
-                }                   
-                map.put(distinctArea, this.multiTileDictionary.translate(w));
-            }
-        }
-        
-        for ( Entry<Long, Integer> e: distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-            if (e.getValue() >= 0) { 
-                Integer areaIdx = map.get(distinctAreas.get(e.getValue()));
-                oneTileOnlyRels.put(e.getKey(), areaIdx != null ?  areaIdx: e.getValue());
-            }  else {
-                oneTileOnlyRels.put(e.getKey(), AreaDictionaryInt.UNASSIGNED);
-            }
-            
-        }
-    }
+	/**
+	 * If the BitSet ids in oneTileOnlyRels were produced with a different set
+	 * of areas we have to translate the values
+	 * 
+	 * @param distinctAreas
+	 *            list of distinct (non-overlapping) areas
+	 * @param distinctDataStorer
+	 */
+	public void translateDistinctToRealAreas(DataStorer distinctDataStorer) {
+		List<Area> distinctAreas = distinctDataStorer.getAreaDictionary().getAreas();
+		Map<Area, Integer> map = new HashMap<>();
+		for (Area distinctArea : distinctAreas) {
+			if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
+				BitSet w = new BitSet();
+				for (int i = 0; i < getNumOfAreas(); i++) {
+					if (this.areaDictionary.getArea(i).contains(distinctArea)) {
+						w.set(i);
+					}
+				}
+				map.put(distinctArea, this.multiTileDictionary.translate(w));
+			}
+		}
+
+		for (Entry<Long, Integer> e : distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
+			if (e.getValue() >= 0) {
+				Integer areaIdx = map.get(distinctAreas.get(e.getValue()));
+				oneTileOnlyRels.put(e.getKey(), areaIdx != null ? areaIdx : e.getValue());
+			} else {
+				oneTileOnlyRels.put(e.getKey(), AreaDictionaryInt.UNASSIGNED);
+			}
+
+		}
+	}
 }

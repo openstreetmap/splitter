@@ -17,22 +17,21 @@ import crosby.binary.BinaryParser;
 import crosby.binary.Osmformat;
 import crosby.binary.file.FileBlockPosition;
 
-
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 
 import java.util.List;
 
 public class BinaryMapParser extends BinaryParser {
-	private static final short TYPE_DENSE = 0x1; 
-	private static final short TYPE_NODES = 0x2; 
-	private static final short TYPE_WAYS = 0x4; 
-	private static final short TYPE_RELS = 0x8; 
+	private static final short TYPE_DENSE = 0x1;
+	private static final short TYPE_NODES = 0x2;
+	private static final short TYPE_WAYS = 0x4;
+	private static final short TYPE_RELS = 0x8;
 	private final ShortArrayList blockTypes = new ShortArrayList();
 	private final ShortArrayList knownBlockTypes;
 
 	// for status messages
 	private final ElementCounter elemCounter = new ElementCounter();
-	
+
 	private short blockType = -1;
 	private int blockCount = -1;
 	private boolean skipTags;
@@ -40,8 +39,8 @@ public class BinaryMapParser extends BinaryParser {
 	private boolean skipWays;
 	private boolean skipRels;
 	private short wantedTypeMask = 0;
-	private int msgLevel; 
-	
+	private int msgLevel;
+
 	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes, int msgLevel) {
 		this.processor = processor;
 		this.knownBlockTypes = knownBlockTypes;
@@ -50,8 +49,8 @@ public class BinaryMapParser extends BinaryParser {
 		this.skipWays = processor.skipWays();
 		this.skipRels = processor.skipRels();
 		this.msgLevel = msgLevel;
-		
-		if (skipNodes == false){
+
+		if (skipNodes == false) {
 			wantedTypeMask |= TYPE_DENSE;
 			wantedTypeMask |= TYPE_NODES;
 		}
@@ -60,34 +59,34 @@ public class BinaryMapParser extends BinaryParser {
 		if (skipRels == false)
 			wantedTypeMask |= TYPE_RELS;
 	}
+
 	MapProcessor processor;
 
-	public ShortArrayList getBlockList(){
+	public ShortArrayList getBlockList() {
 		return blockTypes;
 	}
-	
+
 	@Override
-    public boolean skipBlock(FileBlockPosition block) {
+	public boolean skipBlock(FileBlockPosition block) {
 		blockCount++;
-		if (knownBlockTypes != null){
+		if (knownBlockTypes != null) {
 			blockType = knownBlockTypes.getShort(blockCount);
 			if (blockType != 0 && (blockType & wantedTypeMask) == 0)
 				return true;
-		}
-		else if (blockType != -1){
-			//System.out.println("previous block contained " + blockType );
+		} else if (blockType != -1) {
+			// System.out.println("previous block contained " + blockType );
 			blockTypes.add(blockType);
 		}
 		blockType = 0;
-        // System.out.println("Seeing block of type: "+block.getType());
-        if (block.getType().equals("OSMData"))
-            return false;
-        if (block.getType().equals("OSMHeader"))
-            return false;
-        System.out.println("Skipped block of type: " + block.getType());
-        return true;
-    }
-	
+		// System.out.println("Seeing block of type: "+block.getType());
+		if (block.getType().equals("OSMData"))
+			return false;
+		if (block.getType().equals("OSMHeader"))
+			return false;
+		System.out.println("Skipped block of type: " + block.getType());
+		return true;
+	}
+
 	@Override
 	public void complete() {
 		blockTypes.add(blockType);
@@ -105,10 +104,13 @@ public class BinaryMapParser extends BinaryParser {
 		int j = 0;
 		int maxi = nodes.getIdCount();
 		Node tmp = new Node();
-		for (int i=0 ; i < maxi; i++) {
-			long lat = nodes.getLat(i)+last_lat; last_lat = lat;
-			long lon = nodes.getLon(i)+last_lon; last_lon = lon;
-			long id =  nodes.getId(i)+last_id; last_id = id;
+		for (int i = 0; i < maxi; i++) {
+			long lat = nodes.getLat(i) + last_lat;
+			last_lat = lat;
+			long lon = nodes.getLon(i) + last_lon;
+			last_lon = lon;
+			long id = nodes.getId(i) + last_id;
+			last_id = id;
 			double latf = parseLat(lat), lonf = parseLon(lon);
 
 			tmp = new Node();
@@ -121,7 +123,7 @@ public class BinaryMapParser extends BinaryParser {
 					while (nodes.getKeysVals(j) != 0) {
 						int keyid = nodes.getKeysVals(j++);
 						int valid = nodes.getKeysVals(j++);
-						tmp.addTag(getStringById(keyid),getStringById(valid));
+						tmp.addTag(getStringById(keyid), getStringById(valid));
 					}
 					j++; // Skip over the '0' delimiter.
 
@@ -134,15 +136,15 @@ public class BinaryMapParser extends BinaryParser {
 
 	@Override
 	protected void parseNodes(List<Osmformat.Node> nodes) {
-		if (nodes.size() == 0) 
+		if (nodes.size() == 0)
 			return;
 		blockType |= TYPE_NODES;
-		if (skipNodes) 
+		if (skipNodes)
 			return;
 		for (Osmformat.Node i : nodes) {
 			Node tmp = new Node();
-			for (int j=0 ; j < i.getKeysCount(); j++)
-				tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
+			for (int j = 0; j < i.getKeysCount(); j++)
+				tmp.addTag(getStringById(i.getKeys(j)), getStringById(i.getVals(j)));
 			long id = i.getId();
 			double latf = parseLat(i.getLat()), lonf = parseLon(i.getLon());
 
@@ -155,25 +157,24 @@ public class BinaryMapParser extends BinaryParser {
 		}
 	}
 
-
 	@Override
 	protected void parseWays(List<Osmformat.Way> ways) {
 		long numways = ways.size();
-		if (numways == 0) 
+		if (numways == 0)
 			return;
 		blockType |= TYPE_WAYS;
-		if (skipWays) 
+		if (skipWays)
 			return;
 		for (Osmformat.Way i : ways) {
 			Way tmp = new Way();
-			if (skipTags == false){
-				for (int j=0 ; j < i.getKeysCount(); j++)
-					tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
+			if (skipTags == false) {
+				for (int j = 0; j < i.getKeysCount(); j++)
+					tmp.addTag(getStringById(i.getKeys(j)), getStringById(i.getVals(j)));
 			}
-			long last_id=0;
+			long last_id = 0;
 			for (long j : i.getRefsList()) {
-				tmp.addRef(j+last_id);
-				last_id = j+last_id;
+				tmp.addRef(j + last_id);
+				last_id = j + last_id;
 			}
 
 			long id = i.getId();
@@ -186,31 +187,29 @@ public class BinaryMapParser extends BinaryParser {
 		}
 	}
 
-
-
 	@Override
 	protected void parseRelations(List<Osmformat.Relation> rels) {
-		if (rels.size() == 0) 
+		if (rels.size() == 0)
 			return;
 		blockType |= TYPE_RELS;
 		if (skipRels)
 			return;
 		for (Osmformat.Relation i : rels) {
 			Relation tmp = new Relation();
-			if (skipTags == false){
-				for (int j=0 ; j < i.getKeysCount(); j++)
-					tmp.addTag(getStringById(i.getKeys(j)),getStringById(i.getVals(j)));
+			if (skipTags == false) {
+				for (int j = 0; j < i.getKeysCount(); j++)
+					tmp.addTag(getStringById(i.getKeys(j)), getStringById(i.getVals(j)));
 			}
 			long id = i.getId();
 			tmp.setId(id);
 			tmp.setVersion(i.getInfo().getVersion());
 
-			long last_mid=0;
-			for (int j =0; j < i.getMemidsCount() ; j++) {
+			long last_mid = 0;
+			for (int j = 0; j < i.getMemidsCount(); j++) {
 				long mid = last_mid + i.getMemids(j);
 				last_mid = mid;
 				String role = getStringById(i.getRolesSid(j));
-				String etype=null;
+				String etype = null;
 
 				if (i.getTypes(j) == Osmformat.Relation.MemberType.NODE)
 					etype = "node";
@@ -221,7 +220,7 @@ public class BinaryMapParser extends BinaryParser {
 				else
 					assert false; // TODO; Illegal file?
 
-				tmp.addMember(etype,mid,role);
+				tmp.addMember(etype, mid, role);
 			}
 			processor.processRelation(tmp);
 			elemCounter.countRelation(tmp.getId());
@@ -232,8 +231,10 @@ public class BinaryMapParser extends BinaryParser {
 	public void parse(Osmformat.HeaderBlock block) {
 
 		for (String s : block.getRequiredFeaturesList()) {
-			if (s.equals("OsmSchema-V0.6")) continue; // OK.
-			if (s.equals("DenseNodes")) continue; // OK.
+			if (s.equals("OsmSchema-V0.6"))
+				continue; // OK.
+			if (s.equals("DenseNodes"))
+				continue; // OK.
 			throw new UnknownFeatureException(s);
 		}
 
@@ -245,12 +246,9 @@ public class BinaryMapParser extends BinaryParser {
 			double bottomf = block.getBbox().getBottom() * multiplier;
 
 			if (msgLevel > 0)
-				System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
+				System.out.println("Bounding box " + leftf + " " + bottomf + " " + rightf + " " + topf);
 
-			Area area = new Area(
-					Utils.toMapUnit(bottomf),
-					Utils.toMapUnit(leftf),
-					Utils.toMapUnit(topf),
+			Area area = new Area(Utils.toMapUnit(bottomf), Utils.toMapUnit(leftf), Utils.toMapUnit(topf),
 					Utils.toMapUnit(rightf));
 			if (!area.verify())
 				throw new IllegalArgumentException("invalid bbox area in pbf file: " + area);

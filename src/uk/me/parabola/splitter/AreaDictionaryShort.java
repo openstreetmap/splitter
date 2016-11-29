@@ -202,11 +202,11 @@ public class AreaDictionaryShort{
 				bounds.getMaxLong() + overlapAmount);
 	}
 
-    public List<Area> getAreas() {
-        return Collections.unmodifiableList(Arrays.asList(areas));
-    }
+	public List<Area> getAreas() {
+		return Collections.unmodifiableList(Arrays.asList(areas));
+	}
 
-    public static short translate(int singleWriterId) {
-        return (short) (singleWriterId  - DICT_START); 
-    }
+	public static short translate(int singleWriterId) {
+		return (short) (singleWriterId - DICT_START);
+	}
 }

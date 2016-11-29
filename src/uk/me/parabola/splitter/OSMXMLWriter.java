@@ -35,7 +35,6 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		);
 	
 	private Writer writer;
-	
 
 	public OSMXMLWriter(Area bounds, File outputDir, int mapId, int extra) {
 		super(bounds, outputDir, mapId, extra);
@@ -58,7 +57,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 	private void writeHeader() throws IOException {
 		writeString("<?xml version='1.0' encoding='UTF-8'?>\n");
 		String apiVersion = (versionMethod == REMOVE_VERSION) ? "version='0.5'" : "version='0.6'";
-			
+
 		writeString("<osm " + apiVersion + " generator='splitter' upload='false'>\n");
 
 		writeString("<bounds minlat='");
@@ -99,7 +98,7 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		} else {
 			writeString("'/>\n");
 		}
-		
+
 	}
 
 	public void write(Way way) throws IOException {
@@ -128,7 +127,8 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		List<Relation.Member> memlist = rel.getMembers();
 		for (Relation.Member m : memlist) {
 			if (m.getType() == null || m.getRef() == 0) {
-				System.err.println("Invalid relation member found in relation " + rel.getId() + ": member type=" + m.getType() + ", ref=" + m.getRef() + ", role=" + m.getRole() + ". Ignoring this member");
+				System.err.println("Invalid relation member found in relation " + rel.getId() + ": member type="
+						+ m.getType() + ", ref=" + m.getRef() + ", role=" + m.getRole() + ". Ignoring this member");
 				continue;
 			}
 			writeString("<member type='");
@@ -162,26 +162,26 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		for (int i = 0; i < value.length(); i++) {
 			char c = value.charAt(i);
 			switch (c) {
-				case '\'':
-					writeString("&apos;");
-					break;
-				case '&':
-					writeString("&amp;");
-					break;
-				case '<':
-					writeString("&lt;");
-					break;
-				case '\n':
-					writeString("&#xa;");
-					break;
-				case '\r':
-					writeString("&#xd;");
-					break;
-				case '\t':
-					writeString("&#9;");
-					break;
-				default:
-					writeChar(c);
+			case '\'':
+				writeString("&apos;");
+				break;
+			case '&':
+				writeString("&amp;");
+				break;
+			case '<':
+				writeString("&lt;");
+				break;
+			case '\n':
+				writeString("&#xa;");
+				break;
+			case '\r':
+				writeString("&#xd;");
+				break;
+			case '\t':
+				writeString("&#9;");
+				break;
+			default:
+				writeChar(c);
 			}
 		}
 	}
@@ -217,9 +217,11 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 	/** Write a double to full precision */
 	private void writeLongDouble(double value) throws IOException {
 		checkFlush(22);
-        writeString(Double.toString(value));
+		writeString(Double.toString(value));
 	}
-	/** Write a double truncated to OSM's 7 digits of precision
+
+	/**
+	 * Write a double truncated to OSM's 7 digits of precision
 	 */
 	private void writeDouble(double value) throws IOException {
 		checkFlush(22);
@@ -227,23 +229,22 @@ public class OSMXMLWriter extends AbstractOSMWriter{
 		if (value < -200 || value > 200 || (value > -1 && value < 1))
 			writeString(numberFormat.format(value));
 		else {
-		     if (value < 0) {
-		    	 charBuf[index++] = '-'; // Write directly.
-		    	 value = -value;
-		     }
+			if (value < 0) {
+				charBuf[index++] = '-'; // Write directly.
+				value = -value;
+			}
 
-		int val = (int)Math.round(value*10000000);
-		StringBuilder s = new StringBuilder(Integer.toString(val));
-		s.insert(s.length()-7, '.');
-		writeString(s.toString());
+			int val = (int) Math.round(value * 10000000);
+			StringBuilder s = new StringBuilder(Integer.toString(val));
+			s.insert(s.length() - 7, '.');
+			writeString(s.toString());
 		}
 	}
-		
+
 	private void writeLong(long value) throws IOException {
 		checkFlush(20);
 		writeString(Long.toString(value));
 	}
-	
 
 	private void writeChar(char value) throws IOException {
 		checkFlush(1);
