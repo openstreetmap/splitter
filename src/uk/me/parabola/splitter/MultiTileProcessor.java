@@ -217,13 +217,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				markParentRels();
 			}
 			// free memory for rels that are not causing any trouble
-			ObjectIterator<Entry<MTRelation>> it = relMap.long2ObjectEntrySet().fastIterator();
-			while (it.hasNext()) {
-				Entry<MTRelation> pairs = it.next();
-				if (!problemRels.get(pairs.getLongKey())){
-					it.remove(); 
-				}
-			}
+			relMap.long2ObjectEntrySet().removeIf(e -> !problemRels.get(e.getLongKey()));
 			problemRels = null;
 			// reallocate to the needed size
 			relMap = new Long2ObjectLinkedOpenHashMap<>(relMap);

@@ -370,12 +370,7 @@ public class SplittableDensityArea {
 	private void filterGoodSolutions(Solution best){
 		if (best == null || best.isEmpty())
 			return;
-		Iterator<Entry<Tile, Solution>> iter = goodSolutions.entrySet().iterator();
-		while (iter.hasNext()){
-			Entry<Tile, Solution> entry = iter.next();
-			if (entry.getValue().getWorstMinNodes() <= best.getWorstMinNodes())
-				iter.remove();
-		}
+		goodSolutions.entrySet().removeIf(entry -> entry.getValue().getWorstMinNodes() <= best.getWorstMinNodes());
 		goodRatio = Math.max(0.5, (double) best.getWorstMinNodes() / maxNodes);
 	}
 
