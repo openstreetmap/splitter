@@ -17,8 +17,6 @@ import uk.me.parabola.splitter.Relation.Member;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
-import it.unimi.dsi.fastutil.objects.ObjectIterator;
-
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
