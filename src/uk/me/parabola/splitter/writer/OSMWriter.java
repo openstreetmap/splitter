@@ -11,10 +11,16 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.writer;
 
 import java.awt.Rectangle;
 import java.io.IOException;
+
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Element;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Way;
 
 public interface OSMWriter {
 	/** 

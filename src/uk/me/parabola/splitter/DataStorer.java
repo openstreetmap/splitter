@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import uk.me.parabola.splitter.writer.OSMWriter;
 
 /**
  * Stores data that is needed in different passes of the program.

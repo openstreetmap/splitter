@@ -20,7 +20,6 @@ import java.io.IOException;
 import uk.me.parabola.splitter.Area;
 import uk.me.parabola.splitter.Element;
 import uk.me.parabola.splitter.Node;
-import uk.me.parabola.splitter.OSMWriter;
 import uk.me.parabola.splitter.Relation;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;

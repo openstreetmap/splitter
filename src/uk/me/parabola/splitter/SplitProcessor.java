@@ -13,6 +13,7 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
+import uk.me.parabola.splitter.writer.OSMWriter;
 
 import java.io.IOException;
 import java.util.ArrayList;
