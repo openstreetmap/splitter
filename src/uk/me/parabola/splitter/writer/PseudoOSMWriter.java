@@ -11,9 +11,12 @@
  * General Public License for more details.
  */
  
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.writer;
 
-import uk.me.parabola.splitter.writer.AbstractOSMWriter;
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Way;
 
 /**
  * A do-nothing writer (used with --output=simulate) 

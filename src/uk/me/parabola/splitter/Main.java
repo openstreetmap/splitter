@@ -22,6 +22,7 @@ import uk.me.parabola.splitter.writer.BinaryMapWriter;
 import uk.me.parabola.splitter.writer.O5mMapWriter;
 import uk.me.parabola.splitter.writer.OSMWriter;
 import uk.me.parabola.splitter.writer.OSMXMLWriter;
+import uk.me.parabola.splitter.writer.PseudoOSMWriter;
 
 import java.awt.Rectangle;
 import java.io.File;
