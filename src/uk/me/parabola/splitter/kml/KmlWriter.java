@@ -10,13 +10,16 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.kml;
 
 import java.awt.geom.PathIterator;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.Locale;
+
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Utils;
 /**
  * A class to create kml files from java areas (polygons) or rectangular areas.
  * @author GerdP

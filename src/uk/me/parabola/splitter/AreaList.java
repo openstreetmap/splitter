@@ -35,6 +35,7 @@ import uk.me.parabola.splitter.geo.City;
 import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
+import uk.me.parabola.splitter.kml.KmlParser;
 
 /**
  * A list of areas.  It can be read and written to a file.

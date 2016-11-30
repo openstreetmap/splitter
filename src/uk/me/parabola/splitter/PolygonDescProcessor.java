@@ -13,6 +13,7 @@
 package uk.me.parabola.splitter;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import uk.me.parabola.splitter.kml.KmlWriter;
 
 import java.awt.geom.Path2D;
 import java.awt.geom.Area;

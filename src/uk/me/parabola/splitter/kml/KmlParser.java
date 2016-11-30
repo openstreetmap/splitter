@@ -11,13 +11,15 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.kml;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.xml.parser.AbstractXppParser;
 
 /**
