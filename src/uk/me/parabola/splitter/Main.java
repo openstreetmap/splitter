@@ -574,7 +574,8 @@ public class Main {
 			pass1Collector.readMap(densityData.getAbsolutePath());
 		} else {
 			densityOutData = new File(fileOutputDir, "densities-out.txt");
-			osmFileHandler.process(processor);
+			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, processor);
+			producerConsumer.execute();
 		}
 		System.out.println("in " + fileNameList.size() + (fileNameList.size() == 1 ? " file" : " files"));
 		System.out.println("Time: " + new Date());

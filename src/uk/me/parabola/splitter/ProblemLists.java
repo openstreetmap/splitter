@@ -92,7 +92,9 @@ public class ProblemLists {
 
 			boolean done = false;
 			while (!done) {
-				done = osmFileHandler.process(processor);
+				ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, processor);
+				done = producerConsumer.execute();
+
 				calculatedProblemWays.addAll(processor.getProblemWays());
 				calculatedProblemRels.addAll(processor.getProblemRels());
 			}
@@ -233,7 +235,9 @@ public class ProblemLists {
 				System.out.println("-----------------------------------");
 				System.out.println("Executing multi-tile analyses phase " + phase);
 			}
-			done = osmFileHandler.process(multiProcessor);
+			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, multiProcessor);
+			done = producerConsumer.execute();
+
 			prevPhase = phase;
 			if (done || (phase != multiProcessor.getPhase())) {
 				System.out.println("Multi-tile analyses phase " + phase + " took "
