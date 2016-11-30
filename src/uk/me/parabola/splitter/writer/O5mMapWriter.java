@@ -33,7 +33,6 @@ import uk.me.parabola.splitter.Node;
 import uk.me.parabola.splitter.Relation;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;
-import uk.me.parabola.splitter.Element.Tag;
 import uk.me.parabola.splitter.Relation.Member;
 
 /**
@@ -232,7 +231,6 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		long delta = node.getId() - lastNodeId; lastNodeId = node.getId(); 
 		writeSignedNum(delta, stream);
 		writeVersion(node, stream);
-		//TODO : write version
 		int o5Lon = (int)(node.getLon() * FACTOR);
 		int o5Lat = (int)(node.getLat() * FACTOR);
 		int deltaLon = o5Lon - lastLon; lastLon = o5Lon;

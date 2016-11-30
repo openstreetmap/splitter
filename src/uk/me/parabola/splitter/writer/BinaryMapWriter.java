@@ -28,7 +28,6 @@ import uk.me.parabola.splitter.Relation;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Version;
 import uk.me.parabola.splitter.Way;
-import uk.me.parabola.splitter.Element.Tag;
 import uk.me.parabola.splitter.Relation.Member;
 import crosby.binary.BinarySerializer;
 import crosby.binary.Osmformat;
@@ -471,7 +470,6 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 		pbfBbox.setTop(serializer.mapRawDegrees(Utils.toDegrees(bounds.getMaxLat())));
 		headerblock.setBbox(pbfBbox);
 
-		// headerblock.setSource("splitter"); //TODO: entity.getOrigin());
 		finishHeader(headerblock);
 	}
 

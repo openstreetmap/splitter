@@ -20,9 +20,6 @@ import uk.me.parabola.splitter.Node;
 import uk.me.parabola.splitter.Relation;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;
-import uk.me.parabola.splitter.Element.Tag;
-import uk.me.parabola.splitter.Relation.Member;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
