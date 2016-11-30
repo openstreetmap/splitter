@@ -46,7 +46,10 @@ public abstract class AbstractMapProcessor implements MapProcessor {
 		return 1;
 	}
 	
-	public boolean consume(BlockingQueue<OSMMessage> queue) {
+	/**
+	 * Simple method that allows all processors to use the producer/consumer pattern
+	 */
+	public final boolean consume(BlockingQueue<OSMMessage> queue) {
 		while (true) {
 			try {
 				OSMMessage msg = queue.take();
