@@ -163,8 +163,6 @@ public class Main {
 			healthMonitor.start();
 		}
 
-		checkJREVersion();
-
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
 		try {
@@ -201,26 +199,6 @@ public class Main {
 		System.out.println("Time finished: " + new Date());
 		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
 		return rc;
-	}
-
-	/**
-	 * Check if a JRE 1.7.x or higher is installed.
-	 */
-	private static void checkJREVersion() {
-		/*
-		 * String version = System.getProperty("java.version"); if (version !=
-		 * null) { String[] versionParts =version.split(Pattern.quote(".")); if
-		 * (versionParts.length >= 2) { int major =
-		 * Integer.valueOf(versionParts[1]); if (major < 7) {
-		 * System.out.println(
-		 * "===========================================================");
-		 * System.out.println("You are using an old Java runtime environment "+
-		 * version); System.out.println("It is no longer supported.");
-		 * System.out.println("Please update Java to the latest release.");
-		 * System.out.println(
-		 * "===========================================================");
-		 * System.exit(1); } } }
-		 */
 	}
 
 	private List<Area> split() throws IOException, XmlPullParserException {
