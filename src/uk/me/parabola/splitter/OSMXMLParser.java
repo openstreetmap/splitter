@@ -20,7 +20,7 @@ import uk.me.parabola.splitter.xml.parser.AbstractXppParser;
  * Parses an OSM file, calling the appropriate methods on a
  * {@code MapProcessor} as it progresses.
  */
-class OSMParser extends AbstractXppParser {
+class OSMXMLParser extends AbstractXppParser {
 
 
 	private enum State {
@@ -44,7 +44,7 @@ class OSMParser extends AbstractXppParser {
 
 	private State state = State.None;
 
-	OSMParser(MapProcessor processor, boolean mixed) throws XmlPullParserException {
+	OSMXMLParser(MapProcessor processor, boolean mixed) throws XmlPullParserException {
 		this.processor = processor;
 		this.mixed = mixed;
 		

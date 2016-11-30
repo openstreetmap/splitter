@@ -88,7 +88,7 @@ public class OSMFileHandler {
 				} else {
 					// No, try XML.
 					try (Reader reader = Utils.openFile(filename, maxThreads > 1)) {
-						OSMParser parser = new OSMParser(processor, mixed);
+						OSMXMLParser parser = new OSMXMLParser(processor, mixed);
 						parser.setReader(reader);
 						parser.parse();
 					}

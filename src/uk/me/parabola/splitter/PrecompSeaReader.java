@@ -88,7 +88,7 @@ public class PrecompSeaReader {
 					} else {
 						// No, try XML.
 						try (Reader reader = new InputStreamReader(is, Charset.forName("UTF-8"));) {
-							OSMParser parser = new OSMParser(processor, true);
+							OSMXMLParser parser = new OSMXMLParser(processor, true);
 							parser.setReader(reader);
 							parser.parse();
 						}
