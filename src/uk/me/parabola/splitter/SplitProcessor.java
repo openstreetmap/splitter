@@ -56,7 +56,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private BitSet usedWriters;
 	
 	/**
-	 * Distribute the OSM data to separate OSM fies. 
+	 * Distribute the OSM data to separate OSM files. 
 	 * @param dataStorer 
 	 * @param writerOffset first writer to be used
 	 * @param numWritersThisPass number of writers to used
@@ -378,9 +378,8 @@ class SplitProcessor extends AbstractMapProcessor {
 
 		void put(Element e) throws InterruptedException {
 			staging.add(e);
-			if (staging.size() < STAGING_SIZE)
-				return;
-			flush();
+			if (staging.size() >= STAGING_SIZE)
+				flush();
 		}
 
 		void flush() throws InterruptedException {

@@ -311,9 +311,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * @return
 	 */
 	private void MarkNeededMembers(MTRelation rel, int depth, ArrayList<MTRelation> visited){
-		if (rel.getVisitId() == visitId)
+		if (rel.getLastVisitId() == visitId)
 			return;
-		rel.setVisitId(visitId);
+		rel.setLastVisitId(visitId);
 		if (depth > 15){
 			System.out.println("MarkNeededMembers reached max. depth: " + rel.getId() + " " +  depth);
 			return ;
@@ -332,7 +332,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				MTRelation subRel = relMap.get(memId);
 				if (subRel == null)
 					continue;
-				if (subRel.getVisitId() == visitId)
+				if (subRel.getLastVisitId() == visitId)
 					loopAction(rel, subRel, visited);
 				else {
 					problemRels.set(memId);
@@ -517,9 +517,9 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	 * @return
 	 */
 	private void orSubRelWriters(MTRelation rel, int depth, ArrayList<MTRelation> visited ){
-		if (rel.getVisitId() == visitId)
+		if (rel.getLastVisitId() == visitId)
 			return;
-		rel.setVisitId(visitId);
+		rel.setLastVisitId(visitId);
 		if (depth > 15){
 			System.out.println("orSubRelWriters reached max. depth: " + rel.getId() + " " +  depth);
 			return ;
@@ -536,7 +536,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				MTRelation subRel = relMap.get(memId);
 				if (subRel == null)
 					continue;
-				if (subRel.getVisitId() == visitId)
+				if (subRel.getLastVisitId() == visitId)
 					loopAction(rel, subRel, visited);
 				else {
 					visited.add(rel);
@@ -773,7 +773,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			// unlikely
 			visitId = 0;
 			for (Entry<MTRelation> entry : relMap.long2ObjectEntrySet()){
-				entry.getValue().setVisitId(visitId);
+				entry.getValue().setLastVisitId(visitId);
 			}
 		}
 		visitId++;
@@ -947,7 +947,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		private final String name;
 		
 		private int multiTileWriterIndex = -1;
-		private int visitId;
+		private int lastVisitId;
 		private short flags; 	// flags for the MultiTileProcessor
 		
 		public MTRelation(Relation rel){
@@ -1062,12 +1062,12 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			this.flags |= IS_MP;
 		}
 
-		public int getVisitId() {
-			return visitId;
+		public int getLastVisitId() {
+			return lastVisitId;
 		}
 
-		public void setVisitId(int visitId) {
-			this.visitId = visitId;
+		public void setLastVisitId(int visitId) {
+			this.lastVisitId = visitId;
 		}
 		
 		public String getName(){

@@ -113,6 +113,8 @@ public class AreaGrid implements AreaIndex{
 					if (usedAreas == null || usedAreas.get(i))
 						tmpBounds = (tmpBounds ==null) ? extBounds : tmpBounds.add(extBounds);
 				}
+				if (tmpBounds == null)
+					return 0;
 				// create new Area to make sure that we don't update the existing area
 				bounds = new Area(tmpBounds.getMinLat() , tmpBounds.getMinLong(), tmpBounds.getMaxLat(), tmpBounds.getMaxLong());
 			}
