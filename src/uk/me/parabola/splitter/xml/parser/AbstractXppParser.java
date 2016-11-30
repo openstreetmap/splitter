@@ -11,7 +11,7 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.xml.parser;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -31,7 +31,7 @@ public abstract class AbstractXppParser {
 		parser = factory.newPullParser();
 	}
 
-	protected void setReader(Reader reader) throws XmlPullParserException {
+	public void setReader(Reader reader) throws XmlPullParserException {
 		parser.setInput(reader);
 	}
 
@@ -51,7 +51,7 @@ public abstract class AbstractXppParser {
 		return parser.getText();
 	}
 
-	protected void parse() throws IOException, XmlPullParserException {
+	public void parse() throws IOException, XmlPullParserException {
 		boolean done = false;
 		int eventType = parser.getEventType();
 		do {

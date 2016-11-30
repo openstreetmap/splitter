@@ -18,6 +18,8 @@ import java.util.List;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.xml.parser.AbstractXppParser;
+
 /**
  * Parses a KML area file.
  *
@@ -30,7 +32,7 @@ public class KmlParser extends AbstractXppParser {
 	private State state = State.None;
 	private int currentId;
 	private int[] currentCoords = new int[10];
-	private List<Area> areas = new ArrayList<Area>();
+	private List<Area> areas = new ArrayList<>();
 
 	public KmlParser() throws XmlPullParserException {
 	}

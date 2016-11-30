@@ -14,6 +14,8 @@ package uk.me.parabola.splitter;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.xml.parser.AbstractXppParser;
+
 /**
  * Parses an OSM file, calling the appropriate methods on a
  * {@code MapProcessor} as it progresses.
