@@ -14,7 +14,7 @@
 package uk.me.parabola.splitter;
 
 /**
- * Common OSM reader method for status messages
+ * Common OSM parseder method for status messages
  * @author GerdP
  *
  */
@@ -36,9 +36,8 @@ public class ElementCounter {
 	protected void countNode(long id) {
 		nodeCount++;
 		if (nodeCount % NODE_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(nodeCount) + " nodes processed... id=" + id);
+			System.out.println(Utils.format(nodeCount) + " nodes parsed... id=" + id);
 		}
-
 	}
 
 	/**
@@ -48,7 +47,7 @@ public class ElementCounter {
 	protected void countWay(long id)  {
 		wayCount++;
 		if (wayCount % WAY_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(wayCount) + " ways processed... id=" + id);
+			System.out.println(Utils.format(wayCount) + " ways parsed... id=" + id);
 		}
 	}
 
@@ -59,7 +58,7 @@ public class ElementCounter {
 	protected void countRelation(long id)  {
 		relationCount++;
 		if (relationCount % RELATION_STATUS_UPDATE_THRESHOLD == 0) {
-			System.out.println(Utils.format(relationCount) + " relations processed... id=" + id);
+			System.out.println(Utils.format(relationCount) + " relations parsed... id=" + id);
 		}
 	}
 	
