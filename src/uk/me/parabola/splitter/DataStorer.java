@@ -196,7 +196,7 @@ public class DataStorer {
         }
         
         for ( Entry<Long, Integer> e: distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-            if (e.getValue() >= 0) { 
+            if (e.getValue() >= 0 && !distinctAreas.get(e.getValue()).isPseudoArea()) { 
                 Integer areaIdx = map.get(distinctAreas.get(e.getValue()));
                 oneTileOnlyRels.put(e.getKey(), areaIdx != null ?  areaIdx: e.getValue());
             }  else {
