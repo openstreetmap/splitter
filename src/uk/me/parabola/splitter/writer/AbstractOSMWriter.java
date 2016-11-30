@@ -11,16 +11,24 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.writer;
 
 import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
 
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Element;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.OSMWriter;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Way;
+
 public abstract class AbstractOSMWriter implements OSMWriter{
-	final static int REMOVE_VERSION = 1;
-	final static int FAKE_VERSION = 2;
-	final static int KEEP_VERSION = 3;
+	public static final int REMOVE_VERSION = 1;
+	public static final int FAKE_VERSION = 2;
+	public static final int KEEP_VERSION = 3;
 	protected final Area bounds;
 	protected final Area extendedBounds;
 	protected final File outputDir;

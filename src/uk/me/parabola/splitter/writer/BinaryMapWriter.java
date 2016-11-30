@@ -11,7 +11,7 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.writer;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -21,6 +21,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Element;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Version;
+import uk.me.parabola.splitter.Way;
+import uk.me.parabola.splitter.Element.Tag;
 import uk.me.parabola.splitter.Relation.Member;
 import crosby.binary.BinarySerializer;
 import crosby.binary.Osmformat;

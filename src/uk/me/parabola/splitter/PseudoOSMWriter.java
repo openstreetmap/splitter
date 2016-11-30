@@ -13,6 +13,8 @@
  
 package uk.me.parabola.splitter;
 
+import uk.me.parabola.splitter.writer.AbstractOSMWriter;
+
 /**
  * A do-nothing writer (used with --output=simulate) 
  * @author Gerd Petermann
