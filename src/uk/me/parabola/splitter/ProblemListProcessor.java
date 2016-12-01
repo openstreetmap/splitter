@@ -13,12 +13,14 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
+import uk.me.parabola.splitter.args.SplitterParams;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.regex.Pattern;
 
 /**
  * Find ways and relations that will be incomplete.
@@ -57,7 +59,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final HashSet<String> wantedBoundaryTagValues;
 	
 	ProblemListProcessor(DataStorer dataStorer, int areaOffset,
-			int numAreasThisPass, String[] boundaryTagList) {
+			int numAreasThisPass, SplitterParams mainOptions) {
 		this.dataStorer = dataStorer;
 		this.areaDictionary = dataStorer.getAreaDictionary();
 		this.multiTileDictionary = dataStorer.getMultiTileDictionary();
@@ -76,11 +78,14 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		this.areaOffset = areaOffset;
 		this.lastAreaOffset = areaOffset + numAreasThisPass - 1;
 		this.isLastPass = (areaOffset + numAreasThisPass == dataStorer.getNumOfAreas());
-		if (boundaryTagList != null && boundaryTagList.length > 0)
-			wantedBoundaryTagValues = new HashSet<>(Arrays.asList(boundaryTagList));
-		else 
+		String boundaryTagsParm = mainOptions.getBoundaryTags();
+		if ("use-exclude-list".equals(boundaryTagsParm)) 
 			wantedBoundaryTagValues = null;
-		setWantedAdminLevel(5);
+		else { 
+			String[] boundaryTags = boundaryTagsParm.split(Pattern.quote(","));
+			wantedBoundaryTagValues = new HashSet<>(Arrays.asList(boundaryTags));
+		}
+		setWantedAdminLevel(mainOptions.getWantedAdminLevel());
 	}
 	
 	public void setWantedAdminLevel(int adminLevel) {

@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Splitter for OSM files with the purpose of providing input files for mkgmap.
@@ -47,89 +46,20 @@ public class Main {
 
 	private static final String DEFAULT_DIR = ".";
 
-	// We store area IDs and all used combinations of area IDs in a dictionary.
-	// The index to this
-	// dictionary is saved in short values. If Short.MaxValue() is reached, the
-	// user might limit
-	// the number of areas that is processed in one pass.
-	private int maxAreasPerPass;
-
 	// A list of the OSM files to parse.
 	private List<String> fileNameList;
 
-	// The description to write into the template.args file.
-	private String description;
-
-	// The starting map ID.
-	private int mapId;
-
-	// The amount in map units that tiles overlap. The default is overwritten
-	// depending on user settings.
+	/** The amount in map units that tiles overlap. The default is overwritten depending on user settings. */
 	private int overlapAmount = -1;
 
-	// A threshold value that is used when no split-file is given. Splitting is
-	// done so that
-	// no tile has more than maxNodes nodes inside the bounding box of the tile.
-	// Nodes added by overlap or keep-complete are not taken into account.
-	private long maxNodes;
-
+	/** The number of tiles to be written. The default is overwritten depending on user settings. */
 	private int numTiles = -1;
 
-	// This is a value in the range 0-24.
-	// Higher numbers mean higher detail. The resolution determines how the
-	// tiles must
-	// be aligned. Eg a resolution of 13 means the tiles need to have their
-	// edges aligned to
-	// multiples of 2 ^ (24 - 13) = 2048 map units.
-	private int resolution;
-
-	// Whether or not to trim tiles of any empty space around their edges.
-	private boolean trim;
 	// Set if there is a previous area file given on the command line.
 	private AreaList areaList;
-	// Whether or not the source OSM file(s) contain strictly nodes first, then
-	// ways, then rels,
-	// or they're all mixed up. Running with mixed enabled takes longer.
-	private boolean mixed;
-	// A polygon file in osmosis polygon format
-	private String polygonFile;
 
 	// The path where the results are written out to.
 	private File fileOutputDir;
-	// A GeoNames file to use for naming the tiles.
-	private String geoNamesFile;
-	// How often (in seconds) to provide JVM status information. Zero = no
-	// information.
-	private int statusFreq;
-
-	private String kmlOutputFile;
-	// The maximum number of threads the splitter should use.
-	private int maxThreads;
-	// The output type
-	private String outputType;
-	// a list of way or relation ids that should be handled specially
-	private String problemFile;
-	// Whether or not splitter should keep
-	private boolean keepComplete;
-
-	private String problemReport;
-
-	// option for fine tuning the keep-complete processing
-	private int wantedAdminLevel;
-
-	private String[] boundaryTags;
-
-	private String stopAfter;
-
-	private String precompSeaDir;
-
-	private String polygonDescFile;
-
-	private int searchLimit;
-
-	private String handleElementVersion;
-
-	private boolean ignoreBoundsTags;
 
 	private final OSMFileHandler osmFileHandler = new OSMFileHandler();
 	private final AreasCalculator areasCalculator = new AreasCalculator();
@@ -144,8 +74,11 @@ public class Main {
 			if (rc != 0)
 				System.exit(1);
 		} catch (StopNoErrorException e) {
-			if (e.getMessage() != null)
-				System.out.println(e.getMessage());
+			if (e.getMessage() != null) {
+				String msg = "Stopped after " + e.getMessage();
+				System.err.println(msg);
+				System.out.println(msg);
+			}
 		}
 	}
 
@@ -160,17 +93,20 @@ public class Main {
 				System.out.println("Error: " + e.getMessage());
 			return 1;
 		}
-		if (statusFreq > 0) {
-			healthMonitor = new JVMHealthMonitor(statusFreq);
+		if (mainOptions.getStatusFreq() > 0) {
+			healthMonitor = new JVMHealthMonitor(mainOptions.getStatusFreq());
 			healthMonitor.start();
 		}
 
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
 		try {
+			osmFileHandler.setFileNames(fileNameList);
+			osmFileHandler.setMixed(mainOptions.isMixed()); 
+
 			List<Area> areas = split();
 			DataStorer dataStorer;
-			if (keepComplete) {
+			if (mainOptions.isKeepComplete()) {
 				dataStorer = calcProblemLists(areas);
 				useProblemLists(dataStorer);
 			} else {
@@ -224,6 +160,7 @@ public class Main {
 
 		boolean writeAreas = false;
 		if (areaList.getAreas().isEmpty()) {
+			int resolution = mainOptions.getResolution();
 			writeAreas = true;
 			int alignment = 1 << (24 - resolution);
 			System.out.println("Map is being split for resolution " + resolution + ':');
@@ -239,9 +176,9 @@ public class Main {
 				System.out.println("Please specify a bounding polygon with the --polygon-file parameter.");
 				throw new SplitFailedException("");
 			}
+			int mapId = mainOptions.getMapid();
 			if (mapId + areaList.getAreas().size() > 99999999) {
-				System.err.println("Too many areas for initial mapid " + mapId + ", resetting to 63240001");
-				mapId = 63240001;
+				throw new SplitFailedException("Too many areas for initial mapid " + mapId);
 			}
 			areaList.setMapIds(mapId);
 		}
@@ -253,22 +190,23 @@ public class Main {
 
 		List<Area> areas = areaList.getAreas();
 
+		String kmlOutputFile = mainOptions.getWriteKml();
 		if (kmlOutputFile != null) {
 			File out = new File(kmlOutputFile);
 			if (!out.isAbsolute())
 				out = new File(fileOutputDir, kmlOutputFile);
 			KmlWriter.writeKml(out.getPath(), areas);
 		}
+		String outputType = mainOptions.getOutput();
 		areasCalculator.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
 		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 
-		if ("split".equals(stopAfter)) {
+		if ("split".equals(mainOptions.getStopAfter())) {
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 			}
-			System.err.println("stopped after " + stopAfter);
-			throw new StopNoErrorException("stopped after " + stopAfter);
+			throw new StopNoErrorException(mainOptions.getStopAfter());
 		}
 
 		System.out.println(areas.size() + " areas:");
@@ -284,19 +222,18 @@ public class Main {
 	}
 
 	private DataStorer calcProblemLists(List<Area> areas) {
-		DataStorer dataStorer = problemList.calcProblemLists(osmFileHandler, areas, wantedAdminLevel, boundaryTags,
-				maxAreasPerPass, overlapAmount);
+		DataStorer dataStorer = problemList.calcProblemLists(osmFileHandler, areas, overlapAmount, mainOptions);
+		String problemReport = mainOptions.getProblemReport();
 		if (problemReport != null) {
 			problemList.writeProblemList(fileOutputDir, problemReport);
 		}
 
-		if ("gen-problem-list".equals(stopAfter)) {
+		if ("gen-problem-list".equals(mainOptions.getStopAfter())) {
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 			}
-			System.err.println("stopped after " + stopAfter);
-			throw new StopNoErrorException("stopped after " + stopAfter);
+			throw new StopNoErrorException(mainOptions.getStopAfter());
 		}
 		return dataStorer;
 	}
@@ -335,14 +272,12 @@ public class Main {
 			System.out.println("Make sure that option parameters start with -- ");
 			throw new IllegalArgumentException();
 		}
-		osmFileHandler.setFileNames(fileNameList);
-		mapId = params.getMapid();
+		int mapId = params.getMapid();
 		if (mapId < 0 || mapId > 99999999 ) {
 			System.err.println("The --mapid parameter must be a value between 0 and 99999999.");
 			throw new IllegalArgumentException();
 		} 
-		maxNodes = params.getMaxNodes();
-		if (maxNodes < 10000) {
+		if (params.getMaxNodes() < 10000) {
 			System.err.println("Error: Invalid number " + params.getMaxNodes()
 					+ ". The --max-nodes parameter must be an integer value of 10000 or higher.");
 			throw new IllegalArgumentException();
@@ -361,44 +296,37 @@ public class Main {
 				throw new IllegalArgumentException();
 			}
 		}
-		description = params.getDescription();
+		// The description to write into the template.args file.
+		String description = params.getDescription();
 		areaList = new AreaList(description);
-		geoNamesFile = params.getGeonamesFile();
+		String geoNamesFile = params.getGeonamesFile();
 		if (geoNamesFile != null) {
 			if (testAndReportFname(geoNamesFile, "geonames-file") == false) {
 				throw new IllegalArgumentException();
 			}
 			areaList.setGeoNamesFile(geoNamesFile);
 		}
-		trim = !params.isNoTrim();
-		outputType = params.getOutput();
+		String outputType = params.getOutput();
 		if ("xml pbf o5m simulate".contains(outputType) == false) {
 			System.err.println("The --output parameter must be either xml, pbf, o5m, or simulate. Resetting to xml.");
 			throw new IllegalArgumentException();
 		}
 
-		resolution = params.getResolution();
+		int resolution = params.getResolution();
 		if (resolution < 1 || resolution > 24) {
 			System.err.println("The --resolution parameter must be a value between 1 and 24. Reasonable values are close to 13.");
 			throw new IllegalArgumentException();
 		}
-		mixed = params.isMixed();
-		osmFileHandler.setMixed(mixed); 
-		statusFreq = params.getStatusFreq();
 
 		String outputDir = params.getOutputDir();
 		fileOutputDir = new File(outputDir == null ? DEFAULT_DIR : outputDir);
 
-		maxAreasPerPass = params.getMaxAreas();
+		int maxAreasPerPass = params.getMaxAreas();
 		if (maxAreasPerPass < 1 || maxAreasPerPass > 9999) {
 			System.err.println("The --max-areas parameter must be a value between 1 and 9999.");
 			throw new IllegalArgumentException();
 		}
-		kmlOutputFile = params.getWriteKml();
-
-		maxThreads = params.getMaxThreads().getCount();
-
-		problemFile = params.getProblemFile();
+		String problemFile = params.getProblemFile();
 		if (problemFile != null) {
 			if (!problemList.readProblemIds(problemFile))
 				throw new IllegalArgumentException();
@@ -410,8 +338,8 @@ public class Main {
 			}
 		}
 
-		keepComplete = params.isKeepComplete();
-		if (mixed && (keepComplete || problemFile != null)) {
+		boolean keepComplete = params.isKeepComplete();
+		if (params.isMixed()  && (keepComplete || problemFile != null)) {
 			System.err.println(
 					"--mixed=true is not supported in combination with --keep-complete=true or --problem-file.");
 			System.err.println("Please use e.g. osomosis to sort the data in the input file(s)");
@@ -428,33 +356,24 @@ public class Main {
 				throw new IllegalArgumentException("--overlap=" + overlap + " is not is not a valid option.");
 			}
 		}
-		problemReport = params.getProblemReport();
 		String boundaryTagsParm = params.getBoundaryTags();
-		if ("use-exclude-list".equals(boundaryTagsParm) == false) {
-			boundaryTags = boundaryTagsParm.split(Pattern.quote(","));
-		}
+		// TODO: check ?
 
-		if (keepComplete) {
-			String wantedAdminLevelString = params.getWantedAdminLevel();
-			try {
-				wantedAdminLevel = Integer.valueOf(wantedAdminLevelString);
-			} catch (NumberFormatException e) {
-				throw new IllegalArgumentException(
-						"--admin-level=" + wantedAdminLevelString + " is not is not a valid option.");
-			}
+		int wantedAdminLevelString = params.getWantedAdminLevel();
+		if (wantedAdminLevelString < 0 || wantedAdminLevelString > 12) {
+			throw new IllegalArgumentException("The --wanted-admin-level parameter must be between 0 and 12.");
 		}
-		handleElementVersion = params.getHandleElementVersion();
-		if (Arrays.asList("remove", "fake", "keep").contains(handleElementVersion) == false) {
+		final List<String> validVersionHandling = Arrays.asList("remove", "fake", "keep");
+		if (!validVersionHandling.contains(params.getHandleElementVersion())) {
 			throw new IllegalArgumentException(
-					"the --handle-element-version parameter must be either remove, fake, or keep.");
+					"the --handle-element-version parameter must be one of " + validVersionHandling + ".");
 		}
 		final List<String> validStopAfter = Arrays.asList("split", "gen-problem-list", "handle-problem-list", "dist");
-		stopAfter = params.getStopAfter();
-		if (!validStopAfter.contains(stopAfter)) {
+		if (!validStopAfter.contains(params.getStopAfter())) {
 			throw new IllegalArgumentException(
-					"the --stop-after parameter must be one of" + validStopAfter + ".");
+					"the --stop-after parameter must be one of " + validStopAfter + ".");
 		}
-		searchLimit = params.getSearchLimit();
+		int searchLimit = params.getSearchLimit();
 		if (searchLimit < 1000) {
 			throw new IllegalArgumentException("The --search-limit parameter must be 1000 or higher.");
 		}
@@ -480,7 +399,7 @@ public class Main {
 				System.out.println("Setting default overlap=2000 because keep-complete=false is in use.");
 			}
 
-			if (problemReport != null) {
+			if (mainOptions.getProblemReport() != null) {
 				System.out.println(
 						"Parameter --problem-report is ignored, because parameter --keep-complete=false is used");
 			}
@@ -501,15 +420,16 @@ public class Main {
 			}
 		}
 
-		polygonFile = params.getPolygonFile();
+		// A polygon file in osmosis polygon format
+		String polygonFile = params.getPolygonFile();
 		if (polygonFile != null) {
 			if (splitFile != null) {
 				System.out.println("Warning: parameter polygon-file is ignored because split-file is used.");
 			} else {
-				areasCalculator.readPolygonFile(polygonFile, mapId);
+				areasCalculator.readPolygonFile(polygonFile, mainOptions.getMapid());
 			}
 		}
-		polygonDescFile = params.getPolygonDescFile();
+		String polygonDescFile = params.getPolygonDescFile();
 		if (polygonDescFile != null) {
 			if (splitFile != null) {
 				System.out.println("Warning: parameter polygon-desc-file is ignored because split-file is used.");
@@ -522,7 +442,7 @@ public class Main {
 			System.out.println(
 					"Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 		}
-		precompSeaDir = params.getPrecompSea();
+		String precompSeaDir = params.getPrecompSea();
 		if (precompSeaDir != null) {
 			File dir = new File(precompSeaDir);
 			if (dir.exists() == false || dir.canRead() == false) {
@@ -539,7 +459,6 @@ public class Main {
 				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
 			}
 		}
-		ignoreBoundsTags = params.getIgnoreOsmBounds();
 		return params;
 	}
 
@@ -549,8 +468,7 @@ public class Main {
 	 * nodes in it.
 	 */
 	private List<Area> calculateAreas() throws XmlPullParserException {
-
-		DensityMapCollector pass1Collector = new DensityMapCollector(resolution, ignoreBoundsTags);
+		DensityMapCollector pass1Collector = new DensityMapCollector(mainOptions);
 		MapProcessor processor = pass1Collector;
 
 		File densityData = new File("densities.txt");
@@ -581,25 +499,26 @@ public class Main {
 			}
 		}
 
+		String precompSeaDir = mainOptions.getPrecompSea();
 		if (precompSeaDir != null) {
 			System.out.println("Counting nodes of precompiled sea data ...");
 			long startSea = System.currentTimeMillis();
-			DensityMapCollector seaCollector = new DensityMapCollector(resolution, true);
+			DensityMapCollector seaCollector = new DensityMapCollector(mainOptions);
 			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
 			precompSeaReader.processMap(seaCollector);
-			pass1Collector.mergeSeaData(seaCollector, trim, resolution);
+			pass1Collector.mergeSeaData(seaCollector, !mainOptions.isNoTrim(), mainOptions.getResolution());
 			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis() - startSea) + " ms");
 		}
-		Area roundedBounds = RoundingUtils.round(exactArea, resolution);
-		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(searchLimit, roundedBounds);
+		Area roundedBounds = RoundingUtils.round(exactArea, mainOptions.getResolution());
+		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(mainOptions.getSearchLimit(), roundedBounds);
 		if (splittableArea.hasData() == false) {
 			System.out.println("input file(s) have no data inside calculated bounding box");
 			return Collections.emptyList();
 		}
 		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
 
-		splittableArea.setTrim(trim);
-		splittableArea.setMapId(mapId);
+		splittableArea.setTrim(mainOptions.isNoTrim() == false);
+		splittableArea.setMapId(mainOptions.getMapid());
 		long startSplit = System.currentTimeMillis();
 		List<Area> areas;
 		if (numTiles >= 2) {
@@ -607,8 +526,8 @@ public class Main {
 			areas = splittableArea.split(numTiles);
 		} else {
 			System.out.println(
-					"Splitting nodes into areas containing a maximum of " + Utils.format(maxNodes) + " nodes each...");
-			splittableArea.setMaxNodes(maxNodes);
+					"Splitting nodes into areas containing a maximum of " + Utils.format(mainOptions.getMaxNodes()) + " nodes each...");
+			splittableArea.setMaxNodes(mainOptions.getMaxNodes());
 			areas = splittableArea.split(areasCalculator.getPolygons());
 		}
 		if (areas != null && areas.isEmpty() == false)
@@ -621,6 +540,7 @@ public class Main {
 		for (int j = 0; j < allWriters.length; j++) {
 			Area area = areas.get(j);
 			AbstractOSMWriter w;
+			String outputType = mainOptions.getOutput();
 			if ("pbf".equals(outputType))
 				w = new BinaryMapWriter(area, fileOutputDir, area.getMapId(), overlapAmount);
 			else if ("o5m".equals(outputType))
@@ -629,7 +549,7 @@ public class Main {
 				w = new PseudoOSMWriter(area);
 			else
 				w = new OSMXMLWriter(area, fileOutputDir, area.getMapId(), overlapAmount);
-			switch (handleElementVersion) {
+			switch (mainOptions.getHandleElementVersion()) {
 			case "keep":
 				w.setVersionMethod(AbstractOSMWriter.KEEP_VERSION);
 				break;
@@ -646,13 +566,12 @@ public class Main {
 
 	private void useProblemLists(DataStorer dataStorer) {
 		problemList.calcMultiTileElements(dataStorer, osmFileHandler);
-		if ("handle-problem-list".equals(stopAfter)) {
+		if ("handle-problem-list".equals(mainOptions.getStopAfter())) {
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 			}
-			System.err.println("stopped after " + stopAfter);
-			throw new StopNoErrorException("stopped after " + stopAfter);
+			throw new StopNoErrorException(mainOptions.getStopAfter());
 		}
 	}
 
@@ -670,7 +589,7 @@ public class Main {
 
 		System.out.println("Distributing data " + new Date());
 
-		int numPasses = (int) Math.ceil((double) areas.size() / maxAreasPerPass);
+		int numPasses = (int) Math.ceil((double) areas.size() / mainOptions.getMaxAreas());
 		int areasPerPass = (int) Math.ceil((double) areas.size() / numPasses);
 
 		long startDistPass = System.currentTimeMillis();
@@ -684,7 +603,7 @@ public class Main {
 			int areaOffset = i * areasPerPass;
 			int numAreasThisPass = Math.min(areasPerPass, areas.size() - i * areasPerPass);
 			dataStorer.restartWriterMaps();
-			SplitProcessor processor = new SplitProcessor(dataStorer, areaOffset, numAreasThisPass, maxThreads);
+			SplitProcessor processor = new SplitProcessor(dataStorer, areaOffset, numAreasThisPass, mainOptions);
 
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing "
 					+ numAreasThisPass + " areas (" + areas.get(i * areasPerPass).getMapId() + " to "

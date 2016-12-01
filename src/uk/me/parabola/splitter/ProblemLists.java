@@ -28,6 +28,7 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import uk.me.parabola.splitter.args.SplitterParams;
 
 public class ProblemLists {
 	private final LongArrayList problemWays = new LongArrayList();
@@ -35,20 +36,17 @@ public class ProblemLists {
 	private final TreeSet<Long> calculatedProblemWays = new TreeSet<>();
 	private final TreeSet<Long> calculatedProblemRels = new TreeSet<>();
 
+	
 	/**
 	 * Calculate lists of ways and relations that appear in multiple areas for a
 	 * given list of areas.
-	 * 
 	 * @param osmFileHandler
-	 * @param realAreas
-	 * @param wantedAdminLevel
-	 * @param boundaryTags
-	 * @param maxAreasPerPass
-	 * @param overlapAmount
+	 * @param realAreas list of areas, possibly overlapping if read from split-file
+	 * @param overlapAmount 
+	 * @param mainOptions main options
 	 * @return
 	 */
-	public DataStorer calcProblemLists(OSMFileHandler osmFileHandler, List<Area> realAreas, int wantedAdminLevel,
-			String[] boundaryTags, int maxAreasPerPass, int overlapAmount) {
+	public DataStorer calcProblemLists(OSMFileHandler osmFileHandler, List<Area> realAreas, int overlapAmount, SplitterParams mainOptions) {
 		long startProblemListGenerator = System.currentTimeMillis();
 		ArrayList<Area> distinctAreas = AreasCalculator.getNonOverlappingAreas(realAreas);
 		if (distinctAreas.size() > realAreas.size()) {
@@ -71,7 +69,7 @@ public class ProblemLists {
 		System.out.println("Generating problem list for " + distinctAreas.size() + " distinct areas");
 		List<Area> workAreas = AreasCalculator.addPseudoAreas(distinctAreas);
 
-		int numPasses = (int) Math.ceil((double) workAreas.size() / maxAreasPerPass);
+		int numPasses = (int) Math.ceil((double) workAreas.size() / mainOptions.getMaxAreas());
 		int areasPerPass = (int) Math.ceil((double) workAreas.size() / numPasses);
 		if (numPasses > 1) {
 			System.out.println("Processing " + distinctAreas.size() + " areas in " + numPasses + " passes, "
@@ -92,7 +90,7 @@ public class ProblemLists {
 
 		DataStorer distinctDataStorer = new DataStorer(workAreas, overlapAmount);
 		System.out.println("Starting problem-list-generator pass(es)");
-
+		
 		for (int pass = 0; pass < numPasses; pass++) {
 			System.out.println("-----------------------------------");
 			System.out.println("Starting problem-list-generator pass " + (pass + 1) + " of " + numPasses);
@@ -100,8 +98,7 @@ public class ProblemLists {
 			int areaOffset = pass * areasPerPass;
 			int numAreasThisPass = Math.min(areasPerPass, workAreas.size() - pass * areasPerPass);
 			ProblemListProcessor processor = new ProblemListProcessor(distinctDataStorer, areaOffset, numAreasThisPass,
-					boundaryTags);
-			processor.setWantedAdminLevel(wantedAdminLevel);
+					mainOptions);
 
 			boolean done = false;
 			while (!done) {
@@ -260,5 +257,4 @@ public class ProblemLists {
 
 		System.out.println("-----------------------------------");
 	}
-
 }

@@ -28,7 +28,8 @@ public interface SplitterParams {
 	@Option(description = "A default description to give to each area.")
 	String getDescription();
 
-	@Option(defaultValue = "512", description = "The maximum number of areas to process in a single pass. More areas require more memory, but less time. Values: 1-4096.")
+	@Option(defaultValue = "2048", description = "The maximum number of areas to process in a single pass. " + 
+	"More areas require more memory, but less time. Values: 1-9999.")
 	int getMaxAreas();
 
 	@Option(defaultValue = "auto", description = "Deprecated. Nodes/ways/rels that fall outside an area will still " 
@@ -109,7 +110,7 @@ public interface SplitterParams {
 
 	@Option(defaultValue="5", description = "The lowest admin_level value that should be kept complete. Reasonable values are 2 .. 11." 
 			+ "Used to filter boundary relations for problem-list processing. Ignored when keep-complete is false.")
-	String getWantedAdminLevel();
+	int getWantedAdminLevel();
 	
 	
 

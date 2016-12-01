@@ -13,6 +13,7 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
+import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.writer.OSMWriter;
 
 import java.io.IOException;
@@ -60,9 +61,9 @@ class SplitProcessor extends AbstractMapProcessor {
 	 * @param dataStorer 
 	 * @param writerOffset first writer to be used
 	 * @param numWritersThisPass number of writers to used
-	 * @param maxThreads number of threads to be used
+	 * @param mainOptions main program options
 	 */
-	SplitProcessor(DataStorer dataStorer, int writerOffset, int numWritersThisPass, int maxThreads){
+	SplitProcessor(DataStorer dataStorer, int writerOffset, int numWritersThisPass, SplitterParams mainOptions){
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getAreaDictionary();
 		this.multiTileDictionary = dataStorer.getMultiTileDictionary();
@@ -75,7 +76,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.countWays = ways.size();
 		this.writerOffset = writerOffset;
 		this.lastWriter = writerOffset + numWritersThisPass-1;
-		this.maxThreads = maxThreads;
+		this.maxThreads = mainOptions.getMaxThreads().getCount();
 		this.toProcess = new ArrayBlockingQueue<>(numWritersThisPass);
 		this.writerInputQueues = new InputQueueInfo[numWritersThisPass];
 		for (int i = 0; i < writerInputQueues.length; i++) {
