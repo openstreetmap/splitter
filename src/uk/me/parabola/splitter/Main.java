@@ -609,7 +609,8 @@ public class Main {
 					+ numAreasThisPass + " areas (" + areas.get(i * areasPerPass).getMapId() + " to "
 					+ areas.get(i * areasPerPass + numAreasThisPass - 1).getMapId() + ')');
 
-			osmFileHandler.process(processor);
+			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, processor);
+			producerConsumer.execute();
 		}
 		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms");
 	}
