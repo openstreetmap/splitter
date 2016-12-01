@@ -34,17 +34,17 @@ import java.util.List;
 class PolygonDescProcessor extends AbstractMapProcessor {
 	private Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
 	private final List<PolygonDesc> polygonDescriptions = new ArrayList<>();
-	final int resolution;
+	private final int shift;
 
 	public PolygonDescProcessor(int resolution) {
-		this.resolution = resolution;
+		this.shift = 24 - resolution;
 	}
 
 	@Override
 	public void processNode(Node n){
 		// round all coordinates to be on the used grid. 
-		int lat = getRoundedCoord(n.getMapLat());
-		int lon = getRoundedCoord(n.getMapLon());
+		int lat = RoundingUtils.round(n.getMapLat(), shift);
+		int lon = RoundingUtils.round(n.getMapLon(), shift);
 		double roundedLat = Utils.toDegrees(lat);
 		double roundedLon = Utils.toDegrees(lon);
 		
@@ -128,13 +128,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 		}
 	}
 	
-	private int getRoundedCoord(int val){
-		int shift = 24 - resolution;
-		int half = 1 << (shift - 1);	// 0.5 shifted
-		int mask = ~((1 << shift) - 1); // to remove fraction bits
-		return (val + half) & mask; 
-	}
-
 	public List<PolygonDesc> getPolygons() {
 		return polygonDescriptions;
 	}
