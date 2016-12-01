@@ -473,7 +473,6 @@ public class Main {
 		}
 		if (splitFile != null) {
 			try {
-				areaList = new AreaList(description);
 				areaList.read(splitFile);
 				areaList.dump();
 			} catch (IOException e) {
