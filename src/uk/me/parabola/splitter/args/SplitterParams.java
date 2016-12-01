@@ -44,7 +44,8 @@ public interface SplitterParams {
 			+ "the given number of tiles is produced. The max-nodes value is ignored if this option is given.")
 	String getNumTiles();
 
-	@Option(defaultValue = "13", description = "The resolution of the overview map to be produced by mkgmap.")
+	@Option(defaultValue = "13", description = "The resolution determines how the tiles must be aligned." + 
+			"Eg a resolution of 13 means the tiles need to have their edges aligned to multiples of 2 ^ (24 - 13) = 2048 map units.")
 	int getResolution();
 
 	@Option(description = "Specify this if the input osm file has nodes, ways and relations intermingled.")
