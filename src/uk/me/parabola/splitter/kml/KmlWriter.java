@@ -117,7 +117,7 @@ public class KmlWriter {
 				default:
 					// should not happen
 					System.err.println("Unsupported path iterator type " + type
-							+ ". This is an mkgmap error.");
+							+ ". This is an internal splitter error.");
 					throw new IOException(); 
 				}
 				pit.next();
