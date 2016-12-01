@@ -135,6 +135,8 @@ public class Main {
 	private final AreasCalculator areasCalculator = new AreasCalculator();
 	private final ProblemLists problemList = new ProblemLists();
 
+	private SplitterParams mainOptions;
+
 	public static void main(String[] args) {
 		Main m = new Main();
 		try {
@@ -152,7 +154,7 @@ public class Main {
 		JVMHealthMonitor healthMonitor = null;
 
 		try {
-			readArgs(args);
+			mainOptions = readArgs(args);
 		} catch (IllegalArgumentException e) {
 			if (e.getMessage() != null)
 				System.out.println("Error: " + e.getMessage());
@@ -302,7 +304,7 @@ public class Main {
 	/**
 	 * Deal with the command line arguments.
 	 */
-	private void readArgs(String[] args) {
+	private SplitterParams readArgs(String[] args) {
 		ParamParser parser = new ParamParser();
 		SplitterParams params = parser.parse(SplitterParams.class, args);
 
@@ -328,22 +330,17 @@ public class Main {
 		if (fileNameList.isEmpty()) {
 			throw new IllegalArgumentException("No file name(s) given");
 		}
-		boolean filesOK = true;
-		for (String fileName : fileNameList) {
-			if (testAndReportFname(fileName, "input file") == false) {
-				filesOK = false;
-			}
-		}
+		boolean filesOK = fileNameList.stream().allMatch(fname -> testAndReportFname(fname, "input file"));
 		if (!filesOK) {
 			System.out.println("Make sure that option parameters start with -- ");
 			throw new IllegalArgumentException();
 		}
 		osmFileHandler.setFileNames(fileNameList);
 		mapId = params.getMapid();
-		if (mapId > 99999999) {
-			mapId = 63240001;
-			System.err.println("The --mapid parameter must have less than 9 digits. Resetting to " + mapId + ".");
-		}
+		if (mapId < 0 || mapId > 99999999 ) {
+			System.err.println("The --mapid parameter must be a value between 0 and 99999999.");
+			throw new IllegalArgumentException();
+		} 
 		maxNodes = params.getMaxNodes();
 		if (maxNodes < 10000) {
 			System.err.println("Error: Invalid number " + params.getMaxNodes()
@@ -354,9 +351,9 @@ public class Main {
 		if (numTilesParm != null) {
 			try {
 				numTiles = Integer.parseInt(numTilesParm);
-				if (numTiles >= 0 && numTiles < 2) {
-					System.err.println("Error: The --num-tiles parameter must be 2 or higher. Resetting to 2.");
-					numTiles = 2;
+				if (numTiles < 2) {
+					System.err.println("Error: The --num-tiles parameter must be 2 or higher.");
+					throw new IllegalArgumentException();
 				}
 			} catch (NumberFormatException e) {
 				System.err.println("Error: Invalid number " + numTilesParm
@@ -373,29 +370,29 @@ public class Main {
 			}
 			areaList.setGeoNamesFile(geoNamesFile);
 		}
-		resolution = params.getResolution();
 		trim = !params.isNoTrim();
 		outputType = params.getOutput();
 		if ("xml pbf o5m simulate".contains(outputType) == false) {
 			System.err.println("The --output parameter must be either xml, pbf, o5m, or simulate. Resetting to xml.");
-			outputType = "xml";
+			throw new IllegalArgumentException();
 		}
 
+		resolution = params.getResolution();
 		if (resolution < 1 || resolution > 24) {
-			System.err.println("The --resolution parameter must be a value between 1 and 24. Resetting to 13.");
-			resolution = 13;
+			System.err.println("The --resolution parameter must be a value between 1 and 24. Reasonable values are close to 13.");
+			throw new IllegalArgumentException();
 		}
 		mixed = params.isMixed();
-		osmFileHandler.setMixed(mixed);
+		osmFileHandler.setMixed(mixed); 
 		statusFreq = params.getStatusFreq();
 
 		String outputDir = params.getOutputDir();
 		fileOutputDir = new File(outputDir == null ? DEFAULT_DIR : outputDir);
 
 		maxAreasPerPass = params.getMaxAreas();
-		if (maxAreasPerPass < 1 || maxAreasPerPass > 4096) {
-			System.err.println("The --max-areas parameter must be a value between 1 and 4096. Resetting to 4096.");
-			maxAreasPerPass = 4096;
+		if (maxAreasPerPass < 1 || maxAreasPerPass > 9999) {
+			System.err.println("The --max-areas parameter must be a value between 1 and 9999.");
+			throw new IllegalArgumentException();
 		}
 		kmlOutputFile = params.getWriteKml();
 
@@ -425,6 +422,8 @@ public class Main {
 		if ("auto".equals(overlap) == false) {
 			try {
 				overlapAmount = Integer.valueOf(overlap);
+				if (overlapAmount < 0)
+					throw new IllegalArgumentException("--overlap=" + overlap + " is not is not a valid option.");
 			} catch (NumberFormatException e) {
 				throw new IllegalArgumentException("--overlap=" + overlap + " is not is not a valid option.");
 			}
@@ -444,6 +443,22 @@ public class Main {
 						"--admin-level=" + wantedAdminLevelString + " is not is not a valid option.");
 			}
 		}
+		handleElementVersion = params.getHandleElementVersion();
+		if (Arrays.asList("remove", "fake", "keep").contains(handleElementVersion) == false) {
+			throw new IllegalArgumentException(
+					"the --handle-element-version parameter must be either remove, fake, or keep.");
+		}
+		final List<String> validStopAfter = Arrays.asList("split", "gen-problem-list", "handle-problem-list", "dist");
+		stopAfter = params.getStopAfter();
+		if (!validStopAfter.contains(stopAfter)) {
+			throw new IllegalArgumentException(
+					"the --stop-after parameter must be one of" + validStopAfter + ".");
+		}
+		searchLimit = params.getSearchLimit();
+		if (searchLimit < 1000) {
+			throw new IllegalArgumentException("The --search-limit parameter must be 1000 or higher.");
+		}
+
 
 		// plausibility checks and default handling
 		if (keepComplete) {
@@ -507,12 +522,6 @@ public class Main {
 			System.out.println(
 					"Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
 		}
-		stopAfter = params.getStopAfter();
-		if (Arrays.asList("split", "gen-problem-list", "handle-problem-list", "dist").contains(stopAfter) == false) {
-			throw new IllegalArgumentException(
-					"the --stop-after parameter must be either split, gen-problem-list, handle-problem-list, or dist.");
-		}
-
 		precompSeaDir = params.getPrecompSea();
 		if (precompSeaDir != null) {
 			File dir = new File(precompSeaDir);
@@ -530,17 +539,8 @@ public class Main {
 				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
 			}
 		}
-		searchLimit = params.getSearchLimit();
-		if (searchLimit < 1000) {
-			searchLimit = 1000;
-			System.err.println("The --search-limit parameter must be 1000 or higher. Resetting to 1000.");
-		}
-		handleElementVersion = params.getHandleElementVersion();
-		if (Arrays.asList("remove", "fake", "keep").contains(handleElementVersion) == false) {
-			throw new IllegalArgumentException(
-					"the --handle-element-version parameter must be either remove, fake, or keep.");
-		}
 		ignoreBoundsTags = params.getIgnoreOsmBounds();
+		return params;
 	}
 
 	/**
