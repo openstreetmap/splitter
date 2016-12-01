@@ -25,6 +25,8 @@ import java.util.List;
 
 import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 
+import uk.me.parabola.splitter.args.SplitterParams;
+
 /**
  * Some helper methods around area calculation. 
  * @author Gerd Petermann
@@ -87,7 +89,14 @@ public class AreasCalculator {
 		return true;
 	}
 
-	public void readPolygonFile(String polygonFile, int mapId) {
+	public void readOptionalFiles(SplitterParams mainOptions) {
+		readPolygonFile(mainOptions.getPolygonFile(), mainOptions.getMapid());
+		readPolygonDescFile(mainOptions.getPolygonDescFile());
+	}
+
+	private void readPolygonFile(String polygonFile, int mapId) {
+		if (polygonFile == null)
+			return;
 		polygons.clear();
 		File f = new File(polygonFile);
 
@@ -101,7 +110,9 @@ public class AreasCalculator {
 		polygons.add(pd);
 	}
 
-	public void readPolygonDescFile(String polygonDescFile) {
+	private void readPolygonDescFile(String polygonDescFile) {
+		if (polygonDescFile == null)
+			return;
 		polygons.clear();
 		File f = new File(polygonDescFile);
 
@@ -364,7 +375,7 @@ public class AreasCalculator {
 		for (Area area : areas) {
 			uncovered.subtract(area.getJavaArea());
 			covered.add(area.getJavaArea());
-		}
+}
 		Rectangle rCov = covered.getBounds();
 		Rectangle[] topAndBottom = {
 				new Rectangle(planetBounds.x, (int) rCov.getMaxY(), planetBounds.width,

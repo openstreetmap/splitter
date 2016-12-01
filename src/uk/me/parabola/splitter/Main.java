@@ -55,9 +55,6 @@ public class Main {
 	/** The number of tiles to be written. The default is overwritten depending on user settings. */
 	private int numTiles = -1;
 
-	// Set if there is a previous area file given on the command line.
-	private AreaList areaList;
-
 	// The path where the results are written out to.
 	private File fileOutputDir;
 
@@ -101,17 +98,29 @@ public class Main {
 		long start = System.currentTimeMillis();
 		System.out.println("Time started: " + new Date());
 		try {
+			// configure the input file handler
 			osmFileHandler.setFileNames(fileNameList);
 			osmFileHandler.setMixed(mainOptions.isMixed()); 
+			osmFileHandler.setMaxThreads(mainOptions.getMaxThreads().getCount());
 
+			if (mainOptions.isKeepComplete() && mainOptions.getProblemFile() != null) {
+				// read the user list now so that possible problems are reported early
+				if (!problemList.readProblemIds(mainOptions.getProblemFile()))
+					throw new IllegalArgumentException();
+			}
+			
+			// first step: either read or calculate the list of areas
 			List<Area> areas = split();
 			DataStorer dataStorer;
 			if (mainOptions.isKeepComplete()) {
+				// optional step a: calculate list of ways and relations which are contained in multiple areas 
 				dataStorer = calcProblemLists(areas);
+				// optional step b: calculate the writers for the list of "problem" ways and relations 
 				useProblemLists(dataStorer);
 			} else {
 				dataStorer = new DataStorer(areas, overlapAmount);
 			}
+			// final step: write the OSM output files
 			writeTiles(dataStorer);
 			dataStorer.finish();
 		} catch (IOException e) {
@@ -139,9 +148,15 @@ public class Main {
 		return rc;
 	}
 
+	/**
+	 * Fill the list of areas. The list might be read from an existing file or it might
+	 * be freshly calculated by scanning the input files.  
+	 * @return List of areas which might overlap each other if they were read from an existing file. 
+	 * @throws IOException
+	 * @throws XmlPullParserException
+	 */
 	private List<Area> split() throws IOException, XmlPullParserException {
-
-		File outputDir = fileOutputDir;
+		final File outputDir = fileOutputDir;
 		if (!outputDir.exists()) {
 			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
 			if (!outputDir.mkdirs()) {
@@ -153,12 +168,32 @@ public class Main {
 					"The --output-dir parameter must specify a directory. The --output-dir parameter is being ignored, writing to default directory instead.");
 			fileOutputDir = new File(DEFAULT_DIR);
 		}
-
-		if (fileNameList.isEmpty()) {
-			throw new IllegalArgumentException("No input files were supplied");
-		}
-
+		
+		final String splitFile = mainOptions.getSplitFile();
+		// A polygon file in osmosis polygon format
+		final String polygonFile = mainOptions.getPolygonFile();
+		final String polygonDescFile = mainOptions.getPolygonDescFile();
+		final AreaList areaList = new AreaList(mainOptions.getDescription());
 		boolean writeAreas = false;
+
+		if (splitFile != null) {
+			try {
+				areaList.read(splitFile);
+				areaList.dump();
+			} catch (IOException e) {
+				throw new IllegalArgumentException("Could not read area list file " + splitFile);
+			}
+			if (polygonFile != null) {
+				System.out.println("Warning: parameter polygon-file is ignored because split-file is used.");
+			}
+			if (polygonDescFile != null) {
+				System.out.println("Warning: parameter polygon-desc-file is ignored because split-file is used.");
+			}
+		} else {
+			writeAreas = true;
+		}
+		areaList.setGeoNamesFile(mainOptions.getGeonamesFile());
+
 		if (areaList.getAreas().isEmpty()) {
 			int resolution = mainOptions.getResolution();
 			writeAreas = true;
@@ -169,7 +204,7 @@ public class Main {
 			System.out.println(
 					" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areaList.setAreas(calculateAreas());
-			if (areaList == null || areaList.getAreas().isEmpty()) {
+			if (areaList.getAreas().isEmpty()) {
 				System.err.println("Failed to calculate areas. See stdout messages for details.");
 				System.out.println("Failed to calculate areas.");
 				System.out.println("Sorry. Cannot split the file without creating huge, almost empty, tiles.");
@@ -200,6 +235,7 @@ public class Main {
 		String outputType = mainOptions.getOutput();
 		areasCalculator.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
 		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
+		areaList.dumpHex();
 
 		if ("split".equals(mainOptions.getStopAfter())) {
 			try {
@@ -209,15 +245,6 @@ public class Main {
 			throw new StopNoErrorException(mainOptions.getStopAfter());
 		}
 
-		System.out.println(areas.size() + " areas:");
-		for (Area area : areas) {
-			System.out.format("Area %08d: %d,%d to %d,%d covers %s", area.getMapId(), area.getMinLat(),
-					area.getMinLong(), area.getMaxLat(), area.getMaxLong(), area.toHexString());
-
-			if (area.getName() != null)
-				System.out.print(' ' + area.getName());
-			System.out.println();
-		}
 		return areas;
 	}
 
@@ -267,6 +294,7 @@ public class Main {
 		if (fileNameList.isEmpty()) {
 			throw new IllegalArgumentException("No file name(s) given");
 		}
+		
 		boolean filesOK = fileNameList.stream().allMatch(fname -> testAndReportFname(fname, "input file"));
 		if (!filesOK) {
 			System.out.println("Make sure that option parameters start with -- ");
@@ -297,15 +325,8 @@ public class Main {
 			}
 		}
 		// The description to write into the template.args file.
-		String description = params.getDescription();
-		areaList = new AreaList(description);
 		String geoNamesFile = params.getGeonamesFile();
-		if (geoNamesFile != null) {
-			if (testAndReportFname(geoNamesFile, "geonames-file") == false) {
-				throw new IllegalArgumentException();
-			}
-			areaList.setGeoNamesFile(geoNamesFile);
-		}
+		checkOptionalFileOption(geoNamesFile, "geonames-file");
 		String outputType = params.getOutput();
 		if ("xml pbf o5m simulate".contains(outputType) == false) {
 			System.err.println("The --output parameter must be either xml, pbf, o5m, or simulate. Resetting to xml.");
@@ -327,14 +348,19 @@ public class Main {
 			throw new IllegalArgumentException();
 		}
 		String problemFile = params.getProblemFile();
-		if (problemFile != null) {
-			if (!problemList.readProblemIds(problemFile))
-				throw new IllegalArgumentException();
+		checkOptionalFileOption(params.getProblemFile(), "problem-file");
+		checkOptionalFileOption(params.getSplitFile(), "split-file");
+		checkOptionalFileOption(params.getPolygonFile(), "polygon-file");
+		checkOptionalFileOption(params.getPolygonDescFile(), "polygon-desc-file");
+		if (params.getPolygonDescFile() != null && params.getPolygonFile() != null) {
+			throw new IllegalArgumentException("--polygon-desc-file and --polygon-file are mutually exclusive");
 		}
-		String splitFile = params.getSplitFile();
-		if (splitFile != null) {
-			if (testAndReportFname(splitFile, "split-file") == false) {
-				throw new IllegalArgumentException();
+		String precompSeaDir = params.getPrecompSea();
+		if (precompSeaDir != null) {
+			File dir = new File(precompSeaDir);
+			if (dir.exists() == false || dir.canRead() == false) {
+				throw new IllegalArgumentException(
+						"precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);
 			}
 		}
 
@@ -408,47 +434,29 @@ public class Main {
 						"Parameter --boundaryTags is ignored, because parameter --keep-complete=false is used");
 			}
 		}
-		if (splitFile != null) {
-			try {
-				areaList = new AreaList(description);
-				areaList.read(splitFile);
-				areaList.dump();
-			} catch (IOException e) {
-				areaList = null;
-				System.err.println("Could not read area list file");
-				e.printStackTrace();
-			}
-		}
+		return params;
+	}
 
-		// A polygon file in osmosis polygon format
-		String polygonFile = params.getPolygonFile();
-		if (polygonFile != null) {
-			if (splitFile != null) {
-				System.out.println("Warning: parameter polygon-file is ignored because split-file is used.");
-			} else {
-				areasCalculator.readPolygonFile(polygonFile, mainOptions.getMapid());
+	private static void checkOptionalFileOption(String fname, String option) {
+		if (fname != null) {
+			if (testAndReportFname(fname, option) == false) {
+				throw new IllegalArgumentException();
 			}
 		}
-		String polygonDescFile = params.getPolygonDescFile();
-		if (polygonDescFile != null) {
-			if (splitFile != null) {
-				System.out.println("Warning: parameter polygon-desc-file is ignored because split-file is used.");
-			} else {
-				areasCalculator.readPolygonDescFile(polygonDescFile);
-			}
-		}
-		areasCalculator.setResolution(resolution);
+		
+	}
+
+	/**
+	 * Calculate the areas that we are going to split into by getting the total
+	 * area and then subdividing down until each area has at most max-nodes
+	 * nodes in it.
+	 */
+	private List<Area> calculateAreas() throws XmlPullParserException {
+		areasCalculator.readOptionalFiles(mainOptions);
+		areasCalculator.setResolution(mainOptions.getResolution());
 		if (!areasCalculator.checkPolygons()) {
 			System.out.println(
 					"Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-		}
-		String precompSeaDir = params.getPrecompSea();
-		if (precompSeaDir != null) {
-			File dir = new File(precompSeaDir);
-			if (dir.exists() == false || dir.canRead() == false) {
-				throw new IllegalArgumentException(
-						"precomp-sea directory doesn't exist or is not readable: " + precompSeaDir);
-			}
 		}
 		int numPolygons = areasCalculator.getPolygons().size();
 		if (numPolygons > 0 && numTiles > 0) {
@@ -459,15 +467,7 @@ public class Main {
 				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
 			}
 		}
-		return params;
-	}
-
-	/**
-	 * Calculate the areas that we are going to split into by getting the total
-	 * area and then subdividing down until each area has at most max-nodes
-	 * nodes in it.
-	 */
-	private List<Area> calculateAreas() throws XmlPullParserException {
+		
 		DensityMapCollector pass1Collector = new DensityMapCollector(mainOptions);
 		MapProcessor processor = pass1Collector;
 

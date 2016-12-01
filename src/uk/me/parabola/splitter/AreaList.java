@@ -157,6 +157,18 @@ public class AreaList {
 			System.out.println(area.getMapId() + " " + area.toString());
 		}
 	}
+	
+	public void dumpHex() {
+		System.out.println(areas.size() + " areas:");
+		for (Area area : areas) {
+			System.out.format("Area %08d: %d,%d to %d,%d covers %s", area.getMapId(), area.getMinLat(),
+					area.getMinLong(), area.getMaxLat(), area.getMaxLong(), area.toHexString());
+
+			if (area.getName() != null)
+				System.out.print(' ' + area.getName());
+			System.out.println();
+		}
+	}
 
 	/**
 	 * Write out a poly file containing the bounding polygon for the areas 
