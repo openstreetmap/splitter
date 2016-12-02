@@ -14,6 +14,7 @@ package uk.me.parabola.splitter;
 
 import java.awt.Point;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
 import uk.me.parabola.splitter.kml.KmlParser;
+import uk.me.parabola.splitter.kml.KmlWriter;
 
 /**
  * A list of areas.  It can be read and written to a file.
@@ -308,4 +310,40 @@ public class AreaList {
 		areas.clear();
 		areas.addAll(calculateAreas);
 	}
+	
+	/**
+	 * 
+	 * @param fileOutputDir
+	 * @param polygons
+	 * @param kmlOutputFile
+	 * @param outputType
+	 * @throws IOException
+	 */
+	public void writeListFiles(File fileOutputDir, List<PolygonDesc> polygons,
+			String kmlOutputFile, String outputType) throws IOException {
+		for (PolygonDesc pd : polygons){
+			List<uk.me.parabola.splitter.Area> areasPart = new ArrayList<>();
+			for (uk.me.parabola.splitter.Area a : areas){
+				if (pd.area.intersects(a.getRect()))
+					areasPart.add(a);
+			}
+			if (kmlOutputFile != null){
+				File out = new File(kmlOutputFile);
+				String kmlOutputFilePart = pd.name + "-" + out.getName();
+				if (out.getParent() != null)
+					out = new File(out.getParent(), kmlOutputFilePart);
+				else
+					out = new File(kmlOutputFilePart);
+				if (out.getParent() == null)
+					out = new File(fileOutputDir, kmlOutputFilePart);
+				KmlWriter.writeKml(out.getPath(), areasPart);
+			}
+			AreaList al = new AreaList(areasPart, null);
+			al.setGeoNamesFile(geoNamesFile);
+			al.writePoly(new File(fileOutputDir, pd.name + "-" + "areas.poly").getPath());
+			al.writeArgsFile(new File(fileOutputDir, pd.name + "-" + "template.args").getPath(), outputType, pd.mapId);
+		}
+	}
+	
+
 }

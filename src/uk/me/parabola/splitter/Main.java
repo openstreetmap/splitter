@@ -13,8 +13,6 @@
 
 package uk.me.parabola.splitter;
 
-import org.xmlpull.v1.XmlPullParserException;
-
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.kml.KmlWriter;
@@ -25,11 +23,9 @@ import uk.me.parabola.splitter.writer.OSMWriter;
 import uk.me.parabola.splitter.writer.OSMXMLWriter;
 import uk.me.parabola.splitter.writer.PseudoOSMWriter;
 
-import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +42,7 @@ public class Main {
 
 	private static final String DEFAULT_DIR = ".";
 
-	// A list of the OSM files to parse.
+	/** A list of the OSM files to parse. */
 	private List<String> fileNameList;
 
 	/** The amount in map units that tiles overlap. The default is overwritten depending on user settings. */
@@ -55,11 +51,10 @@ public class Main {
 	/** The number of tiles to be written. The default is overwritten depending on user settings. */
 	private int numTiles = -1;
 
-	// The path where the results are written out to.
+	/** The path where the results are written out to. */
 	private File fileOutputDir;
 
 	private final OSMFileHandler osmFileHandler = new OSMFileHandler();
-	private final AreasCalculator areasCalculator = new AreasCalculator();
 	private final ProblemLists problemList = new ProblemLists();
 
 	private SplitterParams mainOptions;
@@ -127,10 +122,6 @@ public class Main {
 			System.err.println("Error opening or reading file " + e);
 			e.printStackTrace();
 			return 1;
-		} catch (XmlPullParserException e) {
-			System.err.println("Error parsing xml from file " + e);
-			e.printStackTrace();
-			return 1;
 		} catch (SplitFailedException e) {
 			if (e.getMessage() != null && e.getMessage().length() > 0)
 				e.printStackTrace();
@@ -153,9 +144,8 @@ public class Main {
 	 * be freshly calculated by scanning the input files.  
 	 * @return List of areas which might overlap each other if they were read from an existing file. 
 	 * @throws IOException
-	 * @throws XmlPullParserException
 	 */
-	private List<Area> split() throws IOException, XmlPullParserException {
+	private List<Area> split() throws IOException {
 		final File outputDir = fileOutputDir;
 		if (!outputDir.exists()) {
 			System.out.println("Output directory not found. Creating directory '" + fileOutputDir + "'");
@@ -194,6 +184,7 @@ public class Main {
 		}
 		areaList.setGeoNamesFile(mainOptions.getGeonamesFile());
 
+		AreasCalculator areasCalculator = new AreasCalculator(mainOptions, numTiles);
 		if (areaList.getAreas().isEmpty()) {
 			int resolution = mainOptions.getResolution();
 			writeAreas = true;
@@ -203,7 +194,8 @@ public class Main {
 					+ Utils.toDegrees(alignment) + " degrees)");
 			System.out.println(
 					" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
-			areaList.setAreas(calculateAreas());
+			areasCalculator.fillDensityMap(osmFileHandler, fileOutputDir);
+			areaList.setAreas(areasCalculator.calcAreas());
 			if (areaList.getAreas().isEmpty()) {
 				System.err.println("Failed to calculate areas. See stdout messages for details.");
 				System.out.println("Failed to calculate areas.");
@@ -233,7 +225,10 @@ public class Main {
 			KmlWriter.writeKml(out.getPath(), areas);
 		}
 		String outputType = mainOptions.getOutput();
-		areasCalculator.writeListFiles(outputDir, areas, kmlOutputFile, outputType);
+		
+		if (!areasCalculator.getPolygons().isEmpty()) {
+			areaList.writeListFiles(outputDir, areasCalculator.getPolygons(), kmlOutputFile, outputType);
+		}
 		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 		areaList.dumpHex();
 
@@ -245,7 +240,7 @@ public class Main {
 			throw new StopNoErrorException(mainOptions.getStopAfter());
 		}
 
-		return areas;
+		return areaList.getAreas();
 	}
 
 	private DataStorer calcProblemLists(List<Area> areas) {
@@ -444,95 +439,6 @@ public class Main {
 			}
 		}
 		
-	}
-
-	/**
-	 * Calculate the areas that we are going to split into by getting the total
-	 * area and then subdividing down until each area has at most max-nodes
-	 * nodes in it.
-	 */
-	private List<Area> calculateAreas() throws XmlPullParserException {
-		areasCalculator.readOptionalFiles(mainOptions);
-		areasCalculator.setResolution(mainOptions.getResolution());
-		if (!areasCalculator.checkPolygons()) {
-			System.out.println(
-					"Warning: Bounding polygon is complex. Splitter might not be able to fit all tiles into the polygon!");
-		}
-		int numPolygons = areasCalculator.getPolygons().size();
-		if (numPolygons > 0 && numTiles > 0) {
-			if (numPolygons == 1) {
-				System.out.println(
-						"Warning: Parameter polygon-file is only used to calculate the bounds because --num-tiles is used");
-			} else {
-				System.out.println("Warning: parameter polygon-file is ignored because --num-tiles is used");
-			}
-		}
-		
-		DensityMapCollector pass1Collector = new DensityMapCollector(mainOptions);
-		MapProcessor processor = pass1Collector;
-
-		File densityData = new File("densities.txt");
-		File densityOutData = null;
-		if (densityData.exists() && densityData.isFile()) {
-			System.err.println("reading density data from " + densityData.getAbsolutePath());
-			pass1Collector.readMap(densityData.getAbsolutePath());
-		} else {
-			densityOutData = new File(fileOutputDir, "densities-out.txt");
-			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, processor);
-			producerConsumer.execute();
-		}
-		System.out.println("in " + fileNameList.size() + (fileNameList.size() == 1 ? " file" : " files"));
-		System.out.println("Time: " + new Date());
-		if (densityOutData != null)
-			pass1Collector.saveMap(densityOutData.getAbsolutePath());
-
-		Area exactArea = pass1Collector.getExactArea();
-		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
-		if (areasCalculator.getPolygons().size() == 1) {
-			Rectangle polgonsBoundingBox = areasCalculator.getPolygons().get(0).area.getBounds();
-			exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
-			if (exactArea != null)
-				System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);
-			else {
-				System.out.println("Exact map coverage after applying bounding box of polygon-file is an empty area");
-				return Collections.emptyList();
-			}
-		}
-
-		String precompSeaDir = mainOptions.getPrecompSea();
-		if (precompSeaDir != null) {
-			System.out.println("Counting nodes of precompiled sea data ...");
-			long startSea = System.currentTimeMillis();
-			DensityMapCollector seaCollector = new DensityMapCollector(mainOptions);
-			PrecompSeaReader precompSeaReader = new PrecompSeaReader(exactArea, new File(precompSeaDir));
-			precompSeaReader.processMap(seaCollector);
-			pass1Collector.mergeSeaData(seaCollector, !mainOptions.isNoTrim(), mainOptions.getResolution());
-			System.out.println("Precompiled sea data pass took " + (System.currentTimeMillis() - startSea) + " ms");
-		}
-		Area roundedBounds = RoundingUtils.round(exactArea, mainOptions.getResolution());
-		SplittableDensityArea splittableArea = pass1Collector.getSplitArea(mainOptions.getSearchLimit(), roundedBounds);
-		if (splittableArea.hasData() == false) {
-			System.out.println("input file(s) have no data inside calculated bounding box");
-			return Collections.emptyList();
-		}
-		System.out.println("Rounded map coverage is " + splittableArea.getBounds());
-
-		splittableArea.setTrim(mainOptions.isNoTrim() == false);
-		splittableArea.setMapId(mainOptions.getMapid());
-		long startSplit = System.currentTimeMillis();
-		List<Area> areas;
-		if (numTiles >= 2) {
-			System.out.println("Splitting nodes into " + numTiles + " areas");
-			areas = splittableArea.split(numTiles);
-		} else {
-			System.out.println(
-					"Splitting nodes into areas containing a maximum of " + Utils.format(mainOptions.getMaxNodes()) + " nodes each...");
-			splittableArea.setMaxNodes(mainOptions.getMaxNodes());
-			areas = splittableArea.split(areasCalculator.getPolygons());
-		}
-		if (areas != null && areas.isEmpty() == false)
-			System.out.println("Creating the initial areas took " + (System.currentTimeMillis() - startSplit) + " ms");
-		return areas;
 	}
 
 	private OSMWriter[] createWriters(List<Area> areas) {

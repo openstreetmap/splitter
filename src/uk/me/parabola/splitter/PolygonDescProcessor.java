@@ -13,12 +13,8 @@
 package uk.me.parabola.splitter;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import uk.me.parabola.splitter.kml.KmlWriter;
-
 import java.awt.geom.Path2D;
 import java.awt.geom.Area;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -93,39 +89,6 @@ class PolygonDescProcessor extends AbstractMapProcessor {
 		nodes = null;
 		System.out.println("found " + polygonDescriptions.size() + " named polygons");
 		return true;
-	}
-	
-	/**
-	 * Calculate and write the area lists for each named polygon.
-	 * @param fileOutputDir
-	 * @param areas the list of all areas 
-	 * @param kmlOutputFile optional kml file name or null
-	 * @param outputType file name extension of output files
-	 * @throws IOException 
-	 */
-	public void writeListFiles(File fileOutputDir,
-			List<uk.me.parabola.splitter.Area> areas, String kmlOutputFile, String outputType) throws IOException {
-		for (PolygonDesc pd : polygonDescriptions){
-			List<uk.me.parabola.splitter.Area> areasPart = new ArrayList<>();
-			for (uk.me.parabola.splitter.Area a : areas){
-				if (pd.area.intersects(a.getRect()))
-					areasPart.add(a);
-			}
-			if (kmlOutputFile != null){
-				File out = new File(kmlOutputFile);
-				String kmlOutputFilePart = pd.name + "-" + out.getName();
-				if (out.getParent() != null)
-					out = new File(out.getParent(), kmlOutputFilePart);
-				else
-					out = new File(kmlOutputFilePart);
-				if (out.getParent() == null)
-					out = new File(fileOutputDir, kmlOutputFilePart);
-				KmlWriter.writeKml(out.getPath(), areasPart);
-			}
-			AreaList al = new AreaList(areasPart, null);
-			al.writePoly(new File(fileOutputDir, pd.name + "-" + "areas.poly").getPath());
-			al.writeArgsFile(new File(fileOutputDir, pd.name + "-" + "template.args").getPath(), outputType, pd.mapId);
-		}
 	}
 	
 	public List<PolygonDesc> getPolygons() {
