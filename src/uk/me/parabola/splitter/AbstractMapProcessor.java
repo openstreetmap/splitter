@@ -46,6 +46,8 @@ public abstract class AbstractMapProcessor implements MapProcessor {
 		return 1;
 	}
 	
+	public void startFile() {};
+		
 	/**
 	 * Simple method that allows all processors to use the producer/consumer pattern
 	 */

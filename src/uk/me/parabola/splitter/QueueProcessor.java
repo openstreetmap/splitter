@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 
+import uk.me.parabola.splitter.OSMMessage.Type;
+
 /**
  * Simple helper to allow all existing processors to use the producer/consumer
  * pattern. For each call of a supplier (one of the OSM parsers) it either
@@ -34,42 +36,61 @@ public class QueueProcessor extends AbstractMapProcessor {
 		this.realProcessor = realProcessor;
 	}
 
+	@Override
 	public boolean skipTags() {
 		return realProcessor.skipTags();
 	}
 
+	@Override
 	public boolean skipNodes() {
 		return realProcessor.skipNodes();
 	}
 
+	@Override
 	public boolean skipWays() {
 		return realProcessor.skipWays();
 	}
 
+	@Override
 	public boolean skipRels() {
 		return realProcessor.skipRels();
 	}
 
+	@Override
 	public void boundTag(Area bounds) {
 		addToQueue(bounds);
 	}
 
+	@Override
 	public void processNode(Node n) {
 		addToQueue(n);
 	}
 
+	@Override
 	public void processWay(Way w) {
 		addToQueue(w);
 	}
 
+	@Override
 	public void processRelation(Relation r) {
 		addToQueue(r);
 	}
 
+	@Override
+	public void startFile() {
+		try {
+			flush();
+			queue.put(new OSMMessage(Type.START_FILE));
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	@Override	
 	public boolean endMap() {
 		try {
 			flush();
-			queue.put(new OSMMessage());
+			queue.put(new OSMMessage(Type.END_MAP));
 		} catch (InterruptedException e) {
 			throw new RuntimeException(e);
 		}

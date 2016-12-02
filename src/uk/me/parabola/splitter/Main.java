@@ -514,9 +514,7 @@ public class Main {
 			System.out.println("Starting distribution pass " + (i + 1) + " of " + numPasses + ", processing "
 					+ numAreasThisPass + " areas (" + areas.get(i * areasPerPass).getMapId() + " to "
 					+ areas.get(i * areasPerPass + numAreasThisPass - 1).getMapId() + ')');
-
-			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, processor);
-			producerConsumer.execute();
+			osmFileHandler.execute(processor);
 		}
 		System.out.println("Distribution pass(es) took " + (System.currentTimeMillis() - startDistPass) + " ms");
 	}

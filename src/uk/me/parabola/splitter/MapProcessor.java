@@ -85,4 +85,9 @@ public interface MapProcessor {
 	 */
 	boolean consume(BlockingQueue<OSMMessage> queue);
 	
+	/**
+	 * Called for each single input file
+	 */
+	void startFile();
+	
 }

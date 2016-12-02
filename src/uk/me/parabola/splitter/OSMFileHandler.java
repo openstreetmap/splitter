@@ -21,6 +21,8 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -47,6 +49,9 @@ public class OSMFileHandler {
 	private boolean mixed;
 
 	private int maxThreads = 1;
+	
+	/** if this is true we may not want to use producer/consumer pattern */ 
+	private MapProcessor realProcessor;
 
 	public void setFileNames(List<String> filenames) {
 		this.filenames = filenames;
@@ -61,17 +66,10 @@ public class OSMFileHandler {
 	}
 
 	public boolean process(MapProcessor processor) {
-		// Create both an XML reader and a binary reader, Dispatch each input to
-		// the
-		// Appropriate parser.
-
-		for (int i = 0; i < filenames.size(); i++) {
-			String filename = filenames.get(i);
+		// create appriate parser for each input file
+		for (String filename : filenames) {
 			System.out.println("Processing " + filename);
-			if (i == 1 && processor instanceof DensityMapCollector) {
-				((DensityMapCollector) processor).checkBounds();
-			}
-
+			processor.startFile();
 			try {
 				if (filename.endsWith(".o5m")) {
 					File file = new File(filename);
@@ -120,8 +118,24 @@ public class OSMFileHandler {
 				throw new SplitFailedException("ERROR: file " + filename + " caused I/O exception");
 			}
 		}
-		boolean done = processor.endMap();
-		return done;
+		return processor.endMap();
+	}
+	
+	
+
+	public boolean execute(MapProcessor processor) {
+		realProcessor = processor;
+		if (maxThreads == 1)
+			return process(processor);
+		
+		// use two threads  
+		BlockingQueue<OSMMessage> queue = new ArrayBlockingQueue<>(10);
+		QueueProcessor queueProcessor = new QueueProcessor(queue, realProcessor);
+		// start producer thread
+		new Thread(() -> {
+			process(queueProcessor);
+		}).start();
+		return realProcessor.consume(queue);
 	}
 
 }

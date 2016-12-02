@@ -21,7 +21,7 @@ import java.util.List;
  *
  */
 public class OSMMessage {
-	public enum Type {ELEMENTS, BOUNDS, END_MAP}; 
+	public enum Type {START_FILE, ELEMENTS, BOUNDS, END_MAP}; 
 
 	// either el or bounds must be null
 	List<Element> elements;
@@ -38,8 +38,9 @@ public class OSMMessage {
 		type = Type.BOUNDS;
 	}
 
-	public OSMMessage() {
-		type = Type.END_MAP;
+	public OSMMessage(Type t) {
+		assert !t.equals(Type.BOUNDS); 
+		assert !t.equals(Type.ELEMENTS); 
+		type = t;
 	}
-
 }

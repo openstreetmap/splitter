@@ -23,6 +23,7 @@ class DensityMapCollector extends AbstractMapProcessor{
 	private final MapDetails details = new MapDetails();
 	private Area bounds;
 	private final boolean ignoreBoundsTags;
+	private int files;
 	
 
 	public DensityMapCollector(SplitterParams mainOptions) {
@@ -44,6 +45,12 @@ class DensityMapCollector extends AbstractMapProcessor{
 		return true;
 	}
 
+	@Override 
+	public void startFile() {
+		if (++files > 1)
+			checkBounds();
+	}
+	
 	@Override
 	public void boundTag(Area fileBbox) {
 		if (ignoreBoundsTags)
@@ -63,6 +70,7 @@ class DensityMapCollector extends AbstractMapProcessor{
 		details.addToBounds(glat, glon);
 	}
 
+	
 	/**
 	 * Check if a bounds tag was found. If not,
 	 * use the bbox of the data that was collected so far.

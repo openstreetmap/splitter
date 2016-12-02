@@ -144,9 +144,7 @@ public class AreasCalculator {
 			pass1Collector.readMap(densityData.getAbsolutePath());
 		} else {
 			// fill the map with data from OSM files 
-			ProducerConsumer producerConsumer = new ProducerConsumer(osmFileHandler, pass1Collector);
-			producerConsumer.execute();
-
+			osmFileHandler.execute(pass1Collector);
 			densityOutData = new File(fileOutputDir, "densities-out.txt");
 		}
 		System.out.println("Fill-densities-map pass took " + (System.currentTimeMillis() - start) + " ms");
