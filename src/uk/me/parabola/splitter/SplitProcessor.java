@@ -154,7 +154,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			ways.put(w.getId(), multiTileDictionary.translate(usedWriters));
 			++countWays;
 			if (countWays % 1000000 == 0){
-				System.out.println("way MAP occupancy: " + Utils.format(countWays) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(multiTileDictionary.size()));
 				ways.stats(0);
 			}
 			try {
@@ -320,7 +320,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
-				System.out.println("MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
 				coords.stats(0);
 			}
 		}
