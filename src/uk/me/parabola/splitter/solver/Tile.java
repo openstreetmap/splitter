@@ -25,8 +25,6 @@ import java.awt.Rectangle;
 	 * It contains the sum of all nodes in this area and has methods to
 	 * help splitting it into smaller parts.
 	 * 
-	 * It extends java.awt.Rectangle because that implements a useful 
-	 * hashCode method. 
 	 * We want to keep the memory footprint of this class small as
 	 * many instances are kept in maps. 
 	 * @author GerdP
@@ -608,6 +606,12 @@ import java.awt.Rectangle;
 			int polyYPos = densityInfo.getDensityMap().getBounds().getMinLat() + (y << shift);
 			int polyXPos = densityInfo.getDensityMap().getBounds().getMinLong() + (x << shift);
 			return new Rectangle(polyXPos, polyYPos, width<<shift, height<<shift);
+		}
+
+		@Override
+		public int hashCode() {
+			int hash = x << 24 | y << 16 | width << 8 | height;
+			return hash;
 		}
 		
 		@Override
