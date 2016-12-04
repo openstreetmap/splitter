@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,6 +29,11 @@ import java.util.zip.ZipFile;
 
 import org.xmlpull.v1.XmlPullParserException;
 import crosby.binary.file.BlockInputStream;
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.BinaryMapParser;
+import uk.me.parabola.splitter.OSMXMLParser;
+import uk.me.parabola.splitter.SplitFailedException;
+import uk.me.parabola.splitter.Utils;
 
 /**
  * Reader for precompiled sea data. This is mostly a copy of the corresponding

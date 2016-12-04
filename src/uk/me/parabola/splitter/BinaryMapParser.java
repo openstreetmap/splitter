@@ -41,7 +41,7 @@ public class BinaryMapParser extends BinaryParser {
 	private short wantedTypeMask = 0;
 	private int msgLevel;
 
-	BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes, int msgLevel) {
+	public BinaryMapParser(MapProcessor processor, ShortArrayList knownBlockTypes, int msgLevel) {
 		this.processor = processor;
 		this.knownBlockTypes = knownBlockTypes;
 		this.skipTags = processor.skipTags();

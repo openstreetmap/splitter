@@ -11,8 +11,13 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
+import uk.me.parabola.splitter.AbstractMapProcessor;
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.MapDetails;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.RoundingUtils;
 import uk.me.parabola.splitter.args.SplitterParams;
 
 /**

@@ -11,7 +11,7 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -24,6 +24,10 @@ import java.util.List;
 import org.openstreetmap.osmosis.core.filter.common.PolygonFileReader;
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.OSMFileHandler;
+import uk.me.parabola.splitter.RoundingUtils;
+import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.args.SplitterParams;
 
 /**

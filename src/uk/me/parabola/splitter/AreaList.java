@@ -38,6 +38,7 @@ import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
 import uk.me.parabola.splitter.kml.KmlParser;
 import uk.me.parabola.splitter.kml.KmlWriter;
+import uk.me.parabola.splitter.solver.PolygonDesc;
 
 /**
  * A list of areas.  It can be read and written to a file.

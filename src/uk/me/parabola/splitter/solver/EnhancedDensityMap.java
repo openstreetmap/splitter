@@ -10,10 +10,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */ 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import java.awt.Rectangle;
 import java.util.BitSet;
+
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Utils;
 
 /**
  * Contains info that is needed by the {@link Tile} class. For a given

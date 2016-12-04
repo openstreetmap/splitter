@@ -10,9 +10,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import uk.me.parabola.splitter.AbstractMapProcessor;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.RoundingUtils;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Way;
+
 import java.awt.geom.Path2D;
 import java.awt.geom.Area;
 import java.util.ArrayList;

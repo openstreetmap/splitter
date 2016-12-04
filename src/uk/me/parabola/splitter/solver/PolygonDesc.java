@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import java.awt.geom.Area;
 
@@ -19,7 +19,7 @@ import java.awt.geom.Area;
  * @author GerdP
  *
  */
-class PolygonDesc {
+public class PolygonDesc {
 	private final java.awt.geom.Area area;
 	private final String name;
 	private final int mapId;

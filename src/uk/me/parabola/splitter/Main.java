@@ -16,6 +16,7 @@ package uk.me.parabola.splitter;
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.kml.KmlWriter;
+import uk.me.parabola.splitter.solver.AreasCalculator;
 import uk.me.parabola.splitter.writer.AbstractOSMWriter;
 import uk.me.parabola.splitter.writer.BinaryMapWriter;
 import uk.me.parabola.splitter.writer.O5mMapWriter;

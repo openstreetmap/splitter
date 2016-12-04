@@ -11,7 +11,7 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import java.awt.Rectangle;
 import java.io.File;
@@ -22,6 +22,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.util.regex.Pattern;
+
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.MapDetails;
+import uk.me.parabola.splitter.RoundingUtils;
+import uk.me.parabola.splitter.SplitFailedException;
+import uk.me.parabola.splitter.Utils;
 
 /**
  * Builds up a map of node densities across the total area being split.

@@ -60,7 +60,7 @@ public class RoundingUtils {
 	 * @param resolution the map resolution to align the borders at
 	 * @return the rounded area
 	 */
-	static Area round(Area b, int resolution) {
+	public static Area round(Area b, int resolution) {
 		int shift = 24 - resolution;
 		int alignment = 1 << shift;
 

@@ -11,9 +11,13 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.solver;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.RoundingUtils;
+import uk.me.parabola.splitter.SplitFailedException;
+import uk.me.parabola.splitter.Utils;
 
 import java.awt.Point;
 import java.awt.Rectangle;
