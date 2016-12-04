@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
- package uk.me.parabola.splitter;
+ package uk.me.parabola.splitter.tools;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.io.IOException;
  * Stores long/int pairs. Only useful with data that is already in key-sorted order.
  * 
  */
-interface Long2IntClosedMapFunction {
+public interface Long2IntClosedMapFunction {
 	/**
 	 * Add a new pair. The key must be higher than then any existing key in the map.  
 	 * @param key the key value

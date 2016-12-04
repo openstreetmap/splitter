@@ -11,11 +11,13 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import uk.me.parabola.splitter.Utils;
+
 import java.util.Arrays;
 
 
@@ -167,7 +169,7 @@ public class SparseLong2IntMap {
 	 * areas in which the object with the ID occurs. 
 	 * @param dataDesc
 	 */
-	SparseLong2IntMap(String dataDesc) {
+	public SparseLong2IntMap(String dataDesc) {
 		long reserve = (1L << CHUNK_STORE_BITS_FOR_Y - 1) * CHUNK_SIZE - LARGE_VECTOR_SIZE;
 		assert reserve > 0;
 		this.dataDesc = dataDesc;

@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 /**
  * Helper class to create appropriate instance of a Long/Short map. 

@@ -11,10 +11,12 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import uk.me.parabola.splitter.tools.SparseBitSet;
 
 /**
  * Unit tests for the sparse BitSet implementation

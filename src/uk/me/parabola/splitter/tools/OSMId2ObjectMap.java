@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */ 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -34,13 +34,13 @@ public class OSMId2ObjectMap<V>{
 	private int size;
 
 	public OSMId2ObjectMap() {
-		topMap = new Long2ObjectOpenHashMap<Int2ObjectOpenHashMap<V>>();
+		topMap = new Long2ObjectOpenHashMap<>();
 	}
 	public V put(long key, V object){
 		long topId = key >> TOP_ID_SHIFT;
 		Int2ObjectOpenHashMap<V> midMap = topMap.get(topId);
 		if (midMap == null){
-			midMap = new Int2ObjectOpenHashMap<V>();
+			midMap = new Int2ObjectOpenHashMap<>();
 			topMap.put(topId, midMap);
 		}
 		int midId = (int)(key & LOW_ID_MASK);

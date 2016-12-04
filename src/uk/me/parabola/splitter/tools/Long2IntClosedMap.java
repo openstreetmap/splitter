@@ -10,10 +10,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
- package uk.me.parabola.splitter;
+ package uk.me.parabola.splitter.tools;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import uk.me.parabola.splitter.SplitFailedException;
+import uk.me.parabola.splitter.Utils;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -33,7 +35,7 @@ import java.util.Arrays;
  * 
  * @author GerdP 
  */
-class Long2IntClosedMap implements Long2IntClosedMapFunction{
+public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	private static final long LOW_ID_MASK = 0x3fffffffL; // 30 bits
 	private static final long TOP_ID_MASK = ~LOW_ID_MASK;
 	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);  

@@ -11,12 +11,18 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 import java.io.IOException;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import uk.me.parabola.splitter.tools.Long2IntClosedMap;
+import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
+import uk.me.parabola.splitter.tools.SparseLong2IntMap;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMapInline;
 
 /**
  * 

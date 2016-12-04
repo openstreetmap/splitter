@@ -14,6 +14,9 @@ package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
 import uk.me.parabola.splitter.args.SplitterParams;
+import uk.me.parabola.splitter.tools.SparseLong2IntMap;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMap;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.Arrays;

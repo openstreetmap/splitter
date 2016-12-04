@@ -10,10 +10,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.tools;
 
 import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import uk.me.parabola.splitter.SplitFailedException;
 
 /**
  * A partly BitSet implementation optimized for memory when used to store very

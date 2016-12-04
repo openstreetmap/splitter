@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
- package uk.me.parabola.splitter;
+ package uk.me.parabola.splitter.tools;
 
 //import it.unimi.dsi.fastutil.longs.Long2ShortFunction;
 
@@ -18,7 +18,7 @@
  * Stores long/short pairs. 
  * 
  */
-interface SparseLong2ShortMapFunction {
+public interface SparseLong2ShortMapFunction {
 	final short UNASSIGNED = Short.MIN_VALUE;
 	public short put(long key, short val);
 	public void clear();

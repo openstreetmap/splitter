@@ -13,7 +13,10 @@
 package uk.me.parabola.splitter;
 
 import uk.me.parabola.splitter.Relation.Member;
-
+import uk.me.parabola.splitter.tools.Long2IntClosedMap;
+import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
+import uk.me.parabola.splitter.tools.OSMId2ObjectMap;
+import uk.me.parabola.splitter.tools.SparseBitSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
