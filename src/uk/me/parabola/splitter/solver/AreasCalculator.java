@@ -158,6 +158,7 @@ public class AreasCalculator {
 			pass1Collector.saveMap(densityOutData.getAbsolutePath());
 		
 		exactArea = pass1Collector.getExactArea();
+		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
 		if (polygons.size() == 1) {
 			// intersect the bounding polygon with the exact area
 			Rectangle polgonsBoundingBox = polygons.get(0).getArea().getBounds();
