@@ -22,7 +22,7 @@ import java.util.List;
  * @author GerdP 
  * 
  */
-class Solution {
+public class Solution {
 	/**
 	 * 
 	 */
@@ -51,7 +51,7 @@ class Solution {
 		if (aspectRatio < 1.0)
 			aspectRatio = 1.0 / aspectRatio;
 		worstAspectRatio = Math.max(aspectRatio, worstAspectRatio);
-		worstMinNodes = Math.min(tile.count, worstMinNodes); 		
+		worstMinNodes = Math.min(tile.getCount(), worstMinNodes); 		
 		return true;
 	}
 	
@@ -163,7 +163,7 @@ class Solution {
 						Tile candidate = null;
 						boolean trimmed = false;
 						for (Tile tile : tiles){
-							if (tile.count == 0)
+							if (tile.getCount() == 0)
 								continue;
 							switch (side){
 							case LEFT: 

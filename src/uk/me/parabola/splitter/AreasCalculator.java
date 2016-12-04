@@ -63,7 +63,7 @@ public class AreasCalculator {
 	 * @return false if any 
 	 */
 	public boolean checkPolygons() {
-		return polygons.stream().allMatch(pd -> checkPolygon(pd.area, resolution));
+		return polygons.stream().allMatch(pd -> checkPolygon(pd.getArea(), resolution));
 	}
 
 	/**
@@ -156,7 +156,7 @@ public class AreasCalculator {
 		exactArea = pass1Collector.getExactArea();
 		if (polygons.size() == 1) {
 			// intersect the bounding polygon with the exact area
-			Rectangle polgonsBoundingBox = polygons.get(0).area.getBounds();
+			Rectangle polgonsBoundingBox = polygons.get(0).getArea().getBounds();
 			exactArea = Area.calcArea(exactArea, polgonsBoundingBox);
 			if (exactArea != null)
 				System.out.println("Exact map coverage after applying bounding box of polygon-file is " + exactArea);

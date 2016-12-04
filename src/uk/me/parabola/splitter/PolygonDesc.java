@@ -20,12 +20,24 @@ import java.awt.geom.Area;
  *
  */
 class PolygonDesc {
-	final java.awt.geom.Area area;
-	final String name;
-	final int mapId;
+	private final java.awt.geom.Area area;
+	private final String name;
+	private final int mapId;
 	public PolygonDesc(String name, Area area, int mapId) {
 		this.name = name;
 		this.area = area;
 		this.mapId = mapId;
+	}
+	
+	public java.awt.geom.Area getArea() {
+		return area;
+	}
+	
+	public String getName() {
+		return name;
+	}
+
+	public int getMapId() {
+		return mapId;
 	}
 }

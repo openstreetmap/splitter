@@ -201,15 +201,15 @@ public class SplittableDensityArea {
 		for (int i = 0; i < namedPolygons.size(); i++){
 			boolean wasDistinct = true;
 			PolygonDesc namedPart = namedPolygons.get(i);
-			java.awt.geom.Area distinctPart = new java.awt.geom.Area (namedPart.area);
+			java.awt.geom.Area distinctPart = new java.awt.geom.Area (namedPart.getArea());
 			for(int j = 0; j < namedPolygons.size(); j++){
 				if (j == i)
 					continue;
-				java.awt.geom.Area test = new java.awt.geom.Area(namedPart.area);
-				test.intersect(namedPolygons.get(j).area);
+				java.awt.geom.Area test = new java.awt.geom.Area(namedPart.getArea());
+				test.intersect(namedPolygons.get(j).getArea());
 				if (test.isEmpty() == false){
 					wasDistinct = false;
-					distinctPart.subtract(namedPolygons.get(j).area);
+					distinctPart.subtract(namedPolygons.get(j).getArea());
 					if (j > i){
 						ShareInfo si = new ShareInfo();
 						si.area = test;
@@ -222,9 +222,9 @@ public class SplittableDensityArea {
 			if (distinctPart.isEmpty() == false && distinctPart.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
 //				KmlWriter.writeKml("e:/ld_sp/distinct_"+namedPart.name, "distinct", distinctPart);
 				if (wasDistinct == false)
-					System.out.println("splitting distinct part of " + namedPart.name);
+					System.out.println("splitting distinct part of " + namedPart.getName());
 				else 
-					System.out.println("splitting " + namedPart.name);
+					System.out.println("splitting " + namedPart.getName());
 				result.addAll(split(distinctPart));
 			}
 		}
@@ -236,7 +236,7 @@ public class SplittableDensityArea {
 				if (si.sharedBy.contains(j))
 					continue;
 				java.awt.geom.Area test = new java.awt.geom.Area(si.area);
-				test.intersect(namedPolygons.get(j).area);
+				test.intersect(namedPolygons.get(j).getArea());
 				if (test.isEmpty() == false){
 					si.area.subtract(test);
 					if (j > si.sharedBy.getInt(si.sharedBy.size()-1)){
@@ -253,7 +253,7 @@ public class SplittableDensityArea {
 			if (si.area.isEmpty() == false && si.area.intersects(Utils.area2Rectangle(allDensities.getBounds(),0))){
 				String desc = "";
 				for (int pos : si.sharedBy)
-					desc += namedPolygons.get(pos).name + " and ";
+					desc += namedPolygons.get(pos).getName() + " and ";
 				desc = desc.substring(0,desc.lastIndexOf(" and"));
 				System.out.println("splitting area shared by exactly " + si.sharedBy.size() + " polygons: " + desc);
 //				KmlWriter.writeKml("e:/ld_sp/shared_"+desc.replace(" " , "_"), desc, si.area);
@@ -402,7 +402,7 @@ public class SplittableDensityArea {
 		int firstEmpty = -1;
 		int countEmpty = 0;
 		long countLastPart = 0;
-		long countRemaining = tile.count;
+		long countRemaining = tile.getCount();
 		long maxEmpty = Utils.toMapUnit(30) / (1 << shift);
 		if (splitHoriz){
 			for (int i = 0; i < tile.width; i++){
@@ -455,7 +455,7 @@ public class SplittableDensityArea {
 				for (List<Point> shape: shapes){
 					java.awt.geom.Area part = Utils.shapeToArea(shape);
 					Tile t = new Tile(extraDensityInfo, part.getBounds());
-					if (t.count > 0)
+					if (t.getCount() > 0)
 						clusters.addAll(checkForEmptyClusters(depth + 1, t.trim(), !splitHoriz ));
 				}
 			}
@@ -578,7 +578,7 @@ public class SplittableDensityArea {
 	 */
 	private Solution findSolution(int depth, final Tile tile, Tile parent, TileMetaInfo smiParent){
 		boolean addAndReturn = false;
-		if (tile.count == 0){
+		if (tile.getCount() == 0){
 			if (!allowEmptyPart){
 				hasEmptyPart  = true;
 				return null;
@@ -586,13 +586,13 @@ public class SplittableDensityArea {
 			if  (tile.width * tile.height <= 4) 
 				return null;
 			return new Solution(maxNodes); // allow empty part of the world
-		} else if (tile.count > maxNodes && tile.width == 1 && tile.height == 1) {
+		} else if (tile.getCount() > maxNodes && tile.width == 1 && tile.height == 1) {
 			addAndReturn = true;  // can't split further
-		} else if (tile.count < minNodes && depth == 0) {
+		} else if (tile.getCount() < minNodes && depth == 0) {
 			addAndReturn = true; // nothing to do
-		} else if (tile.count < minNodes) {
+		} else if (tile.getCount() < minNodes) {
 			return null;
-		} else if (tile.count <= maxNodes) {
+		} else if (tile.getCount() <= maxNodes) {
 			double ratio = tile.getAspectRatio();
 			if (ratio < 1.0)
 				ratio = 1.0 / ratio;
@@ -621,7 +621,7 @@ public class SplittableDensityArea {
 			solution.add(tile);  // can't split further
 			return solution;
 		}
-		if (tile.count < minNodes * 2){
+		if (tile.getCount() < minNodes * 2){
 			return null;
 		}
 		Solution cached = searchGoodSolutions(tile);
@@ -687,7 +687,7 @@ public class SplittableDensityArea {
 				parts[0] = parts[0].trim();
 				parts[1] = parts[1].trim();
 			}
-			if (parts[0].count > parts[1].count){
+			if (parts[0].getCount() > parts[1].getCount()){
 				// first try the less populated part
 				Tile help = parts[0];
 				parts[0] = parts[1];
@@ -700,7 +700,7 @@ public class SplittableDensityArea {
 //				long t1 = System.currentTimeMillis();
 				sols[i] = findSolution(depth + 1, parts[i], tile, smi);
 //				long dt = System.currentTimeMillis() - t1;
-//				if (dt > 100 && tile.count < 8 * maxNodes)
+//				if (dt > 100 && tile.getCount() < 8 * maxNodes)
 //					System.out.println("took " + dt + " ms to find " + sols[i] + " for "+ parts[i]);
 				if (sols[i] == null){
 					countBad++;
@@ -750,7 +750,7 @@ public class SplittableDensityArea {
 	private Solution solveRectangularArea(Tile startTile){
 		// start values for optimization process: we make little steps towards a good solution
 //		spread = 7;
-	    if (startTile.count == 0)
+	    if (startTile.getCount() == 0)
 	        return new Solution(maxNodes);
 		searchLimit = startSearchLimit;
 		minNodes = Math.max(Math.min((long)(0.05 * maxNodes), extraDensityInfo.getNodeCount()), 1); 
@@ -767,7 +767,7 @@ public class SplittableDensityArea {
 		goodSolutions = new HashMap<>();
 		goodRatio = 0.5;
 		TileMetaInfo smiStart = new TileMetaInfo(startTile, null, null);
-		if (startTile.count < 300 * maxNodes && (checkSize(startTile) || startTile.count < 10 * maxNodes) ){
+		if (startTile.getCount() < 300 * maxNodes && (checkSize(startTile) || startTile.getCount() < 10 * maxNodes) ){
 			searchAll = true;
 		}
 		
@@ -911,7 +911,7 @@ public class SplittableDensityArea {
 		
 		boolean fits  = true;
 		for (Tile tile : sol.getTiles()) {
-			if (tile.count == 0)
+			if (tile.getCount() == 0)
 				continue;
 			if (tile.verify() == false)
 				throw new SplitFailedException("found invalid tile");
@@ -930,13 +930,13 @@ public class SplittableDensityArea {
 			Area area = new Area(r.y,r.x,(int)r.getMaxY(),(int)r.getMaxX());
 			if (!beQuiet){
 				String note;
-				if (tile.count > maxNodes)
+				if (tile.getCount() > maxNodes)
 					note = " but is already at the minimum size so can't be split further";
 				else
 					note = "";
-				long percentage = 100 * tile.count / maxNodes;
+				long percentage = 100 * tile.getCount() / maxNodes;
 				System.out.println("Area " + currMapId++ + " covers " + area 
-						+ " and contains " + tile.count + " nodes (" + percentage + " %)" + note);
+						+ " and contains " + tile.getCount() + " nodes (" + percentage + " %)" + note);
 			}
 			result.add(area);
 		}
@@ -978,13 +978,13 @@ public class SplittableDensityArea {
 			for (int i = 5; i > 1; --i)
 				tests.add(start + range / i);
 		}
-		else if (tile.count < maxNodes * 4 && range > 256){
+		else if (tile.getCount() < maxNodes * 4 && range > 256){
 			// large tile with rather few nodes, allow more tests
 			int step = (range) / 20;
 			for (int pos = start; pos <= end; pos += step)
 				tests.add(pos);
 		}
-		else if (tile.count > maxNodes * 4){
+		else if (tile.getCount() > maxNodes * 4){
 			int step = range / 7; // 7 turned out to be a good value here
 			if (step < 1)
 				step = 1;
@@ -995,13 +995,13 @@ public class SplittableDensityArea {
 			}
 		} else {
 			// this will be one of the last splits 
-			long nMax = tile.count / minNodes;
-			if (nMax * minNodes < tile.count)
+			long nMax = tile.getCount() / minNodes;
+			if (nMax * minNodes < tile.getCount())
 				nMax++;
-			long nMin = tile.count / maxNodes;
-			if (nMin * maxNodes < tile.count)
+			long nMin = tile.getCount() / maxNodes;
+			if (nMin * maxNodes < tile.getCount())
 				nMin++;
-			if (nMin > 2 && nMin * maxNodes - minNodes < tile.count && ratio > 0.125 && ratio < 8){
+			if (nMin > 2 && nMin * maxNodes - minNodes < tile.getCount() && ratio > 0.125 && ratio < 8){
 				// count is near (but below) a multiple of max-nodes, we have to test all candidates  
 				// to make sure that we don't miss a good split 
 				return (axis == AXIS_HOR) ? tile.genXTests(smi) : tile.genYTests(smi);

@@ -35,8 +35,7 @@ import java.awt.Rectangle;
 		 * 
 		 */
 		private final EnhancedDensityMap densityInfo;
-		public final long count;
-//		int bestSplit;
+		private final long count;
 		
 		/**
 		 * Create tile for whole density map.
@@ -83,11 +82,15 @@ import java.awt.Rectangle;
 //			}
 		}
 
+		public long getCount() {
+			return count;
+		}
+
 		/**
 		 * @return true if the saved count value is correct. 
 		 */
 		public boolean verify(){
-			return (count == calcCount()); 
+			return (getCount() == calcCount()); 
 		}
 		
 		public IntArrayList genXTests(TileMetaInfo smi) {
@@ -191,13 +194,13 @@ import java.awt.Rectangle;
 		 * @return true if the above fields are usable 
 		 */
 		public int findHorizontalMiddle(TileMetaInfo smi) {
-			if (count == 0 || width < 2)
+			if (getCount() == 0 || width < 2)
 				smi.setHorMidPos(0);
 			else {
 				int start = (smi.getFirstNonZeroX() > 0) ? smi.getFirstNonZeroX() : 0;
 				long sum = 0;
 				long lastSum = 0;
-				long target = count/2;
+				long target = getCount()/2;
 
 				for (int pos = start; pos <= width; pos++) {
 					lastSum = sum;
@@ -228,12 +231,12 @@ import java.awt.Rectangle;
 		 * @return true if the above fields are usable 
 		 */
 		public int findVerticalMiddle(TileMetaInfo smi) {
-			if (count == 0 || height < 2)
+			if (getCount() == 0 || height < 2)
 				smi.setVertMidPos(0);
 			else {
 				long sum = 0;
 				long lastSum;
-				long target = count/2;
+				long target = getCount()/2;
 				int start = (smi.getFirstNonZeroY() > 0) ? smi.getFirstNonZeroY() : 0;
 				for (int pos = start; pos <= height; pos++) {
 					lastSum = sum;
@@ -277,14 +280,14 @@ import java.awt.Rectangle;
 				for (int pos = splitX; pos < end; pos++) {
 					sum += getColSum(pos, smi.getColSums());
 				}
-				sum = count - sum;
+				sum = getCount() - sum;
 			}
-			if (sum < smi.getMinNodes() || count - sum < smi.getMinNodes())
+			if (sum < smi.getMinNodes() || getCount() - sum < smi.getMinNodes())
 				return false;
 			assert splitX > 0 && splitX < width;
 			Tile[] parts = smi.getParts();
 			parts[0] = new Tile(densityInfo, x, y, splitX, height, sum);
-			parts[1] = new Tile(densityInfo, x + splitX, y, width - splitX,height, count - sum);
+			parts[1] = new Tile(densityInfo, x + splitX, y, width - splitX,height, getCount() - sum);
 			assert smi.getParts()[0].width + smi.getParts()[1].width == this.width; 
 			return true;
 		}
@@ -309,15 +312,15 @@ import java.awt.Rectangle;
 				for (int pos = splitY; pos < end; pos++) {
 					sum += getRowSum(pos, smi.getRowSums());
 				}
-				sum = count - sum;
+				sum = getCount() - sum;
 			}
 
-			if (sum < smi.getMinNodes() || count - sum < smi.getMinNodes())
+			if (sum < smi.getMinNodes() || getCount() - sum < smi.getMinNodes())
 				return false;
 			assert splitY > 0 && splitY < height;
 			Tile[] parts = smi.getParts();
 			parts[0] = new Tile(densityInfo, x, y, width, splitY, sum);
-			parts[1] = new Tile(densityInfo, x, y + splitY, width, height- splitY, count- sum);
+			parts[1] = new Tile(densityInfo, x, y + splitY, width, height- splitY, getCount()- sum);
 			assert parts[0].height + parts[1].height == this.height;
 			
 			return true;
@@ -514,16 +517,16 @@ import java.awt.Rectangle;
 			assert minY <= maxY;
 			assert maxX >= 0;
 			assert maxY >= 0;
-			long newCount = count;
+			long newCount = getCount();
 			int modWidth = maxX - minX + 1;
 			int modHeight = maxY - minY + 1;
 			if (densityInfo.getPolygonArea() != null){
 				if (modWidth != width || modHeight != height){
 					// tile was trimmed, try hard to avoid a new costly calculation of the count value
 					if (width == modWidth){
-						newCount = count - sumRemovedRowCounts; 
+						newCount = getCount() - sumRemovedRowCounts; 
 					} else if (height == modHeight){
-						newCount = count - sumRemovedColCounts;
+						newCount = getCount() - sumRemovedColCounts;
 					} else {
 //						System.out.printf("ouch: %d %d %d %d (%d) -> %d %d %d %d\n",x,y,width,height,count,minX,minY, maxX - minX + 1, maxY - minY + 1 );
 						return new Tile (densityInfo, new Rectangle(minX, minY, modWidth, modHeight));
@@ -608,7 +611,7 @@ import java.awt.Rectangle;
 		@Override
 		public String toString(){
 			Area area = densityInfo.getDensityMap().getArea(x,y,width,height); 
-			return  (area.toString() + " with " + Utils.format(count) + " nodes");
+			return  (area.toString() + " with " + Utils.format(getCount()) + " nodes");
 //			StringBuilder sb = new StringBuilder();
 //			sb.append("(");
 //			sb.append(x);

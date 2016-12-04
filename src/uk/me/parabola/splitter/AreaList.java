@@ -324,12 +324,12 @@ public class AreaList {
 		for (PolygonDesc pd : polygons){
 			List<uk.me.parabola.splitter.Area> areasPart = new ArrayList<>();
 			for (uk.me.parabola.splitter.Area a : areas){
-				if (pd.area.intersects(a.getRect()))
+				if (pd.getArea().intersects(a.getRect()))
 					areasPart.add(a);
 			}
 			if (kmlOutputFile != null){
 				File out = new File(kmlOutputFile);
-				String kmlOutputFilePart = pd.name + "-" + out.getName();
+				String kmlOutputFilePart = pd.getName() + "-" + out.getName();
 				if (out.getParent() != null)
 					out = new File(out.getParent(), kmlOutputFilePart);
 				else
@@ -340,8 +340,8 @@ public class AreaList {
 			}
 			AreaList al = new AreaList(areasPart, null);
 			al.setGeoNamesFile(geoNamesFile);
-			al.writePoly(new File(fileOutputDir, pd.name + "-" + "areas.poly").getPath());
-			al.writeArgsFile(new File(fileOutputDir, pd.name + "-" + "template.args").getPath(), outputType, pd.mapId);
+			al.writePoly(new File(fileOutputDir, pd.getName() + "-" + "areas.poly").getPath());
+			al.writeArgsFile(new File(fileOutputDir, pd.getName() + "-" + "template.args").getPath(), outputType, pd.getMapId());
 		}
 	}
 	
