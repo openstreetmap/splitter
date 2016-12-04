@@ -44,6 +44,7 @@ public class SplittableDensityArea {
 	public static final double NICE_MAX_ASPECT_RATIO = 4;
 	private static final double VERY_NICE_FILL_RATIO = 0.93;
 	private static final long LARGE_MAX_NODES = 10_000_000;
+	private static final int GOOD_SOL_INIT_SIZE = 1_000_000;
 	
 	private double maxAspectRatio;
 	private long minNodes;
@@ -302,7 +303,7 @@ public class SplittableDensityArea {
 				res = split();
 				return res;
 			}
-			goodSolutions = new HashMap<>();
+			goodSolutions = new HashMap<>(GOOD_SOL_INIT_SIZE);
 			Pair pair = new Pair(currMaxNodes, res.size());
 			if (res.size() > wantedTiles){
 				if (bestAbove == null)
@@ -360,11 +361,8 @@ public class SplittableDensityArea {
 			return;
 		if (sol.getWorstMinNodes() > (goodRatio * maxNodes)){
 			Solution good = sol.copy();
-			Solution prevSol = goodSolutions.put(tile, good);
-			if (prevSol != null){
-				if (prevSol.getWorstMinNodes() > good.getWorstMinNodes())
-					goodSolutions.put(tile, prevSol);
-			}
+			// add new or replace worse solution 
+			goodSolutions.compute(tile, (k,v) -> v == null || v.getWorstMinNodes() < good.getWorstMinNodes() ? good : v);
 		}
 		
 	}
@@ -766,7 +764,7 @@ public class SplittableDensityArea {
 			if (maxAspectRatio < NICE_MAX_ASPECT_RATIO)
 				maxAspectRatio = NICE_MAX_ASPECT_RATIO;
 		}
-		goodSolutions = new HashMap<>();
+		goodSolutions = new HashMap<>(GOOD_SOL_INIT_SIZE);
 		goodRatio = 0.5;
 		TileMetaInfo smiStart = new TileMetaInfo(startTile, null, null);
 		if (startTile.getCount() < 300 * maxNodes && (checkSize(startTile) || startTile.getCount() < 10 * maxNodes) ){
@@ -873,10 +871,7 @@ public class SplittableDensityArea {
 	}
 
 	private void resetCaches(){
-		knownBad = new HashSet<>();
-		
-//		incomplete = new LinkedHashMap<>();
-//		System.out.println("resetting caches");
+		knownBad = new HashSet<>(50_000);
 	}
 	
 	private void printFinishMsg(Solution solution){
@@ -964,9 +959,7 @@ public class SplittableDensityArea {
 		}
 		double ratio = tile.getAspectRatio();
 		IntArrayList tests = new IntArrayList();
-		if (ratio < 1.0/32 || ratio > 32)
-			return tests;
-		if (ratio < 1.0/16 && axis == AXIS_HOR || ratio > 16 && axis == AXIS_VERT)
+		if (ratio < 1.0 / 32 || ratio > 32 || ratio < 1.0 / 16 && axis == AXIS_HOR || ratio > 16 && axis == AXIS_VERT)
 			return tests;
 		int start = (axis == AXIS_HOR) ? tile.findValidStartX(smi) : tile.findValidStartY(smi);
 		int end = (axis == AXIS_HOR) ? tile.findValidEndX(smi) : tile.findValidEndY(smi);
@@ -992,9 +985,6 @@ public class SplittableDensityArea {
 				step = 1;
 			for (int pos = start; pos <= end; pos += step)
 				tests.add(pos);
-			if (tests.isEmpty() && end > start){
-				tests.add((start + end) / 2);
-			}
 		} else {
 			// this will be one of the last splits 
 			long nMax = tile.getCount() / minNodes;
