@@ -32,7 +32,7 @@ import java.util.List;
  * Splits a density map into multiple areas, none of which
  * exceed the desired threshold.
  *
-* @author Chris Miller
+* @author Chris Miller, Gerd Petermann
  */
 public class SplittableDensityArea {
 	private static final int MAX_LAT_DEGREES = 85;
@@ -43,6 +43,7 @@ public class SplittableDensityArea {
 	private static final int AXIS_VERT = 1; 
 	public static final double NICE_MAX_ASPECT_RATIO = 4;
 	private static final double VERY_NICE_FILL_RATIO = 0.93;
+	private static final long LARGE_MAX_NODES = 10_000_000;
 	
 	private double maxAspectRatio;
 	private long minNodes;
@@ -60,6 +61,8 @@ public class SplittableDensityArea {
 	private HashSet<Tile> knownBad;
 	private LinkedHashMap<Tile, Integer> incomplete;
 	private long countBad;
+	
+	/** if true enables an alternative algorithm */
 	private boolean searchAll = false;
 	
 	final int maxTileHeight;
@@ -72,6 +75,7 @@ public class SplittableDensityArea {
 	private boolean allowEmptyPart = false;
 	private int currMapId;
 	private boolean hasEmptyPart;
+	private boolean ignoreSize;
 	
 	public SplittableDensityArea(DensityMap densities, int startSearchLimit) {
 		this.shift = densities.getShift();
@@ -288,6 +292,7 @@ public class SplittableDensityArea {
 		Pair bestBelow = null;
 		Pair bestAbove = null;
 		beQuiet = true;
+		ignoreSize = true;
 		while (true) {
 			setMaxNodes(currMaxNodes);
 			System.out.println("Trying a max-nodes value of " + currMaxNodes + " to split " + allDensities.getNodeCount() + " nodes into " + wantedTiles + " areas");
@@ -601,14 +606,8 @@ public class SplittableDensityArea {
 			if (ratio < 1.0)
 				ratio = 1.0 / ratio;
 			if (ratio < maxAspectRatio){ 
-				if (checkSize(tile))
+				if (ignoreSize || maxNodes >= LARGE_MAX_NODES || checkSize(tile))
 					addAndReturn = true;
-				else {
-//					System.out.println("too large at depth " + depth + " " + tile);
-//					if (depth > 10){
-//						long dd = 4;
-//					}
-				}
 			}
 		} else if (tile.width < 2 && tile.height < 2) {
 			return null;
@@ -740,10 +739,9 @@ public class SplittableDensityArea {
 	}
 	
 	private boolean checkSize(Tile tile) {
-		if (tile.height > maxTileHeight|| tile.width > maxTileWidth)
-			return false;
-		return true;
+		return tile.height <= maxTileHeight && tile.width <= maxTileWidth; 
 	}
+	
 	/**
 	 * Get a first solution and search for better ones until
 	 * either a nice solution is found or no improvement was
