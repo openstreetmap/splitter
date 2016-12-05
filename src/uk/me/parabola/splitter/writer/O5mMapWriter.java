@@ -514,7 +514,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 		}
 		do {
 			numberConversionBuf[cntBytes++] = (byte)(part | 0x80);
-		    u >>= 7;
+		    u >>>= 7;
 		    part = (int)(u & 0x7f);
 		} while(part !=u);
 		numberConversionBuf[cntBytes++] = (byte)(part);
