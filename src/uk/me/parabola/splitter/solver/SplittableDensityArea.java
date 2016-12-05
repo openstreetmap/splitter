@@ -669,10 +669,6 @@ public class SplittableDensityArea {
 				continue;
 			}
 			int splitPos = todoList.getInt(usedTestPos++);
-//			if (tested.get(splitPos)){
-//				continue;
-//			}
-//			tested.set(splitPos);
 			// create the two parts of the tile 
 			boolean ok = false;
 			if (axis == AXIS_HOR){
@@ -1001,16 +997,22 @@ public class SplittableDensityArea {
 			if (nMax == 2 || nMin == 2){
 				tests.add((axis == AXIS_HOR) ? tile.findHorizontalMiddle(smi) : tile.findVerticalMiddle(smi));
 				int pos = (axis == AXIS_HOR) ? tile.findFirstXHigher(smi, minNodes) + 1 : tile.findFirstYHigher(smi, minNodes) + 1;
-				if (tests.contains(pos) == false)
+				if (tests.get(0) != pos)
 					tests.add(pos);
 				pos = (axis == AXIS_HOR) ? tile.findFirstXHigher(smi, maxNodes) : tile.findFirstYHigher(smi, maxNodes);
 				if (tests.contains(pos) == false)
 					tests.add(pos);
 			} else {
-				if (nMax != 3)
-					tests.add((axis == AXIS_HOR) ? tile.findHorizontalMiddle(smi) : tile.findVerticalMiddle(smi));
-				tests.add(start);
-				tests.add(end);
+				if (range == 0) {
+					tests.add(start);
+				} else {
+					if (nMax != 3)
+						tests.add((axis == AXIS_HOR) ? tile.findHorizontalMiddle(smi) : tile.findVerticalMiddle(smi));
+					if (tests.contains(start) == false)
+						tests.add(start);
+					if (tests.contains(end) == false)
+						tests.add(end);
+				}
 			}
 		}
 		return tests;
