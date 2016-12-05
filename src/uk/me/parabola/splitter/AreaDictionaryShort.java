@@ -91,7 +91,7 @@ public class AreaDictionaryShort{
 			}
 			combiIndex = (short) (sets.size() - DICT_START);
 			if (combiIndex == Short.MAX_VALUE){
-				throw new SplitFailedException("areaDictionary is full. Decrease --max-areas value");
+				throw new SplitFailedException("areaDictionary is full. Try to decrease number of areas.");
 			}
 			sets.add(bnew);
 			arrays.add(a);
