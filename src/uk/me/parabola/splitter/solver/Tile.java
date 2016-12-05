@@ -196,7 +196,7 @@ import java.awt.Rectangle;
 		public int findHorizontalMiddle(TileMetaInfo smi) {
 			if (getCount() == 0 || width < 2)
 				smi.setHorMidPos(0);
-			else {
+			else if (smi.getHorMidPos() < 0) {
 				int start = (smi.getFirstNonZeroX() > 0) ? smi.getFirstNonZeroX() : 0;
 				long sum = 0;
 				long lastSum = 0;
@@ -233,7 +233,7 @@ import java.awt.Rectangle;
 		public int findVerticalMiddle(TileMetaInfo smi) {
 			if (getCount() == 0 || height < 2)
 				smi.setVertMidPos(0);
-			else {
+			else if (smi.getVertMidPos() < 0) {
 				long sum = 0;
 				long lastSum;
 				long target = getCount()/2;
