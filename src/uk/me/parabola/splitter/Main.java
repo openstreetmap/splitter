@@ -67,11 +67,8 @@ public class Main {
 			if (rc != 0)
 				System.exit(1);
 		} catch (StopNoErrorException e) {
-			if (e.getMessage() != null) {
-				String msg = "Stopped after " + e.getMessage();
-				System.err.println(msg);
-				System.out.println(msg);
-			}
+			if (e.getMessage() != null)
+				System.out.println(e.getMessage());
 		}
 	}
 
@@ -128,8 +125,11 @@ public class Main {
 				e.printStackTrace();
 			return 1;
 		} catch (StopNoErrorException e) {
-			if (e.getMessage() != null)
-				System.out.println(e.getMessage());
+			if (e.getMessage() != null) {
+				String msg = "Stopped after " + e.getMessage();
+				System.err.println(msg);
+				System.out.println(msg);
+			}
 			// nothing to do
 		} catch (RuntimeException e) {
 			e.printStackTrace();
