@@ -28,6 +28,9 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import crosby.binary.file.BlockInputStream;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import uk.me.parabola.splitter.parser.BinaryMapParser;
+import uk.me.parabola.splitter.parser.O5mMapParser;
+import uk.me.parabola.splitter.parser.OSMXMLParser;
 
 /**
  * A class which stores parameters needed to process input (OSM) files

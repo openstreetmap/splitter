@@ -30,10 +30,10 @@ import java.util.zip.ZipFile;
 import org.xmlpull.v1.XmlPullParserException;
 import crosby.binary.file.BlockInputStream;
 import uk.me.parabola.splitter.Area;
-import uk.me.parabola.splitter.BinaryMapParser;
-import uk.me.parabola.splitter.OSMXMLParser;
 import uk.me.parabola.splitter.SplitFailedException;
 import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.parser.BinaryMapParser;
+import uk.me.parabola.splitter.parser.OSMXMLParser;
 
 /**
  * Reader for precompiled sea data. This is mostly a copy of the corresponding

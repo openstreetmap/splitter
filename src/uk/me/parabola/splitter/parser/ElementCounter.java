@@ -11,7 +11,9 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.parser;
+
+import uk.me.parabola.splitter.Utils;
 
 /**
  * Common OSM parseder method for status messages

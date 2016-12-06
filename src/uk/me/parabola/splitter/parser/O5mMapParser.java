@@ -10,13 +10,21 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */ 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.parser;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Element;
+import uk.me.parabola.splitter.MapProcessor;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Way;
 
 /**
  * Parser for the o5m format described here: http://wiki.openstreetmap.org/wiki/O5m
@@ -92,7 +100,7 @@ public class O5mMapParser {
 	 * @param skipArray An Array of longs that is used to hold information of file position of the first occurrence of 
 	 * each known 05m data type (esp. nodes, ways, and relations). 
 	 */
-	O5mMapParser(MapProcessor processor, InputStream stream, long[] skipArray) {
+	public O5mMapParser(MapProcessor processor, InputStream stream, long[] skipArray) {
 		this.processor = processor;
 		this.fis = new BufferedInputStream(stream, 4*1024*1024);
 		is = fis;

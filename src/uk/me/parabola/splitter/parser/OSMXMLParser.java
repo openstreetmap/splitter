@@ -10,10 +10,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  */
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.parser;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.Convert;
+import uk.me.parabola.splitter.MapProcessor;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Way;
 import uk.me.parabola.splitter.xml.parser.AbstractXppParser;
 
 /**

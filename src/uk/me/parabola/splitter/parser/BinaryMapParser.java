@@ -11,13 +11,20 @@
  * General Public License for more details.
  */
 
-package uk.me.parabola.splitter;
+package uk.me.parabola.splitter.parser;
 
 import crosby.binary.BinaryParser;
 import crosby.binary.Osmformat;
 import crosby.binary.file.FileBlockPosition;
 
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import uk.me.parabola.splitter.Area;
+import uk.me.parabola.splitter.MapProcessor;
+import uk.me.parabola.splitter.Node;
+import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.UnknownFeatureException;
+import uk.me.parabola.splitter.Utils;
+import uk.me.parabola.splitter.Way;
 
 import java.util.List;
 
