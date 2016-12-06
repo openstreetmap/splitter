@@ -15,8 +15,8 @@ package uk.me.parabola.splitter;
 import uk.me.parabola.splitter.Relation.Member;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.tools.SparseLong2IntMap;
-import uk.me.parabola.splitter.tools.SparseLong2ShortMap;
 import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMapInline;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
 import java.util.Arrays;
@@ -75,7 +75,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			ways = dataStorer.getUsedWays(); 
 		
 		this.areaIndex = dataStorer.getGrid();
-		this.coords = SparseLong2ShortMap.createMap("coord");
+		this.coords = new SparseLong2ShortMapInline("coord");
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.isFirstPass = (areaOffset == 0);
 		this.areaOffset = areaOffset;
