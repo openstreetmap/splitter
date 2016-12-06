@@ -101,19 +101,20 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
 	private short unassigned = UNASSIGNED;
 	private long size;
 
-	private long currentChunkId = INVALID_CHUNK_ID;
-	private short [] currentChunk = new short[CHUNK_SIZE];  // stores the values in the real position
-	private short [] tmpWork = new short[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
-	private short [] RLEWork = new short[CHUNK_SIZE];  // for the RLE-compressed chunk
+	private long currentChunkId;
+	final private short [] currentChunk = new short[CHUNK_SIZE];  // stores the values in the real position
+	final private short [] tmpWork = new short[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
+	final private short [] RLEWork = new short[CHUNK_SIZE];  // for the RLE-compressed chunk
 
 
 	// for statistics
 	private final String dataDesc;
-	private long expanded = 0;
-	private long uncompressedLen = 0;
-	private long compressedLen = 0;
-	private int storedLengthOfCurrentChunk = 0;
-	private int currentChunkIdInStore = 0;
+	private long expanded;
+	private long uncompressedLen;
+	private long compressedLen;
+
+	private int storedLengthOfCurrentChunk;
+	private int currentChunkIdInStore;
 
 	private Long2ObjectOpenHashMap<Mem> topMap;
 
@@ -284,10 +285,8 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
 		currentChunk[chunkoffset] = val;
 		if (out == unassigned)
 			size++;
-
 		return out;
 	}
-
 
 	/**
 	 * Check if we already have a chunk for the given key. If no,
@@ -423,10 +422,16 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
 	public void clear() {
 		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
 		topMap = new Long2ObjectOpenHashMap<>();
+		Arrays.fill(currentChunk, (short) 0);
+		Arrays.fill(tmpWork, (short) 0);
+		Arrays.fill(RLEWork, (short) 0);
+		storedLengthOfCurrentChunk = 0;
+		currentChunkIdInStore = 0;
+		currentChunkId = INVALID_CHUNK_ID;
+		
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
-		expanded = 0;
 		// test();
 	}
 

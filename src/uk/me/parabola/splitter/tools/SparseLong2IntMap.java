@@ -101,19 +101,20 @@ public class SparseLong2IntMap {
 	private int unassigned = Integer.MIN_VALUE;
 	private long size;
 
-	private long currentChunkId = INVALID_CHUNK_ID;
-	private int [] currentChunk = new int[CHUNK_SIZE];  // stores the values in the real position
-	private int [] tmpWork = new int[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
-	private int [] RLEWork = new int[CHUNK_SIZE];  // for the RLE-compressed chunk
+	private long currentChunkId;
+	private final int [] currentChunk = new int[CHUNK_SIZE];  // stores the values in the real position
+	private final int [] tmpWork = new int[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
+	private final int [] RLEWork = new int[CHUNK_SIZE];  // for the RLE-compressed chunk
 
 
 	// for statistics
 	private final String dataDesc;
-	private long expanded = 0;
-	private long uncompressedLen = 0;
-	private long compressedLen = 0;
-	private int storedLengthOfCurrentChunk = 0;
-	private int currentChunkIdInStore = 0;
+	private long expanded;
+	private long uncompressedLen;
+	private long compressedLen;
+	
+	private int storedLengthOfCurrentChunk;
+	private int currentChunkIdInStore;
 
 	private Long2ObjectOpenHashMap<Mem> topMap;
 
@@ -282,10 +283,8 @@ public class SparseLong2IntMap {
 		currentChunk[chunkoffset] = val;
 		if (out == unassigned)
 			size++;
-
 		return out;
 	}
-
 
 	/**
 	 * Check if we already have a chunk for the given key. If no,
@@ -372,7 +371,7 @@ public class SparseLong2IntMap {
 
 		if (currentChunkId == chunkId)
 			return currentChunk[chunkoffset];
-
+		
 		long topID = key >> TOP_ID_SHIFT;
 		Mem mem = topMap.get(topID);
 		if (mem == null)
@@ -419,10 +418,16 @@ public class SparseLong2IntMap {
 	public void clear() {
 		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
 		topMap = new Long2ObjectOpenHashMap<>();
+		Arrays.fill(currentChunk, 0);
+		Arrays.fill(tmpWork, 0);
+		Arrays.fill(RLEWork, 0);
+		storedLengthOfCurrentChunk = 0;
+		currentChunkIdInStore = 0;
+		currentChunkId = INVALID_CHUNK_ID;
+		
 		size = 0;
 		uncompressedLen = 0;
 		compressedLen = 0;
-		expanded = 0;
 		// test();
 	}
 
