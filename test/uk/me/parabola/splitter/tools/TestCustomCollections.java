@@ -22,7 +22,7 @@ import uk.me.parabola.splitter.tools.Long2IntClosedMap;
 import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
 import uk.me.parabola.splitter.tools.SparseLong2IntMap;
 import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
-import uk.me.parabola.splitter.tools.SparseLong2ShortMapInline;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMap;
 
 /**
  * 
@@ -36,10 +36,10 @@ public class TestCustomCollections {
 
 	@Test
 	public static void testLongShortMap() {
-		testMap(new SparseLong2ShortMapInline("test"), 0L);
-		testMap(new SparseLong2ShortMapInline("test"), -10000L);
-		testMap(new SparseLong2ShortMapInline("test"), 1L << 35);
-		testMap(new SparseLong2ShortMapInline("test"), -1L << 35);
+		testMap(new SparseLong2ShortMap("test"), 0L);
+		testMap(new SparseLong2ShortMap("test"), -10000L);
+		testMap(new SparseLong2ShortMap("test"), 1L << 35);
+		testMap(new SparseLong2ShortMap("test"), -1L << 35);
 	}
 
 	private static void testMap(SparseLong2ShortMapFunction map, long idOffset) {

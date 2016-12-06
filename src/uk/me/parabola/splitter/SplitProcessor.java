@@ -17,7 +17,7 @@ import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
 import uk.me.parabola.splitter.tools.SparseLong2IntMap;
 import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
-import uk.me.parabola.splitter.tools.SparseLong2ShortMapInline;
+import uk.me.parabola.splitter.tools.SparseLong2ShortMap;
 import uk.me.parabola.splitter.writer.OSMWriter;
 
 import java.io.IOException;
@@ -72,7 +72,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.writerDictionary = dataStorer.getAreaDictionary();
 		this.multiTileDictionary = dataStorer.getMultiTileDictionary();
 		this.writers = dataStorer.getWriters();
-		this.coords = new SparseLong2ShortMapInline("coord");
+		this.coords = new SparseLong2ShortMap("coord");
 		this.ways   = new SparseLong2IntMap("way");
 		this.coords.defaultReturnValue(unassigned);
 		this.ways.defaultReturnValue(unassigned); 		

@@ -69,7 +69,7 @@ import java.util.Arrays;
  * together into one int (32 bits).
  */
 
-public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
+public class SparseLong2ShortMap implements SparseLong2ShortMapFunction {
 	private static final long CHUNK_ID_MASK = 0x7ffffffL; 		// the part of the key that is not saved in the top HashMap
 	private static final long TOP_ID_MASK = ~CHUNK_ID_MASK;  	// the part of the key that is saved in the top HashMap
 	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);
@@ -170,7 +170,7 @@ public class SparseLong2ShortMapInline implements SparseLong2ShortMapFunction {
 	 * areas in which the object with the ID occurs. 
 	 * @param dataDesc
 	 */
-	public SparseLong2ShortMapInline(String dataDesc) {
+	public SparseLong2ShortMap(String dataDesc) {
 		long reserve = (1L << CHUNK_STORE_BITS_FOR_Y - 1) * CHUNK_SIZE - LARGE_VECTOR_SIZE;
 		assert reserve > 0;
 		this.dataDesc = dataDesc;
