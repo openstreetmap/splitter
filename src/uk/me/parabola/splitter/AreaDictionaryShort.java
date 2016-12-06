@@ -37,7 +37,7 @@ public class AreaDictionaryShort{
 	private final ArrayList<ShortArrayList> arrays; 
 	private final int numOfAreas;
 	private final HashMap<BitSet, Short> index;
-	private final HashSet<Short> simpleNeighbours = new HashSet<>();
+	private final HashSet<BitSet> simpleNeighbours = new HashSet<>();
 	private final int overlapAmount;
 	
 	/**
@@ -125,9 +125,8 @@ public class AreaDictionaryShort{
 					simpleNeighbour.or(areaSets.get(i));
 					simpleNeighbour.or(areaSets.get(j));
 					if (simpleNeighbour.cardinality() <= 10){
-						Short idx = translate(simpleNeighbour);
-						if (simpleNeighbours.contains(idx) == false){
-							simpleNeighbours.add(idx);
+						if (simpleNeighbours.contains(simpleNeighbour) == false){
+							simpleNeighbours.add(simpleNeighbour);
 							//System.out.println("simple neighbor: " + getMapIds(simpleNeighbour));
 							Rectangle pair = new Rectangle(r1);
 							pair.add(r2);
@@ -180,12 +179,8 @@ public class AreaDictionaryShort{
 		return numOfAreas;
 	}
 
-	public boolean mayCross(short areaIdx){
-		if (areaIdx + DICT_START < numOfAreas)
-			return false;
-		if (simpleNeighbours.contains(areaIdx))
-			return false;
-		return true;
+	public boolean mayCross(BitSet areaSet){
+		return simpleNeighbours.contains(areaSet) == false;
 	}
 	
 	public Area getArea(int idx) {

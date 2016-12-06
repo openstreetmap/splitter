@@ -710,8 +710,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (numWriters == 0) 
 				needsCrossTileCheck = true; 
 			else if (numWriters > 1){
-				short idx = dataStorer.getAreaDictionary().translate(writerSet);
-				if (dataStorer.getAreaDictionary().mayCross(idx))
+				if (dataStorer.getAreaDictionary().mayCross(writerSet))
 					needsCrossTileCheck = true;
 			}
 		}
