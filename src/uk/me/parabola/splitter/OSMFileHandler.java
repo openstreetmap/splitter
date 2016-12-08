@@ -69,7 +69,7 @@ public class OSMFileHandler {
 	}
 
 	public boolean process(MapProcessor processor) {
-		// create appriate parser for each input file
+		// create appropriate parser for each input file
 		for (String filename : filenames) {
 			System.out.println("Processing " + filename);
 			processor.startFile();
