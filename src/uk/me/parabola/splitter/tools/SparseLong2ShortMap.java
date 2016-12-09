@@ -82,7 +82,7 @@ public class SparseLong2ShortMap implements SparseLong2ShortMapFunction {
 	private static final int CHUNK_STORE_BITS_FOR_Y = 20; 
 	private static final int CHUNK_STORE_BITS_FOR_X = 6;
 	
-	private static final int CHUNK_STORE_ELEMS = 1 << CHUNK_STORE_BITS_FOR_X;
+	private static final int CHUNK_STORE_ELEMS = 1 << CHUNK_STORE_BITS_FOR_Z;
 	private static final int CHUNK_STORE_X_MASK = (1 << CHUNK_STORE_BITS_FOR_X) - 1;
 	private static final int CHUNK_STORE_Y_MASK = (1 << CHUNK_STORE_BITS_FOR_Y) - 1;
 	private static final int CHUNK_STORE_Z_MASK = (1 << CHUNK_STORE_BITS_FOR_Z) - 1;
