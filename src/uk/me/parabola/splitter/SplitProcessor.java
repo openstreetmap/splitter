@@ -325,7 +325,6 @@ class SplitProcessor extends AbstractMapProcessor {
 			++countCoords;
 			if (countCoords % 10000000 == 0){
 				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
-				coords.stats(0);
 			}
 		}
 	}
