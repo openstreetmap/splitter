@@ -51,7 +51,6 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final int lastWriter;
 	private final AreaIndex writerIndex;
 	private final int maxThreads;
-	private final short unassigned = Short.MIN_VALUE;
 
 	private final InputQueueInfo[] writerInputQueues;
 	protected final BlockingQueue<InputQueueInfo> toProcess;
@@ -74,8 +73,8 @@ class SplitProcessor extends AbstractMapProcessor {
 		this.writers = dataStorer.getWriters();
 		this.coords = new SparseLong2ShortMap("coord");
 		this.ways   = new SparseLong2IntMap("way");
-		this.coords.defaultReturnValue(unassigned);
-		this.ways.defaultReturnValue(unassigned); 		
+		this.coords.defaultReturnValue(UNASSIGNED);
+		this.ways.defaultReturnValue(UNASSIGNED); 		
 		this.writerIndex = dataStorer.getGrid();
 		this.countWays = ways.size();
 		this.writerOffset = writerOffset;
@@ -108,7 +107,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	 * @param multiTileWriterIdx
 	 */
 	private void setUsedWriters(int multiTileWriterIdx) {
-		if (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED) {
+		if (multiTileWriterIdx != UNASSIGNED) {
 			BitSet cl = multiTileDictionary.getBitSet(multiTileWriterIdx);
 			// set only active writer bits
 			for (int i = cl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = cl.nextSetBit(i + 1)) {
@@ -130,16 +129,16 @@ class SplitProcessor extends AbstractMapProcessor {
 	@Override
 	public void processWay(Way w) {
 		usedWriters.clear();
-		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): AreaDictionaryInt.UNASSIGNED;
-		if (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED){
+		int multiTileWriterIdx = (wayWriterMap != null) ? wayWriterMap.getSeq(w.getId()): UNASSIGNED;
+		if (multiTileWriterIdx != UNASSIGNED){
 			setUsedWriters(multiTileWriterIdx);
 		}
 		else{
-			short oldclIndex = unassigned;
+			short oldclIndex = UNASSIGNED;
 			for (long id : w.getRefs()) {
 				// Get the list of areas that the way is in. 
 				short clIdx = coords.get(id);
-				if (clIdx != unassigned){
+				if (clIdx != UNASSIGNED){
 					if (oldclIndex != clIdx){ 
 						BitSet cl = writerDictionary.getBitSet(clIdx);
 						usedWriters.or(cl);
@@ -174,7 +173,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		usedWriters.clear();
 		Integer singleTileWriterIdx = dataStorer.getOneTileOnlyRels(rel.getId());
 		if (singleTileWriterIdx != null){
-			if (singleTileWriterIdx == AreaDictionaryInt.UNASSIGNED) {
+			if (singleTileWriterIdx == UNASSIGNED) {
 			    // we know that the relation is outside of all real areas 
 				return;
 			}
@@ -182,19 +181,19 @@ class SplitProcessor extends AbstractMapProcessor {
 			setUsedWriters(singleTileWriterIdx);
 		} else {
 			int multiTileWriterIdx = (relWriterMap != null) ? relWriterMap.getSeq(rel.getId())
-					: AreaDictionaryInt.UNASSIGNED;
-			if (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED) {
+					: UNASSIGNED;
+			if (multiTileWriterIdx != UNASSIGNED) {
 				setUsedWriters(multiTileWriterIdx);
 			} else{
-				short oldclIndex = unassigned;
-				int oldwlIndex = unassigned;
+				short oldclIndex = UNASSIGNED;
+				int oldwlIndex = UNASSIGNED;
 				for (Member mem : rel.getMembers()) {
 					// String role = mem.getRole();
 					long id = mem.getRef();
 					if (mem.getType().equals("node")) {
 						short clIdx = coords.get(id);
 
-						if (clIdx != unassigned){
+						if (clIdx != UNASSIGNED){
 							if (oldclIndex != clIdx){ 
 								BitSet wl = writerDictionary.getBitSet(clIdx);
 								usedWriters.or(wl);
@@ -204,7 +203,7 @@ class SplitProcessor extends AbstractMapProcessor {
 					} else if (mem.getType().equals("way")) {
 						int wlIdx = ways.get(id);
 
-						if (wlIdx != unassigned){
+						if (wlIdx != UNASSIGNED){
 							if (oldwlIndex != wlIdx){ 
 								BitSet wl = multiTileDictionary.getBitSet(wlIdx);
 								usedWriters.or(wl);
@@ -264,11 +263,11 @@ class SplitProcessor extends AbstractMapProcessor {
 
 	private void writeNode(Node currentNode) throws IOException {
 		int countWriters = 0;
-		int lastUsedWriter = unassigned;
+		int lastUsedWriter = UNASSIGNED;
 		AreaGridResult writerCandidates = writerIndex.get(currentNode);
-		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): AreaDictionaryInt.UNASSIGNED;
+		int multiTileWriterIdx = (nodeWriterMap != null) ? nodeWriterMap.getSeq(currentNode.getId()): UNASSIGNED;
 
-		boolean isSpecialNode = (multiTileWriterIdx != AreaDictionaryInt.UNASSIGNED);
+		boolean isSpecialNode = (multiTileWriterIdx != UNASSIGNED);
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}

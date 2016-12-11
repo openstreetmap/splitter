@@ -204,11 +204,12 @@ public class DataStorer {
 		}
 
 		for (Entry<Long, Integer> e : distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-			if (e.getValue() >= 0 && !distinctAreas.get(e.getValue()).isPseudoArea()) {
+			assert distinctDataStorer.getMultiTileDictionary().getBitSet(e.getValue()).cardinality() == 1;
+			if (!distinctAreas.get(e.getValue()).isPseudoArea()) {
 				Integer areaIdx = map.get(distinctAreas.get(e.getValue()));
 				oneTileOnlyRels.put(e.getKey(), areaIdx != null ? areaIdx : e.getValue());
 			} else {
-				oneTileOnlyRels.put(e.getKey(), AreaDictionaryInt.UNASSIGNED);
+				oneTileOnlyRels.put(e.getKey(), (int) AbstractMapProcessor.UNASSIGNED);
 			}
 
 		}

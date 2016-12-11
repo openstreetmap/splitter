@@ -26,7 +26,6 @@ import java.util.HashMap;
  *
  */
 public class AreaDictionaryInt{
-	public final static int UNASSIGNED = -1;
 	private final ArrayList<BitSet> sets; 
 	private final int numOfAreas;
 	private final HashMap<BitSet, Integer> index;

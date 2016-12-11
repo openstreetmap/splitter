@@ -167,7 +167,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			}
 			int wayWriterIdx;
 			if (workWriterSet.isEmpty())
-				wayWriterIdx = AreaDictionaryInt.UNASSIGNED;
+				wayWriterIdx = UNASSIGNED;
 			else 
 				wayWriterIdx = multiTileDictionary.translate(workWriterSet);
 			
@@ -184,7 +184,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (!neededWays.get(way.getId()))
 				return;
 			int wayWriterIdx = wayWriterMap.getRandom(way.getId());
-			if (wayWriterIdx !=  AreaDictionaryInt.UNASSIGNED){
+			if (wayWriterIdx !=  UNASSIGNED){
 				BitSet wayWriterSet = multiTileDictionary.getBitSet(wayWriterIdx);
 				for (long id : way.getRefs()) {
 					addOrMergeWriters(nodeWriterMap, wayWriterSet, wayWriterIdx, id);
@@ -235,8 +235,8 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			stats("Finished collecting problem ways.");
 			neededNodesCount = neededNodes.cardinality();
 			// critical part: we have to allocate possibly large arrays here
-			nodeWriterMap = new Long2IntClosedMap("node", neededNodesCount, AreaDictionaryInt.UNASSIGNED);
-			wayWriterMap = new Long2IntClosedMap("way", foundWays, AreaDictionaryInt.UNASSIGNED);
+			nodeWriterMap = new Long2IntClosedMap("node", neededNodesCount, UNASSIGNED);
+			wayWriterMap = new Long2IntClosedMap("way", foundWays, UNASSIGNED);
 			wayBboxMap = new OSMId2ObjectMap<>();
 			dataStorer.setWriterMap(DataStorer.NODE_TYPE, nodeWriterMap);
 			dataStorer.setWriterMap(DataStorer.WAY_TYPE, wayWriterMap);
@@ -265,11 +265,11 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			propagateWritersOfRelsToMembers();
 
 			wayBboxMap = null;
-			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), AreaDictionaryInt.UNASSIGNED);
+			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), UNASSIGNED);
 			
 			for (Entry<MTRelation> entry : relMap.long2ObjectEntrySet()){
 				int val = entry.getValue().getMultiTileWriterIndex();
-				if (val != AreaDictionaryInt.UNASSIGNED){
+				if (val != UNASSIGNED){
 					try{
 						relWriterMap.add(entry.getLongKey(), val);
 					}catch (IllegalArgumentException e){
@@ -396,7 +396,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				}
 				else if (rel.memTypes[i] == MEM_WAY_TYPE){
 					int idx = wayWriterMap.getRandom(memId);
-					if (idx != AreaDictionaryInt.UNASSIGNED){
+					if (idx != UNASSIGNED){
 						writerSet.or(multiTileDictionary.getBitSet(idx));
 						memFound = true;
 					}
@@ -468,7 +468,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (rel.wasAddedAsParent())
 				continue;
 			int relWriterIdx = rel.getMultiTileWriterIndex();
-			if (relWriterIdx == AreaDictionaryInt.UNASSIGNED)
+			if (relWriterIdx == UNASSIGNED)
 				continue;
 			BitSet relWriters =  multiTileDictionary.getBitSet(relWriterIdx);
 			for (int i = 0; i < rel.numMembers; i++){
@@ -500,7 +500,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		}
 		int nodePos = -1;
 		try{
-			nodePos = nodeWriterMap.add(id, AreaDictionaryInt.UNASSIGNED);
+			nodePos = nodeWriterMap.add(id, UNASSIGNED);
 		}catch (IllegalArgumentException e){
 			System.err.println(e.getMessage());
 			throw new SplitFailedException(NOT_SORTED_MSG);
@@ -529,7 +529,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		}
 		BitSet relWriters = new BitSet();
 		int relWriterIdx = rel.getMultiTileWriterIndex();
-		if (relWriterIdx != AreaDictionaryInt.UNASSIGNED)
+		if (relWriterIdx != UNASSIGNED)
 			relWriters.or(multiTileDictionary.getBitSet(relWriterIdx));
 
 		boolean changed = false;
@@ -546,7 +546,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 					orSubRelWriters(subRel, depth+1, visited);
 					visited.remove(visited.size()-1);
 					int memWriterIdx = subRel.getMultiTileWriterIndex();
-					if (memWriterIdx == AreaDictionaryInt.UNASSIGNED || memWriterIdx == relWriterIdx){
+					if (memWriterIdx == UNASSIGNED || memWriterIdx == relWriterIdx){
 						continue;
 					}
 					BitSet memWriters = multiTileDictionary.getBitSet(memWriterIdx);
@@ -623,7 +623,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		if (pos < 0)
 			return;
 		int childWriterIdx = map.getRandom(childId);
-		if (childWriterIdx != AreaDictionaryInt.UNASSIGNED){
+		if (childWriterIdx != UNASSIGNED){
 			// we have already calculated writers for this child
 			if (parentWriterIdx == childWriterIdx)
 				return;
