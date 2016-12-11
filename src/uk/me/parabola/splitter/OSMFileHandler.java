@@ -135,10 +135,21 @@ public class OSMFileHandler {
 		BlockingQueue<OSMMessage> queue = new ArrayBlockingQueue<>(10);
 		QueueProcessor queueProcessor = new QueueProcessor(queue, realProcessor);
 		// start producer thread
-		new Thread(() -> {
-			process(queueProcessor);
-		}).start();
-		return realProcessor.consume(queue);
+		new Thread("producer for " + realProcessor.getClass().getSimpleName()){
+			public void run(){
+				try {
+					process(queueProcessor);
+				} catch (SplitFailedException e) {
+					try {
+						queue.put(new OSMMessage(OSMMessage.Type.EXIT));
+					} catch (InterruptedException e1) {
+						e1.printStackTrace();
+					}
+				}
+			}
+		}.start();
+		boolean done = realProcessor.consume(queue);
+		return done;
 	}
 
 }

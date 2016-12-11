@@ -21,7 +21,7 @@ import java.util.List;
  *
  */
 public class OSMMessage {
-	public enum Type {START_FILE, ELEMENTS, BOUNDS, END_MAP}; 
+	public enum Type {START_FILE, ELEMENTS, BOUNDS, END_MAP, EXIT}; 
 
 	// either el or bounds must be null
 	List<Element> elements;

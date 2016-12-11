@@ -73,6 +73,9 @@ public abstract class AbstractMapProcessor implements MapProcessor {
 					return endMap();
 				case START_FILE:
 					startFile();
+					break;
+				case EXIT:
+					return true;
 				default:
 					break;
 				}

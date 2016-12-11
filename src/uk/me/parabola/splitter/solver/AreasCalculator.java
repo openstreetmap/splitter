@@ -27,6 +27,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import uk.me.parabola.splitter.Area;
 import uk.me.parabola.splitter.OSMFileHandler;
 import uk.me.parabola.splitter.RoundingUtils;
+import uk.me.parabola.splitter.SplitFailedException;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.args.SplitterParams;
 
@@ -151,14 +152,16 @@ public class AreasCalculator {
 			osmFileHandler.execute(pass1Collector);
 			densityOutData = new File(fileOutputDir, "densities-out.txt");
 		}
+		exactArea = pass1Collector.getExactArea();
+		if (exactArea == null) {
+			throw new SplitFailedException("no usable data in input file(s)");
+		}
 		System.out.println("Fill-densities-map pass took " + (System.currentTimeMillis() - start) + " ms");
 		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
 
 		if (densityOutData != null)
 			pass1Collector.saveMap(densityOutData.getAbsolutePath());
 		
-		exactArea = pass1Collector.getExactArea();
-		System.out.println("Exact map coverage read from input file(s) is " + exactArea);
 		if (polygons.size() == 1) {
 			// intersect the bounding polygon with the exact area
 			Rectangle polgonsBoundingBox = polygons.get(0).getArea().getBounds();
