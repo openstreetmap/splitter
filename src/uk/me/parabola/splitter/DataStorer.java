@@ -204,9 +204,11 @@ public class DataStorer {
 		}
 
 		for (Entry<Long, Integer> e : distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-			assert distinctDataStorer.getMultiTileDictionary().getBitSet(e.getValue()).cardinality() == 1;
-			if (!distinctAreas.get(e.getValue()).isPseudoArea()) {
-				Integer areaIdx = map.get(distinctAreas.get(e.getValue()));
+			BitSet singleArea =  distinctDataStorer.getMultiTileDictionary().getBitSet(e.getValue());
+			assert singleArea.cardinality() == 1;
+			int pos = singleArea.nextSetBit(0);
+			if (!distinctAreas.get(pos).isPseudoArea()) {
+				Integer areaIdx = map.get(distinctAreas.get(pos));
 				oneTileOnlyRels.put(e.getKey(), areaIdx != null ? areaIdx : e.getValue());
 			} else {
 				oneTileOnlyRels.put(e.getKey(), (int) AbstractMapProcessor.UNASSIGNED);
