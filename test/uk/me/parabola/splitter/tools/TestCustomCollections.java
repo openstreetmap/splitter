@@ -14,6 +14,9 @@
 package uk.me.parabola.splitter.tools;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -202,7 +205,7 @@ public class TestCustomCollections {
 	}
 
 	@Test
-	public static void testLongIntMap() {
+	public static void testSparseLong2IntMap() {
 		testMap(new SparseLong2IntMap("test"), 0L);
 		testMap(new SparseLong2IntMap("test"), -10000L);
 		testMap(new SparseLong2IntMap("test"), 1L << 35);
@@ -319,5 +322,48 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset + 4003), 876);
 		Assert.assertEquals(map.get(idOffset + 5000), 889);
 		Assert.assertEquals(map.get(idOffset + 5001), 222);
+		
+		map.clear();
+		// special pattern 1
+		Assert.assertEquals(map.put(idOffset + 1, 0), Integer.MIN_VALUE);
+		Assert.assertEquals(map.put(idOffset + 65, -1), Integer.MIN_VALUE);
+		Assert.assertEquals(map.get(idOffset + 999), Integer.MIN_VALUE);
+		Assert.assertEquals(map.get(idOffset + 1), 0);
+		Assert.assertEquals(map.get(idOffset + 65), -1);
+
+		// larger values
+		for (int i = 100_000; i < 110_000; i++) {
+			map.put(idOffset + i, i);
+		}
+		for (int i = 100_000; i < 110_000; i++) {
+			Assert.assertEquals(map.get(idOffset + i), i);
+		}
+		Random random = new Random(101);
+		Map<Long,Integer> ref = new HashMap<>();
+		// special cases long chunks (all 64 values used and random
+		for (int i = 0; i < 1000; i++) {
+			map.put(idOffset + i, random.nextInt(Integer.MAX_VALUE));
+		}
+//		map.stats(0);
+		ref.entrySet().forEach(e -> {
+			int val = map.get(e.getKey());
+			Assert.assertEquals(map.get(e.getValue()), val);
+		});
+		
+		
+		ref.clear();
+		map.clear();
+		for (int i = 0; i < 100_00; i++) {
+			long id = Math.round((1L << 33) * random.nextDouble());
+			int val = (-1 * (1 << 20) + (int) Math.round((1 << 20) * random.nextDouble()));
+			map.put(idOffset + id, i);
+			ref.put(idOffset + id, i);
+		}
+//		map.stats(0);
+		ref.entrySet().forEach(e -> {
+			long id = e.getKey(); 
+			int val = map.get(id);
+			Assert.assertEquals(map.get(id), val);
+		});
 	}  
 }

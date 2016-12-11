@@ -13,12 +13,14 @@
 
 package uk.me.parabola.splitter.tools;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
+import it.unimi.dsi.fastutil.Hash;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import uk.me.parabola.splitter.Utils;
-
-import java.util.Arrays;
 
 
 
@@ -42,7 +44,7 @@ import java.util.Arrays;
  * ?: anything
  *
  * After applying Run Length Encryption on this the chunk looks like this:
- * {u,6,v1,4,v2,5,v1,?,?,?}
+ * {f,6,v1,4,v2,5,v1,?,?,?}
  * The unassigned value on index 0 signals a compressed chunk.
  *
  * An (uncompressed) ONE_VALUE_CHUNK may look like this:
@@ -62,9 +64,9 @@ import java.util.Arrays;
  * A chunk is stored in a chunkStore which is a 3-dimensional array.
  * We group chunks of equally length together in stores of 64 entries.
  * To find the right position of a new chunk, we need three values: x,y, and z.
- * x is the length of the chunk (the number of required ints) (1-64, we store the value decremented by 1 to have 0-63)
+ * x is the length of the chunk (the number of required bytes) (1-256, we store the value decremented by 1 to have 0-255)
  * y is the position of the store (0-1048575), we store a value incremented by 1 to ensure a non-zero value for used chunks
- * z is the position of the chunk within the store. (0-63)
+ * z is the position of the chunk within the store. (0-15)
  * The maximum values for these three values are chosen so that we can place them
  * together into one int (32 bits).
  */
@@ -74,13 +76,13 @@ public class SparseLong2IntMap {
 	private static final long TOP_ID_MASK = ~CHUNK_ID_MASK;  	// the part of the key that is saved in the top HashMap
 	private static final int TOP_ID_SHIFT = Long.numberOfTrailingZeros(TOP_ID_MASK);
 
-	private static final int CHUNK_SIZE = 64; 							// 64  = 1<< 6 (last 6 bits of the key)
+	private static final int CHUNK_SIZE = 64; 					// 64  = 1<< 6 (last 6 bits of the key)
 	/** number of entries addressed by one topMap entry */
+	
 	private static final int LARGE_VECTOR_SIZE = (int)(CHUNK_ID_MASK/ CHUNK_SIZE + 1); 
-
-	private static final int CHUNK_STORE_BITS_FOR_Z = 6;
-	private static final int CHUNK_STORE_BITS_FOR_Y = 20; 
-	private static final int CHUNK_STORE_BITS_FOR_X = 6;
+	private static final int CHUNK_STORE_BITS_FOR_Z = 5; // must fit into byte field 
+	private static final int CHUNK_STORE_BITS_FOR_Y = Integer.numberOfTrailingZeros(LARGE_VECTOR_SIZE) - CHUNK_STORE_BITS_FOR_Z + 1; 
+	private static final int CHUNK_STORE_BITS_FOR_X = 8; // values 1 .. 256 are stored as 0..255
 	
 	private static final int CHUNK_STORE_ELEMS = 1 << CHUNK_STORE_BITS_FOR_Z;
 	private static final int CHUNK_STORE_X_MASK = (1 << CHUNK_STORE_BITS_FOR_X) - 1;
@@ -89,37 +91,46 @@ public class SparseLong2IntMap {
 	private static final int CHUNK_STORE_Y_SHIFT = CHUNK_STORE_BITS_FOR_X;
 	private static final int CHUNK_STORE_Z_SHIFT = CHUNK_STORE_BITS_FOR_X + CHUNK_STORE_BITS_FOR_Y;
 
-	private static final int MAX_Y_VAL = CHUNK_STORE_Y_MASK -1; // we don't use the first y entry
+	private static final int MAX_Y_VAL = LARGE_VECTOR_SIZE / CHUNK_STORE_ELEMS + 1;
 	private static final long CHUNK_OFFSET_MASK = CHUNK_SIZE-1;  		// the part of the key that contains the offset in the chunk
 	private static final long OLD_CHUNK_ID_MASK = ~CHUNK_OFFSET_MASK;	// first 58 bits of a long. If this part of the key changes, a different chunk is needed
 
 	private static final long INVALID_CHUNK_ID = 1L; // must NOT be divisible by CHUNK_SIZE
 
-	private static final int ONE_VALUE_CHUNK_SIZE = 1;
-
 	/** What to return on unassigned indices */
 	private int unassigned = Integer.MIN_VALUE;
 	private long size;
+	private long modCount;
+	private long oldModCount;
 
 	private long currentChunkId;
 	private final int [] currentChunk = new int[CHUNK_SIZE];  // stores the values in the real position
-	private final int [] tmpWork = new int[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
-	private final int [] RLEWork = new int[CHUNK_SIZE];  // for the RLE-compressed chunk
-
+	private final int [] maskedChunk = new int[CHUNK_SIZE];  // a chunk after applying the "mask encoding"
+	private final int [] tmpChunk = new int[CHUNK_SIZE*2];  // used for tests of compression methods
+	private static final int MAX_BYTES_FOR_RLE_CHUNK = CHUNK_SIZE * (Integer.BYTES + 1);
+	private final ByteBuffer bufEncoded = ByteBuffer.allocate(MAX_BYTES_FOR_RLE_CHUNK); // for the RLE-compressed chunk
+	private static final int MAX_STORED_BYTES_FOR_CHUNK = CHUNK_SIZE * Integer.BYTES;
+	private final ByteBuffer bufTmp = ByteBuffer.allocate(MAX_STORED_BYTES_FOR_CHUNK);
+	
+	// bit masks for the flag byte
+	private static final int FLAG_USED_BYTES_MASK_1 = 0x03; // number of bytes - 1 
+	private static final int FLAG_USED_BYTES_MASK_2 = 0x0c; // number of bytes - 1 for rest of vals 
+	private static final int FLAG_COMP_METHOD_DELTA = 0x20; // rest of vals are delta encoded
+	private static final int FLAG_COMP_METHOD_RLE = 0x40;
+	private static final int FLAG_COMP_METHOD_NONE = 0x80;
 
 	// for statistics
 	private final String dataDesc;
-	private long expanded;
-	private long uncompressedLen;
-	private long compressedLen;
 	
 	private int storedLengthOfCurrentChunk;
 	private int currentChunkIdInStore;
 
 	private Long2ObjectOpenHashMap<Mem> topMap;
 
-	final static long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
-	final static int pointerSize = (maxMem < 32768) ? 4 : 8; // presuming that compressedOOps is enabled
+	static final long maxMem = Runtime.getRuntime().maxMemory() / 1024 / 1024;
+	static final int pointerSize = (maxMem < 32768) ? 4 : 8; // presuming that compressedOOps is enabled
+	
+	private Integer bias1; // used for initial delta encoding 
 
 	/**
 	 * Helper class to manage memory for chunks
@@ -127,41 +138,77 @@ public class SparseLong2IntMap {
 	 *
 	 */
 	static class Mem {
-		long estimatedBytes; // estimate the allocated bytes
+		final long topId;
+		long estimatedBytes; // estimate value for the allocated bytes
 		final int[] largeVector;
-		int[][][] chunkStore;
+		byte[][][] chunkStore;
 		long[][][] maskStore;
 		final int[] freePosInStore;
-		final int[] countChunkLen;
 		/**  maps chunks that can be reused */
 		Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
 		
-		public Mem() {
+		public Mem(long topID) {
+			this.topId = topID;
 			largeVector = new int[LARGE_VECTOR_SIZE];
-			chunkStore = new int[CHUNK_SIZE + 1][][];
-			maskStore = new long[CHUNK_SIZE + 1][][];
-			freePosInStore = new int[CHUNK_SIZE + 1];
-			countChunkLen = new int[CHUNK_SIZE + 1]; // used for statistics
+			chunkStore = new byte[MAX_STORED_BYTES_FOR_CHUNK][][];
+			maskStore = new long[MAX_STORED_BYTES_FOR_CHUNK][][];
+			freePosInStore = new int[MAX_STORED_BYTES_FOR_CHUNK];
 			reusableChunks = new Int2ObjectOpenHashMap<>(0);
-			estimatedBytes = LARGE_VECTOR_SIZE * Integer.BYTES + (CHUNK_SIZE + 1) * (2 * 8 + 2 * Integer.BYTES) + 5 * (24 + 16) + 190 + 8; 
+			estimatedBytes = LARGE_VECTOR_SIZE * Integer.BYTES 
+					+ (MAX_STORED_BYTES_FOR_CHUNK) * (2 * 8 + 1 * Integer.BYTES) + 4 * (24 + 16) + 190; 
 		}
 
 		public void grow(int x) {
 			int oldCapacity = chunkStore[x].length;
-	        int newCapacity = oldCapacity * 2;
+	        int newCapacity = oldCapacity < 1024 ? oldCapacity * 2 : oldCapacity + (oldCapacity >> 1);
 	        if (newCapacity >= MAX_Y_VAL) 
 	            newCapacity = MAX_Y_VAL;
 	        if (newCapacity <= oldCapacity)
 	        	return;
-	        chunkStore[x] = Arrays.copyOf(chunkStore[x], newCapacity);
-	        maskStore[x] = Arrays.copyOf(maskStore[x], newCapacity);
-	        estimatedBytes += (newCapacity - oldCapacity) * (pointerSize * 2); 
+			resize(x, newCapacity);
 		}
 
-		public void startChunk(int x) {
-			chunkStore[x] = new int[2][];
+		private void resize(int x, int newCapacity) {
+			int oldCapacity = chunkStore[x].length;
+			if (newCapacity < oldCapacity)
+				assert chunkStore[x][newCapacity] == null;
+	        chunkStore[x] = Arrays.copyOf(chunkStore[x], newCapacity);
+	        maskStore[x] = Arrays.copyOf(maskStore[x], newCapacity);
+	        // bytes for pointers seem to depends on the capacity ?
+	        estimatedBytes += (newCapacity - oldCapacity) * (2 * 8); // pointer-pointer  
+		}
+
+		public void startStore(int x) {
+			chunkStore[x] = new byte[2][];
 			maskStore[x] = new long[2][];
-			estimatedBytes += 2 * (24 + 2 * (pointerSize * 2));
+			estimatedBytes += 2 * (24 + 2 * (8)); // pointer-pointer
+		}
+	}
+	
+	/**
+	 * Helper class to store the various positions in the multi-tier data structure.
+	 * @author Gerd Petermann
+	 *
+	 */
+	private class MemPos{
+		final int x,y,z;
+		final Mem mem;
+		final int largeVectorIndex;
+		public MemPos(Mem mem, int largeVectorIndex, int x, int y, int z) {
+			this.mem = mem;
+			this.largeVectorIndex = largeVectorIndex;
+			this.x = x;
+			this.y = y;
+			this.z = z;
+		}
+		public long getMask() {
+			return mem.maskStore[x][y][z];		
+		}
+		public ByteBuffer getInBuf() {
+			int chunkLen = x + 1;
+			int startPos = z * chunkLen + 1;
+			byte[] store = mem.chunkStore[x][y];
+			return ByteBuffer.wrap(store, startPos, chunkLen);
 		}
 	}
 	
@@ -185,249 +232,433 @@ public class SparseLong2IntMap {
 	private static int countUnder(long mask, int lowest) {
 		return Long.bitCount(mask & ((1L << lowest) - 1));
 	}
-
+ 
 	/**
-	 * Try to use Run Length Encoding to compress the chunk stored in tmpWork. In most
-	 * cases this works very well because chunks often have only one
-	 * or two distinct values.
-	 * @param maxlen: number of elements in the chunk.
-	 * @return -1 if compression doesn't save space, else the number of elements in the
-	 * compressed chunk stored in buffer RLEWork.
+	 * Put an int value into the byte buffer using the given number of bytes. 
+	 * @param buf the buffer
+	 * @param val the int value to store
+	 * @param bytesToUse the number of bytes to use
 	 */
-	private int chunkCompressRLE (int maxlen){
-		int opos =  1;
-		for (int i = 0; i < maxlen; i++) {
-			int runLength = 1;
-			while (i+1 < maxlen && tmpWork[i] == tmpWork[i+1]) {
-				runLength++;
-				i++;
-			}
-			if (opos+2 >= tmpWork.length)
-				return -1; // compressed record is not shorter
-			RLEWork[opos++] = runLength;
-			RLEWork[opos++] = tmpWork[i];
+	private static void putIntoBuf (final ByteBuffer buf, final int val, final int bytesToUse) {
+		switch (bytesToUse) {
+		case 1:
+//			assert val >= Byte.MIN_VALUE && val <= Byte.MAX_VALUE;
+			buf.put((byte) val);
+			break;
+		case 2:
+//			assert val >= Short.MIN_VALUE && val <= Short.MAX_VALUE;
+			buf.putShort((short) val);
+			break;
+		case 3: // put3
+			buf.put((byte) (val & 0xff));
+			buf.putShort((short) (val >> 8));
+			break;
+		default:
+			buf.putInt(val);
+			break;
 		}
-		if (opos == 3){
-			// special case: the chunk contains only one distinct value
-			// we can store this in a length-1 chunk because we don't need
-			// the length counter nor the compression flag
-			RLEWork[0] = RLEWork[2];
-			return ONE_VALUE_CHUNK_SIZE;
-		}
-
-		if (opos < maxlen){
-			RLEWork[0] = unassigned; // signal a normal compressed record
-			return opos;
-		}
-		return -1;
 	}
 
 	/**
-	 * Try to compress the data in currentChunk and store the result in the chunkStore.
+	 * Read an int value from the byte buffer using the given number of bytes.
+	 * @param buf the byte buffer
+	 * @param bytesToUse number of bytes (1 - 4)
+	 * @return the integer value
 	 */
-	private void saveCurrentChunk(){
+	private static int getValFromBuf (final ByteBuffer buf, final int bytesToUse) {
+		switch (bytesToUse) {
+		case 1:
+			return buf.get();
+		case 2:
+			return buf.getShort();
+		case 3:
+			byte b1 = buf.get();
+			short s = buf.getShort();
+			return (b1 & 0xff) | (s << 8);
+		default:
+			return buf.getInt();
+		}
+	}
+
+	/**
+	 * Try to use Run Length Encoding (RLE) to compress the chunk stored in tmpWork. In most
+	 * cases this works very well because chunks often have only one. The length value is 
+	 * always between 1 and 64. 
+	 * Also try delta encoding (for values 2 .. n). 
+	 * or two distinct values.
+	 * @param maxlen: number of elements in the chunk.
+	 * @param bytesToUse number of bytes used to encode one value
+	 * @return number of run length fields, 0 if RLE is longer. The global bufRLE is only filled if number > 1.
+	 * 
+	 */
+	private int chunkCompress(int maxlen, int bytesToUse) {
+		int numCounts = 0;
+		int minVal2 = Integer.MAX_VALUE;
+		int maxVal2 = Integer.MIN_VALUE;
+		int opos = 0;
+		for (int i = 0; i < maxlen; i++) {
+			int runLength = 1;
+			while (i+1 < maxlen && maskedChunk[i] == maskedChunk[i+1]) {
+				runLength++;
+				i++;
+			}
+			numCounts++;
+			tmpChunk[opos++] = runLength;
+			if (numCounts == 1 || bytesToUse == 1)
+				tmpChunk[opos++] = maskedChunk[i];
+			else {
+				tmpChunk[opos++] = maskedChunk[i];
+				int v = maskedChunk[i] - maskedChunk[0];
+				if (minVal2 > v)
+					minVal2 = v;
+				if (maxVal2 < v)
+					maxVal2 = v;
+			}
+		}
+		if (numCounts > 1) {
+			bufEncoded.clear();
+			int flag = bytesToUse - 1;
+			int bias2 = 0;
+			int bytesForRest = bytesToUse;
+			if (bytesToUse > 1) {
+				bytesForRest = calcNeededBytes(minVal2, maxVal2);
+				if (bytesForRest < bytesToUse) {
+					flag |= FLAG_COMP_METHOD_DELTA | (bytesForRest - 1) << 2; 
+					bias2 = maskedChunk[0];
+				}
+			}
+			int expectedRLElen = 1 + numCounts + bytesToUse + (numCounts - 1) * bytesForRest;
+			int uncompressedLen = Math.min(1 + bytesToUse + (maxlen - 1) * bytesForRest, MAX_STORED_BYTES_FOR_CHUNK);
+			if (uncompressedLen > expectedRLElen) {
+				flag |= FLAG_COMP_METHOD_RLE;
+				bufEncoded.put((byte) flag);
+				int pos = 0;
+				while (pos < opos) {
+					bufEncoded.put((byte) tmpChunk[pos++]); // run length
+					if (pos == 1) {
+						putIntoBuf(bufEncoded, tmpChunk[pos++], bytesToUse);
+					} else {
+						putIntoBuf(bufEncoded, tmpChunk[pos++] - bias2, bytesForRest);
+					}
+				}
+			} else {
+				// don't write flag if all values are stored with 4 bytes 
+				if (uncompressedLen < MAX_STORED_BYTES_FOR_CHUNK) {
+					flag |= FLAG_COMP_METHOD_NONE;
+					bufEncoded.put((byte) flag);
+				}
+				int pos = 0;
+				for (int i = 0; i < maxlen; i++) {
+					if (pos == 0) {
+						putIntoBuf(bufEncoded, maskedChunk[pos++], bytesToUse);
+					} else {
+						putIntoBuf(bufEncoded, maskedChunk[pos++] - bias2, bytesForRest);
+					}
+				}
+				assert  uncompressedLen == bufEncoded.position();
+			}
+		}
+		return numCounts;
+	}
+
+	/**
+	 * Try to compress the data in currentChunk and store the result in the chunkStore. 
+	 */
+	private void saveCurrentChunk() {
+		if (currentChunkId == INVALID_CHUNK_ID || modCount == oldModCount)
+			return;
+		// step 1: mask encoding
 		long mask = 0;
-		int RLELen = -1;
 		int opos = 0;
 		long elementMask = 1L;
-		int [] chunkToSave;
-		// move used entries to the beginning
-		for (int j=0; j < CHUNK_SIZE; j++){
-			if (currentChunk[j] != unassigned) {
+		if (bias1 == null) {
+			bias1 = findBias1(); // very simple heuristics 
+		}
+		int maxVal = Integer.MIN_VALUE;
+		int minVal = Integer.MAX_VALUE;
+		for (int i = 0; i < CHUNK_SIZE; i++) {
+			if (currentChunk[i] != unassigned) {
+				int v = currentChunk[i] - bias1; // apply bias 
+				if (minVal > v)
+					minVal = v;
+				if (maxVal < v)
+					maxVal = v;
 				mask |= elementMask;
-				tmpWork[opos++] = currentChunk[j];
+				maskedChunk[opos++] = v;
 			}
 			elementMask <<= 1;
 		}
-		uncompressedLen += opos;
-		if (opos > ONE_VALUE_CHUNK_SIZE)
-			RLELen =  chunkCompressRLE(opos);
-		if (RLELen > 0){
-			chunkToSave = RLEWork;
-			opos = RLELen;
+		
+		int simpleLen = opos;
+		int bytesFor1st = calcNeededBytes(minVal, maxVal);
+		// TODO: check delta encoding and other ranges
+		
+		ByteBuffer bb = bufTmp;
+		bb.clear();
+		int numCounts;
+		if (minVal == maxVal) {
+			numCounts = 1;
+		} else {
+			numCounts = chunkCompress(simpleLen, bytesFor1st);
 		}
-		else
-			chunkToSave = tmpWork;
-		compressedLen += opos;
-		putChunk(currentChunkId, chunkToSave, opos, mask);
+		if (numCounts > 1) {
+			bb = bufEncoded;
+		} else {
+			if (bytesFor1st > 1) {
+				bb.put((byte) (bytesFor1st - 1)); // flag byte
+			}
+			putIntoBuf(bb, maskedChunk[0], bytesFor1st);
+		}
+		bb.flip();
+		putChunk(currentChunkId, bb, mask);
+	}
+
+	static int calcNeededBytes (int minVal, int maxVal) {
+		if (minVal >= Byte.MIN_VALUE && maxVal <= Byte.MAX_VALUE) {
+			return Byte.BYTES;
+		} else if (minVal >= Short.MIN_VALUE && maxVal <= Short.MAX_VALUE) {
+			return Short.BYTES;
+		} else if (minVal >= -0x00800000 && maxVal <= 0x7fffff) {
+			return 3;
+		} else {
+			return Integer.BYTES;
+		}
+	}
+	
+	private int findBias1() {
+		int minVal = Integer.MAX_VALUE;
+		int maxVal = Integer.MIN_VALUE;
+		for (int i = 0; i < CHUNK_SIZE; i++) {
+			if (currentChunk[i] != unassigned) {
+				if (minVal > currentChunk[i])
+					minVal = currentChunk[i];
+				if (maxVal < currentChunk[i])
+					maxVal = currentChunk[i];
+			}
+		}
+		int avg = minVal + (maxVal-minVal) / 2;
+		if (avg < 0 && avg - Integer.MIN_VALUE < Byte.MAX_VALUE)
+			return Integer.MIN_VALUE + Byte.MAX_VALUE;
+		if (avg > 0 && Integer.MAX_VALUE - avg < Byte.MAX_VALUE)
+			return Integer.MAX_VALUE - Byte.MAX_VALUE;
+		return avg;
 	}
 
 	public boolean containsKey(long key) {
 		return get(key) != unassigned;
 	}
 
-
 	public int put(long key, int val) {
-		long chunkId = key & OLD_CHUNK_ID_MASK;
 		if (val == unassigned) {
 			throw new IllegalArgumentException("Cannot store the value that is reserved as being unassigned. val=" + val);
 		}
-		int chunkoffset = (int) (key & CHUNK_OFFSET_MASK);
-		int out;
-		if (currentChunkId == chunkId){
-			out = currentChunk[chunkoffset];
-			currentChunk[chunkoffset] = val;
-			if (out == unassigned)
-				size++;
-			return out;
-		}
-
-		if (currentChunkId != INVALID_CHUNK_ID){
+		long chunkId = key & OLD_CHUNK_ID_MASK;
+		if (currentChunkId != chunkId){
 			// we need a different chunk
-			saveCurrentChunk();
+			replaceCurrentChunk(key);
 		}
-
-		fillCurrentChunk(key);
-		out = currentChunk[chunkoffset];
-		currentChunkId = chunkId;
+		int chunkoffset = (int) (key & CHUNK_OFFSET_MASK);
+		int out = currentChunk[chunkoffset];
 		currentChunk[chunkoffset] = val;
-		if (out == unassigned)
+		if (out == unassigned) 
 			size++;
+		if (out != val)
+			modCount++;
 		return out;
 	}
 
 	/**
-	 * Check if we already have a chunk for the given key. If no,
-	 * fill currentChunk with default value, else with the saved
-	 * chunk.
-	 * @param key
+	 * Either decode the encoded chunk data into target or extract a single value. 
+	 * @param mp the MemPos instance with information about the store
+	 * @param targetChunk if not null, data will be decoded into this buffer
+	 * @param chunkOffset gives the wanted element (targetChunk must be null)
+	 * @return
 	 */
-	private void fillCurrentChunk(long key) {
-		Arrays.fill(currentChunk, unassigned);
-		storedLengthOfCurrentChunk = 0;
-		currentChunkIdInStore = 0;
-		long topID = key >> TOP_ID_SHIFT;
+	private int decodeStoredChunk (MemPos mp, int[] targetChunk, int chunkOffset) {
+		int chunkLen = mp.x + 1;
+		long chunkMask = mp.getMask();
+		ByteBuffer inBuf = mp.getInBuf();
+
+		int flag;
+		int bytesToUse = Integer.BYTES; // assume worst case
+		if (chunkLen == MAX_STORED_BYTES_FOR_CHUNK) {
+			// special case: no flag is written if we have the max. size
+			flag = FLAG_COMP_METHOD_NONE;
+		} else {
+			flag = inBuf.get();
+			bytesToUse = (flag & FLAG_USED_BYTES_MASK_1) + 1;	
+		}
+		boolean isCompressed = (chunkLen == 1) || (flag & FLAG_COMP_METHOD_NONE) == 0;
+		if (isCompressed) {
+			int opos = 0;
+			if ((flag & FLAG_COMP_METHOD_RLE) == 0 || chunkLen == 1) {
+				// decode one-value-chunk
+				int val;
+				if (chunkLen == 1) {
+					val = bias1 + flag;
+				} else {
+					val = bias1 + getValFromBuf(inBuf, bytesToUse);
+				}
+				if (targetChunk == null) {
+					return val; // 
+				}
+				long elementmask = 1;
+				for (opos = 0; opos < CHUNK_SIZE; opos++) {
+					if ((chunkMask & elementmask) != 0)
+						targetChunk[opos] = val;
+					elementmask <<= 1;
+				}
+			} else {
+				int index = countUnder(chunkMask, chunkOffset); 
+				int bytesForRest = bytesToUse;
+				if ((flag & FLAG_COMP_METHOD_DELTA) != 0) {
+					bytesForRest = ((flag & FLAG_USED_BYTES_MASK_2) >> 2) + 1; 
+				}
+				// decode RLE-compressed chunk with multiple values
+				int numCount = 0;
+				int bias2 = 0;
+				while (inBuf.hasRemaining()) {
+					int len = inBuf.get();
+					int val = bias1 + bias2 + getValFromBuf(inBuf, bytesToUse);
+					if (targetChunk == null) {
+						index -= len;
+						if (index < 0)
+							return val;
+					} else {
+						while (len > 0) {
+							while (len > 0 && opos < CHUNK_SIZE) {
+								if ((chunkMask & 1L << opos) != 0) {
+									targetChunk[opos] = val;
+									--len;
+								}
+								++opos;
+							}
+						}
+					}
+					if (numCount++ == 0 && (flag & FLAG_COMP_METHOD_DELTA) != 0) {
+						bytesToUse = bytesForRest;
+						bias2 = val - bias1;
+					}
+					
+				}
+			}
+		} else {
+			// decode uncompressed chunk
+			int bias2 = 0;
+			int bytesForRest = bytesToUse;
+			if ((flag & FLAG_COMP_METHOD_DELTA) != 0) {
+				bytesForRest = ((flag & FLAG_USED_BYTES_MASK_2) >> 2) + 1; 
+			}
+
+			if (targetChunk != null) {
+				long elementmask = 1;
+				for (int opos = 0; opos < CHUNK_SIZE; opos++) {
+					if ((chunkMask & elementmask) != 0) {
+						targetChunk[opos] = bias1 + bias2 + getValFromBuf(inBuf, bytesToUse);
+						if (bytesForRest != bytesToUse) {
+							bytesToUse = bytesForRest;
+							bias2 = targetChunk[opos] - bias1;
+						}
+					}
+					elementmask <<= 1;
+				}
+			} else {
+				int index = countUnder(chunkMask, chunkOffset); 
+				int val = getValFromBuf(inBuf, bytesToUse) + bias1;
+				if (index == 0)
+					return val;
+				if (bytesForRest != bytesToUse)
+					bias2 = val - bias1;
+					
+				inBuf.position(inBuf.position() + (index-1) * bytesForRest); 
+				int rc = bias1 + bias2 + getValFromBuf(inBuf, bytesForRest);
+				return rc;
+			}
+		}
+		assert targetChunk != null;
+		return unassigned; // should not happen if 
+	}
+
+	/**
+	 * Use the various bit masks to extract the position of the chunk in the store.
+	 * @param key the key for which we want the chunk
+	 * @return the filled MemPos instance or null if the chunk is not in the store.
+	 */
+	private MemPos getMemPos(long key) {
+		long topID = (key >> TOP_ID_SHIFT);
 		Mem mem = topMap.get(topID);
 		if (mem == null)
-			return;
+			return null;
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 
-		int idx = mem.largeVector[chunkid];
+		int idx = mem.largeVector[chunkid];  // performance bottleneck: produces many cache misses
 		if (idx == 0)
-			return;
+			return null;
 		currentChunkIdInStore = idx;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 		y--; // we store the y value incremented by 1
-		int chunkLen = x +  1;
-		int [] store = mem.chunkStore[x][y];
+		assert y < LARGE_VECTOR_SIZE;
 		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
+		return new MemPos(mem, idx, x, y, z);
+	}
+	
+	/**
+	 * Check if we already have a chunk for the given key. If no,
+	 * fill currentChunk with default value, else with the saved
+	 * chunk.
+	 * @param key the key for which we need the current chunk
+	 */
+	private void replaceCurrentChunk(long key) {
+		saveCurrentChunk();
+		Arrays.fill(currentChunk, unassigned);
+		oldModCount = modCount;
+		currentChunkId = key & OLD_CHUNK_ID_MASK; 
+		storedLengthOfCurrentChunk = 0;
+		currentChunkIdInStore = 0;
+		MemPos mp = getMemPos(key);
+		if (mp == null)
+			return;
 
-		long chunkMask = mem.maskStore[x][y][z];
-		long elementmask = 0;
-
-		++expanded;
-		storedLengthOfCurrentChunk = x;
-		int startPos = z * chunkLen + 1;
-		boolean isCompressed = (chunkLen == ONE_VALUE_CHUNK_SIZE || store[startPos] == unassigned);
-		if (isCompressed){
-			int opos = 0;
-			if (chunkLen == ONE_VALUE_CHUNK_SIZE) {
-				// decode one-value-chunk
-				int val = store[startPos];
-				elementmask = 1;
-				for (opos = 0; opos<CHUNK_SIZE; opos++){
-					if ((chunkMask & elementmask) != 0)
-						currentChunk[opos] = val;
-					elementmask <<= 1;
-				}
-			}
-			else {
-				// decode RLE-compressed chunk with multiple values
-				int ipos = startPos + 1;
-				int len = store[ipos++];
-				int val = store[ipos++];
-				while (len > 0){
-					while (len > 0 && opos < currentChunk.length){
-						if ((chunkMask & 1L << opos) != 0){
-							currentChunk[opos] = val;
-							--len;
-						}
-						++opos;
-					}
-					if (ipos+1 < startPos + chunkLen){
-						len = store[ipos++];
-						val = store[ipos++];
-					}
-					else len = -1;
-				}
-			}
-		}
-		else {
-			// decode uncompressed chunk
-			int ipos = startPos;
-			elementmask = 1;
-			for (int opos=0; opos < CHUNK_SIZE; opos++) {
-				if ((chunkMask & elementmask) != 0)
-					currentChunk[opos] = store[ipos++];
-				elementmask <<= 1;
-			}
-		}
+		currentChunkIdInStore = mp.largeVectorIndex;
+		storedLengthOfCurrentChunk = mp.x;
+		decodeStoredChunk(mp, currentChunk, -1);
 	}
 
+	/**
+	 * Returns the value to which the given key is mapped or the {@code unassigned} value
+	 * @param key the key
+	 * @return the value to which the given key is mapped or the {@code unassigned} value
+	 */
 	public int get(long key){
 		long chunkId = key & OLD_CHUNK_ID_MASK;
 		int chunkoffset = (int) (key & CHUNK_OFFSET_MASK);
 
 		if (currentChunkId == chunkId)
 			return currentChunk[chunkoffset];
-		
-		long topID = key >> TOP_ID_SHIFT;
-		Mem mem = topMap.get(topID);
-		if (mem == null)
+		MemPos mp = getMemPos(key);
+		if (mp == null)
 			return unassigned;
-		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
 
-		int idx = mem.largeVector[chunkid];
-		if (idx == 0)
-			return unassigned;
-		int x = idx & CHUNK_STORE_X_MASK;
-		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
-		y--; // we store the y value incremented by 1
-
-		int chunkLen = x + 1;
-		int[] store = mem.chunkStore[x][y];
-		int z = (idx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
-
-		long chunkMask = mem.maskStore[x][y][z];
-
+		long chunkMask = mp.getMask();
 		long elementmask = 1L << chunkoffset;
 		if ((chunkMask & elementmask) == 0)
 			return unassigned; // not in chunk
-		int startOfChunk = z * chunkLen + 1;
-		// the map contains the key, extract the value
-		int firstAfterMask = store[startOfChunk];
-		if (chunkLen == ONE_VALUE_CHUNK_SIZE)
-			return firstAfterMask;
-		int index = countUnder(chunkMask, chunkoffset);
-		if (firstAfterMask == unassigned) {
-			// extract from compressed chunk
-			int len;
-			for (int j = 1; j < chunkLen; j += 2) {
-				len = store[j + startOfChunk];
-				index -= len;
-				if (index < 0)
-					return store[j + startOfChunk + 1];
-			}
-			return unassigned; // should not happen
-		}
-		// extract from uncompressed chunk
-		return store[index + startOfChunk];
+		// the map contains the key, decode it
+		return decodeStoredChunk(mp, null, chunkoffset);
 	}
 
 	public void clear() {
 		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
-		topMap = new Long2ObjectOpenHashMap<>();
+		topMap = new Long2ObjectOpenHashMap<>(64, Hash.VERY_FAST_LOAD_FACTOR);
+		
 		Arrays.fill(currentChunk, 0);
-		Arrays.fill(tmpWork, 0);
-		Arrays.fill(RLEWork, 0);
+		Arrays.fill(maskedChunk, 0);
 		storedLengthOfCurrentChunk = 0;
 		currentChunkIdInStore = 0;
 		currentChunkId = INVALID_CHUNK_ID;
-		
+		bias1 = null;
 		size = 0;
-		uncompressedLen = 0;
-		compressedLen = 0;
 		// test();
 	}
 
@@ -443,22 +674,16 @@ public class SparseLong2IntMap {
 		unassigned = arg0;
 	}
 
-	/**
-	 * Find the place were a chunk has to be stored and copy the content
-	 * to this place.
-	 * @param key the (OSM) id
-	 * @param chunk  the chunk
-	 * @param len the number of used bytes in the chunk
-	 */
-	private void putChunk(long key, int[] chunk, int len, long mask) {
+	private void putChunk(long key, ByteBuffer bb, long mask) {
 		long topID = key >> TOP_ID_SHIFT;
 		Mem mem = topMap.get(topID);
 		if (mem == null) {
-			mem = new Mem();
+			mem = new Mem(topID);
 			topMap.put(topID, mem);
 		}
 
 		int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
+		int len = bb.limit();
 		int x = len - 1;
 		if (storedLengthOfCurrentChunk > 0) {
 			// this is a rewrite, add the previously used chunk to the reusable list
@@ -472,11 +697,11 @@ public class SparseLong2IntMap {
 			reusableChunk.add(currentChunkIdInStore);
 		}
 		if (mem.chunkStore[x] == null) {
-			mem.startChunk(x);
+			mem.startStore(x);
 		}
 		IntArrayList reusableChunk = mem.reusableChunks.get(x);
 		int y, z;
-		int[] store;
+		byte[] store;
 		if (reusableChunk != null && !reusableChunk.isEmpty()) {
 			int reusedIdx = reusableChunk.removeInt(reusableChunk.size() - 1);
 			y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
@@ -488,23 +713,25 @@ public class SparseLong2IntMap {
 			if (y >= mem.chunkStore[x].length) 
 				mem.grow(x);
 			if (mem.chunkStore[x][y] == null) {
-				mem.chunkStore[x][y] = new int[len * (CHUNK_STORE_ELEMS) + 2];
-				mem.estimatedBytes += 24 + (len * (CHUNK_STORE_ELEMS) + 2) * Integer.BYTES; 
+				int numElems = len * CHUNK_STORE_ELEMS + 1;
+				mem.chunkStore[x][y] = new byte[numElems]; 
+				mem.estimatedBytes += 24 + (numElems) * Byte.BYTES;
+				int padding = 8 - (numElems * Byte.BYTES % 8);
+				if (padding < 8)
+					mem.estimatedBytes += padding;
 				mem.maskStore[x][y] = new long[CHUNK_STORE_ELEMS];
 				mem.estimatedBytes += 24 + CHUNK_STORE_ELEMS * Long.BYTES;
 			}
 			store = mem.chunkStore[x][y];
 			z = store[0]++;
-			++mem.countChunkLen[len];
 		}
 
 		mem.maskStore[x][y][z] = mask;
+		ByteBuffer storeBuf = ByteBuffer.wrap(store, z * len + 1, len);
+		storeBuf.put(bb);
+	
+		// calculate the position in the large vector
 		y++; // we store the y value incremented by 1
-
-		if (len > 1)
-			System.arraycopy(chunk, 0, store, z * len + 1, len);
-		else
-			store[z * len + 1] = chunk[0];
 		assert x < 1 << CHUNK_STORE_BITS_FOR_X;
 		assert y < 1 << CHUNK_STORE_BITS_FOR_Y;
 		assert z < 1 << CHUNK_STORE_BITS_FOR_Z;
@@ -520,39 +747,46 @@ public class SparseLong2IntMap {
 	 * calculate and print performance values regarding memory
 	 */
 	public void stats(int msgLevel) {
-		long totalBytes = CHUNK_SIZE * Integer.BYTES;
+		long totalBytes = currentChunk.length * Integer.BYTES;
 		long totalChunks = 1; // current chunk
 			
 		if (size() == 0){
 			System.out.println(dataDesc + " Map is empty");
 			return;
 		}
+		int[] all = new int[MAX_STORED_BYTES_FOR_CHUNK];
+		int memCount = 1;
+		
 		for (Mem mem : topMap.values()) {
-			for (int x = 1; x <= CHUNK_SIZE; x++) {
-				totalChunks += mem.countChunkLen[x];
+			for (int x = 0; x < mem.freePosInStore.length; x++) {
+				if (mem.freePosInStore[x] == 0)
+					continue;
+				all[x] += mem.freePosInStore[x];
+				if (msgLevel >= 1) {
+					System.out.println("mem store no: " + memCount + " len: " + (x+1) + " " + mem.freePosInStore[x]);
+				}
+				memCount++;
+				totalChunks += mem.freePosInStore[x];
 			}
 			totalBytes += mem.estimatedBytes;
 		}
-
+//		if (msgLevel >= 0) {
+//			for (int x = 0; x < all.length; x++) {
+//				if (all[x] != 0) 
+//					System.out.println("len: " + (x+1) + " " + all[x]);
+//			}
+//		}
 		float bytesPerKey = (size()==0) ? 0: (float)(totalBytes*100 / size()) / 100;
-		System.out.println(dataDesc + " Map: Number of stored long/int pairs: " + Utils.format(size()) + " require ca. " +
+		System.out.println(dataDesc + " Map: " + Utils.format(size()) + " stored long/int pairs require ca. " +
 				bytesPerKey + " bytes per pair. " +
 				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " +
 				((totalChunks==0) ? 0 :(size() / totalChunks)) + ".");
-		System.out.println(dataDesc + " Map details: bytes " + Utils.format(totalBytes) + ", including " +
-				topMap.size() + " arrays with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
+		System.out.println(dataDesc + " Map details: bytes ~" + Utils.format(totalBytes/1024/1024) + " MB, including " +
+				topMap.size() + " array(s) with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
 		System.out.println();
-		if (msgLevel > 0 & uncompressedLen > 0){
-			System.out.print(dataDesc + " RLE compression info: compressed / uncompressed size / ratio: " + 
-					Utils.format(compressedLen) + " / "+
-					Utils.format(uncompressedLen) + " / "+
-					Utils.format(Math.round(100-(float) (compressedLen*100/uncompressedLen))) + "%");
-			if (expanded > 0 )
-				System.out.print(", times fully expanded: " + Utils.format(expanded));
-			System.out.println();
-		}
 	}
 
+	
 	/*
 	void  test(){
 		int[] yVals = { 0, 1, 2, MAX_Y_VAL - 2, MAX_Y_VAL - 1, MAX_Y_VAL };
