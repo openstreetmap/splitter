@@ -13,6 +13,13 @@
 
 package uk.me.parabola.splitter;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
 import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.kml.KmlWriter;
@@ -23,13 +30,6 @@ import uk.me.parabola.splitter.writer.O5mMapWriter;
 import uk.me.parabola.splitter.writer.OSMWriter;
 import uk.me.parabola.splitter.writer.OSMXMLWriter;
 import uk.me.parabola.splitter.writer.PseudoOSMWriter;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Splitter for OSM files with the purpose of providing input files for mkgmap.
@@ -71,8 +71,22 @@ public class Main {
 				System.out.println(e.getMessage());
 		}
 	}
-
+	
 	private int start(String[] args) {
+//		uk.me.parabola.splitter.tools.TestCustomCollections.testSparseLong2IntMap();
+//		int v1 = Integer.MIN_VALUE + 12;
+//		int bias1 = Integer.MIN_VALUE + 16;
+//		int d1 = v1 - bias1;
+//		int v2 = d1 + bias1;
+//		
+//		SparseLong2IntMap map = new SparseLong2IntMap("test");
+//		for (int i = 0; i < (1 << 29); i++) {
+//			map.put(i, 1);
+//		}
+//		map.stats(1);
+//		map.trim();
+//		map.stats(1);
+//		map = null;
 		int rc = 0;
 		JVMHealthMonitor healthMonitor = null;
 

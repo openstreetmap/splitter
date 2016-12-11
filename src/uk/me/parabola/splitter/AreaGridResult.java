@@ -13,7 +13,7 @@
 
 package uk.me.parabola.splitter;
 
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 /**
  * A helper class to combine the results of the {@link AreaGrid} 
@@ -21,7 +21,7 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
  *
  */
 public class AreaGridResult{
-	ShortArrayList l;	// list of indexes to the area dictionary
+	IntArrayList l;	// list of indexes to the area dictionary
 	boolean testNeeded; // true: the list must be checked with the Area.contains() method 
 }
 

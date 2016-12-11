@@ -26,13 +26,13 @@ import java.util.BitSet;
 public class AreaGrid implements AreaIndex{
 	private final Grid grid;
 	protected final AreaGridResult r;
-	protected final AreaDictionaryShort areaDictionary;
+	protected final AreaDictionary areaDictionary;
 
 	/**
 	 * Create a grid to speed up the search of area candidates.
 	 * @param areaDictionary 
 	 */
-	AreaGrid(AreaDictionaryShort areaDictionary) {
+	AreaGrid(AreaDictionary areaDictionary) {
 		this.areaDictionary = areaDictionary;
 		r = new AreaGridResult();
 		grid = new Grid(null, null);
@@ -62,7 +62,7 @@ public class AreaGrid implements AreaIndex{
 		private int gridMinLat, gridMinLon; 
 		// bounds of the complete grid
 		private Area bounds = null;
-		private short[][] indexGrid;
+		private int[][] indexGrid;
 		private BitSet[] testGrid;
 		private Grid[][] subGrid = null; 
 		private final int maxCompares;
@@ -80,7 +80,7 @@ public class AreaGrid implements AreaIndex{
 				gridDimLon = SUB_GRID_DIM_LON;
 				gridDimLat = SUB_GRID_DIM_LAT;
 			}
-			indexGrid = new short[gridDimLon + 1][gridDimLat + 1];
+			indexGrid = new int[gridDimLon + 1][gridDimLat + 1];
 			// is true for an element if the list of areas needs to be tested
 			testGrid = new BitSet[gridDimLon + 1];
 			for (int lon = 0; lon < testGrid.length; lon++) {
@@ -224,7 +224,7 @@ public class AreaGrid implements AreaIndex{
 				}
 			}
 			// get list of area candidates from grid
-			short idx = indexGrid[gridLonIdx][gridLatIdx];
+			int idx = indexGrid[gridLonIdx][gridLatIdx];
 			if (idx == AbstractMapProcessor.UNASSIGNED) 
 				return null;
 			r.testNeeded = testGrid[gridLonIdx].get(gridLatIdx);

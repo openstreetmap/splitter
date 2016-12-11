@@ -12,7 +12,7 @@
  */
 package uk.me.parabola.splitter;
 
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -24,28 +24,28 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- * Maps a BitSet containing the used areas to a short value.  
+ * Maps a BitSet containing the used areas to an int value.  
  * An OSM element is written to one or more areas. Every used
- * combination of areas is translated to a short.
+ * combination of areas is translated to an int.
  * @author GerdP
  *
  */
-public class AreaDictionaryShort{
-	private final static int DICT_START = Short.MAX_VALUE;
+public class AreaDictionary {
+	private static final int DICT_START = Short.MAX_VALUE; 
 	private final Area[] areas; 
 	private final ArrayList<BitSet> sets; 
-	private final ArrayList<ShortArrayList> arrays; 
+	private final ArrayList<IntArrayList> arrays; 
 	private final int numOfAreas;
-	private final HashMap<BitSet, Short> index;
+	private final HashMap<BitSet, Integer> index;
 	private final HashSet<BitSet> simpleNeighbours = new HashSet<>();
 	private final int overlapAmount;
 	
 	/**
-	 * Create a dictionary for a given array of areas
+	 * Create a dictionary for a given array of areas.
 	 * @param overlapAmount 
 	 * @param areas the array of areas
 	 */
-	AreaDictionaryShort (List<Area> areas, int overlapAmount){
+	AreaDictionary(List<Area> areas, int overlapAmount){
 		this.areas = areas.toArray(new Area[areas.size()]);
 		this.overlapAmount = overlapAmount;
 		this.numOfAreas = areas.size();
@@ -56,12 +56,12 @@ public class AreaDictionaryShort{
 	}
 	
 	/**
-	 * initialize the dictionary with sets containing a single area.
+	 * Initialize the dictionary with sets containing a single area.
 	 */
-	private void init(){
+	private void init() {
 		ArrayList<Rectangle> rectangles = new ArrayList<>(numOfAreas);
 		ArrayList<BitSet> areaSets = new ArrayList<>(numOfAreas);
-		for (int i=0; i < numOfAreas; i++){
+		for (int i = 0; i < numOfAreas; i++) {
 			BitSet b = new BitSet();
 			b.set(i);
 			translate(b);
@@ -74,23 +74,23 @@ public class AreaDictionaryShort{
 	}
 	
 	/**
-	 * Calculate the short value for a given BitSet. The BitSet must not 
+	 * Calculate the int value for a given BitSet. The BitSet must not 
 	 * contain values higher than numOfAreas.
 	 * @param areaSet the BitSet 
-	 * @return a short value that identifies this BitSet 
+	 * @return an Integer value that identifies this BitSet, never null 
 	 */
-	public Short translate(final BitSet areaSet){
-		Short combiIndex = index.get(areaSet);
-		if (combiIndex == null){
+	public Integer translate(final BitSet areaSet) {
+		Integer combiIndex = index.get(areaSet);
+		if (combiIndex == null) {
 			BitSet bnew = new BitSet();
 
 			bnew.or(areaSet);
-			ShortArrayList a = new ShortArrayList();
+			IntArrayList a = new IntArrayList();
 			for (int i = areaSet.nextSetBit(0); i >= 0; i = areaSet.nextSetBit(i + 1)) {
-				a.add((short) i);
+				a.add(i);
 			}
-			combiIndex = (short) (sets.size() - DICT_START);
-			if (combiIndex == Short.MAX_VALUE){
+			combiIndex = (sets.size() - DICT_START);
+			if (combiIndex == Integer.MAX_VALUE) {
 				throw new SplitFailedException("areaDictionary is full. Try to decrease number of areas.");
 			}
 			sets.add(bnew);
@@ -101,69 +101,67 @@ public class AreaDictionaryShort{
 	}
 
 	/**
-	 * find those areas that build rectangles when they are 
+	 * Find those areas that build rectangles when they are 
 	 * added together. A way or relation that lies exactly within 
 	 * such a combination cannot cross other areas. 
+	 * @param rectangles 
+	 * @param areaSets
 	 */
 	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<BitSet> areaSets){
 		ArrayList<Rectangle> newRectangles = new ArrayList<>();
 		ArrayList<BitSet> newAreaSets = new ArrayList<>();
 		
-		for (int i = 0; i < rectangles.size(); i++){
-			Rectangle r1 =  rectangles.get(i);
-			for (int j = i+1; j < rectangles.size(); j++){
-				Rectangle r2 =  rectangles.get(j);
+		for (int i = 0; i < rectangles.size(); i++) {
+			Rectangle r1 = rectangles.get(i);
+			for (int j = i + 1; j < rectangles.size(); j++) {
+				Rectangle r2 = rectangles.get(j);
 				boolean isSimple = false;
-				if (r1.y == r2.y && r1.height == r2.height 
-						&& (r1.x == r2.getMaxX() || r2.x == r1.getMaxX())) 
+				if (r1.y == r2.y && r1.height == r2.height && (r1.x == r2.getMaxX() || r2.x == r1.getMaxX()))
 					isSimple = true;
-				else if (r1.x == r2.x && r1.width == r2.width 
-						&& (r1.y == r2.getMaxY() || r2.y == r1.getMaxY()))
+				else if (r1.x == r2.x && r1.width == r2.width && (r1.y == r2.getMaxY() || r2.y == r1.getMaxY()))
 					isSimple = true;
-				if (isSimple){
+				if (isSimple) {
 					BitSet simpleNeighbour = new BitSet();
 					simpleNeighbour.or(areaSets.get(i));
 					simpleNeighbour.or(areaSets.get(j));
-					if (simpleNeighbour.cardinality() <= 10){
-						if (simpleNeighbours.contains(simpleNeighbour) == false){
-							simpleNeighbours.add(simpleNeighbour);
-							//System.out.println("simple neighbor: " + getMapIds(simpleNeighbour));
-							Rectangle pair = new Rectangle(r1);
-							pair.add(r2);
-							newRectangles.add(pair);
-							newAreaSets.add(simpleNeighbour);
-						}
+					if (simpleNeighbour.cardinality() <= 10 && !simpleNeighbours.contains(simpleNeighbour)) {
+						simpleNeighbours.add(simpleNeighbour);
+						// System.out.println("simple neighbor: " +
+						// getMapIds(simpleNeighbour));
+						Rectangle pair = new Rectangle(r1);
+						pair.add(r2);
+						newRectangles.add(pair);
+						newAreaSets.add(simpleNeighbour);
 					}
 				}
 			}
 		}
-		if (newRectangles.isEmpty() == false){
+		if (!newRectangles.isEmpty()) {
 			rectangles.addAll(newRectangles);
 			areaSets.addAll(newAreaSets);
 			newRectangles = null;
 			newAreaSets = null;
 			if (simpleNeighbours.size() < 1000)
-				findSimpleNeigbours(rectangles,areaSets);
+				findSimpleNeigbours(rectangles, areaSets);
 		}
 	}
+	
 	/**
-	 * Return the BitSet that is related to the short value.
-	 * The caller must make sure that the short is valid.
-	 * @param idx a short value that was returned by the translate() 
-	 * method.  
+	 * Return the BitSet that is related to the int value.
+	 * The caller must make sure that the index is valid.
+	 * @param idx a value that was returned by the translate() method.  
 	 * @return the BitSet
 	 */
-	public BitSet getBitSet (final short idx){
+	public BitSet getBitSet(final int idx) {
 		return sets.get(idx + DICT_START);
 	}
 	
 	/**
-	 * Return a list containing the area ids for the given 
-	 * short value.  
-	 * @param idx a short value that was returned by the translate() method
+	 * Return a list containing the area ids for the given int value.  
+	 * @param idx a value that was returned by the translate() method.  
 	 * @return a list containing the area ids 
 	 */
-	public ShortArrayList getList (final short idx){
+	public IntArrayList getList(final int idx) {
 		return arrays.get(DICT_START + idx);
 	}
 	
@@ -171,15 +169,15 @@ public class AreaDictionaryShort{
 	 * return the number of sets in this dictionary 
 	 * @return the number of sets in this dictionary
 	 */
-	public int size(){
+	public int size() {
 		return sets.size();
 	}
 
-	public int getNumOfAreas(){
+	public int getNumOfAreas() {
 		return numOfAreas;
 	}
 
-	public boolean mayCross(BitSet areaSet){
+	public boolean mayCross(BitSet areaSet) {
 		return simpleNeighbours.contains(areaSet) == false;
 	}
 	
@@ -201,7 +199,7 @@ public class AreaDictionaryShort{
 		return Collections.unmodifiableList(Arrays.asList(areas));
 	}
 
-	public static short translate(int singleWriterId) {
-		return (short) (singleWriterId - DICT_START);
+	public static int translate(int singleWriterId) {
+		return (singleWriterId - DICT_START);
 	}
 }

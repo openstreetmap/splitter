@@ -49,7 +49,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	
 	private int phase = PHASE1_RELS_ONLY;
 	private final DataStorer dataStorer;
-	private final AreaDictionaryInt multiTileDictionary;
+	private final AreaDictionary areaDictionary;
 	private Long2ObjectLinkedOpenHashMap<MTRelation> relMap = new Long2ObjectLinkedOpenHashMap<>();
 	private Long2IntClosedMapFunction nodeWriterMap;
 	private Long2IntClosedMapFunction wayWriterMap;
@@ -74,7 +74,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 	MultiTileProcessor(DataStorer dataStorer, LongArrayList problemWayList, LongArrayList problemRelList) {
 		this.dataStorer = dataStorer;
-		multiTileDictionary = dataStorer.getMultiTileDictionary();
+		this.areaDictionary = dataStorer.getAreaDictionary();
 		for (long id: problemWayList){
 			neededWays.set(id);
 		}
@@ -169,7 +169,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (workWriterSet.isEmpty())
 				wayWriterIdx = UNASSIGNED;
 			else 
-				wayWriterIdx = multiTileDictionary.translate(workWriterSet);
+				wayWriterIdx = areaDictionary.translate(workWriterSet);
 			
 			try{
 				wayWriterMap.add(way.getId(), wayWriterIdx);
@@ -185,7 +185,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				return;
 			int wayWriterIdx = wayWriterMap.getRandom(way.getId());
 			if (wayWriterIdx !=  UNASSIGNED){
-				BitSet wayWriterSet = multiTileDictionary.getBitSet(wayWriterIdx);
+				BitSet wayWriterSet = areaDictionary.getBitSet(wayWriterIdx);
 				for (long id : way.getRefs()) {
 					addOrMergeWriters(nodeWriterMap, wayWriterSet, wayWriterIdx, id);
 				}
@@ -397,7 +397,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				else if (rel.memTypes[i] == MEM_WAY_TYPE){
 					int idx = wayWriterMap.getRandom(memId);
 					if (idx != UNASSIGNED){
-						writerSet.or(multiTileDictionary.getBitSet(idx));
+						writerSet.or(areaDictionary.getBitSet(idx));
 						memFound = true;
 					}
 					if (wayBboxMap.get(memId) != null)
@@ -411,7 +411,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				}
 			}	
 			if (!writerSet.isEmpty()){
-				int idx = multiTileDictionary.translate(writerSet);
+				int idx = areaDictionary.translate(writerSet);
 				rel.setMultiTileWriterIndex(idx);
 			}
 		}
@@ -435,7 +435,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 				}
 				checkSpecialMP(relWriters, rel);
 				if (!relWriters.isEmpty()){
-					int writerIdx = multiTileDictionary.translate(relWriters);
+					int writerIdx = areaDictionary.translate(relWriters);
 					rel.setMultiTileWriterIndex(writerIdx);
 					int touchedTiles = relWriters.cardinality();
 					if (touchedTiles > dataStorer.getNumOfAreas() / 2 && dataStorer.getNumOfAreas() > 10){
@@ -470,7 +470,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			int relWriterIdx = rel.getMultiTileWriterIndex();
 			if (relWriterIdx == UNASSIGNED)
 				continue;
-			BitSet relWriters =  multiTileDictionary.getBitSet(relWriterIdx);
+			BitSet relWriters =  areaDictionary.getBitSet(relWriterIdx);
 			for (int i = 0; i < rel.numMembers; i++){
 				long memId = rel.memRefs[i];
 				switch (rel.memTypes[i]){
@@ -530,7 +530,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		BitSet relWriters = new BitSet();
 		int relWriterIdx = rel.getMultiTileWriterIndex();
 		if (relWriterIdx != UNASSIGNED)
-			relWriters.or(multiTileDictionary.getBitSet(relWriterIdx));
+			relWriters.or(areaDictionary.getBitSet(relWriterIdx));
 
 		boolean changed = false;
 		for (int i = 0; i < rel.numMembers; i++){
@@ -549,7 +549,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 					if (memWriterIdx == UNASSIGNED || memWriterIdx == relWriterIdx){
 						continue;
 					}
-					BitSet memWriters = multiTileDictionary.getBitSet(memWriterIdx);
+					BitSet memWriters = areaDictionary.getBitSet(memWriterIdx);
 					BitSet test = new BitSet();
 					test.or(memWriters);
 					test.andNot(relWriters);
@@ -561,7 +561,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			}
 		}
 		if (changed){
-			relWriterIdx = multiTileDictionary.translate(relWriters);
+			relWriterIdx = areaDictionary.translate(relWriters);
 			rel.setMultiTileWriterIndex(relWriterIdx);
 		}
 	}
@@ -583,7 +583,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			System.out.println("  " + neededNodes.getClass().getSimpleName() + " neededNodes contains now " + Utils.format(neededNodes.cardinality())+ " Ids.");
 		if (relMap != null)
 			System.out.println("  Number of stored relations: " + Utils.format(relMap.size()));
-		System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(multiTileDictionary.size()));
+		System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(areaDictionary.size()));
 		if (phase == PHASE4_WAYS_ONLY)
 			dataStorer.stats("  ");
 		System.out.println("Status: " + msg);
@@ -628,11 +628,11 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			if (parentWriterIdx == childWriterIdx)
 				return;
 			// we have to merge (without changing the stored BitSets!)
-			BitSet childWriters = multiTileDictionary.getBitSet(childWriterIdx);
+			BitSet childWriters = areaDictionary.getBitSet(childWriterIdx);
 			BitSet mergedWriters = new BitSet(); 
 			mergedWriters.or(childWriters);
 			mergedWriters.or(parentWriters);
-			childWriterIdx = multiTileDictionary.translate(mergedWriters);
+			childWriterIdx = areaDictionary.translate(mergedWriters);
 		}
 		else
 			childWriterIdx = parentWriterIdx;
@@ -654,7 +654,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 
 		boolean foundWriter = false;
 		for (int i = 0; i < writerCandidates.l.size(); i++) {
-			int n = writerCandidates.l.getShort(i);
+			int n = writerCandidates.l.getInt(i);
 			Area extbbox = dataStorer.getExtendedArea(n);
 			boolean found = (writerCandidates.testNeeded) ? extbbox.contains(mapLat, mapLon) : true;
 			foundWriter |= found;

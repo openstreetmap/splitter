@@ -16,7 +16,7 @@ package uk.me.parabola.splitter;
 import java.util.concurrent.BlockingQueue;
 
 public abstract class AbstractMapProcessor implements MapProcessor {
-	public static final short UNASSIGNED = Short.MIN_VALUE;
+	public static final int UNASSIGNED = Short.MIN_VALUE;
 
 	public boolean skipTags(){
 		return false;

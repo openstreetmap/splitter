@@ -40,8 +40,7 @@ public class DataStorer {
 
 	private final Long2IntClosedMapFunction[] maps = new Long2IntClosedMapFunction[3];
 
-	private final AreaDictionaryShort areaDictionary;
-	private final AreaDictionaryInt multiTileDictionary;
+	private final AreaDictionary areaDictionary;
 	private final AreaIndex areaIndex;
 	private SparseLong2IntMap usedWays = null;
 	private final OSMId2ObjectMap<Integer> usedRels = new OSMId2ObjectMap<>();
@@ -63,8 +62,7 @@ public class DataStorer {
 	 */
 	DataStorer(List<Area> areas, int overlapAmount) {
 		this.numOfAreas = areas.size();
-		this.areaDictionary = new AreaDictionaryShort(areas, overlapAmount);
-		this.multiTileDictionary = new AreaDictionaryInt(numOfAreas);
+		this.areaDictionary = new AreaDictionary(areas, overlapAmount);
 		this.areaIndex = new AreaGrid(areaDictionary);
 		return;
 	}
@@ -73,7 +71,7 @@ public class DataStorer {
 		return numOfAreas;
 	}
 
-	public AreaDictionaryShort getAreaDictionary() {
+	public AreaDictionary getAreaDictionary() {
 		return areaDictionary;
 	}
 
@@ -99,10 +97,6 @@ public class DataStorer {
 
 	public AreaIndex getGrid() {
 		return areaIndex;
-	}
-
-	public AreaDictionaryInt getMultiTileDictionary() {
-		return multiTileDictionary;
 	}
 
 	public SparseLong2IntMap getUsedWays() {
@@ -173,7 +167,7 @@ public class DataStorer {
 	}
 
 	public void storeRelationAreas(long id, BitSet areaSet) {
-		oneDistinctAreaOnlyRels.put(id, multiTileDictionary.translate(areaSet));
+		oneDistinctAreaOnlyRels.put(id, areaDictionary.translate(areaSet));
 	}
 
 	public Integer getOneTileOnlyRels(long id) {
@@ -199,19 +193,19 @@ public class DataStorer {
 						w.set(i);
 					}
 				}
-				map.put(distinctArea, this.multiTileDictionary.translate(w));
+				map.put(distinctArea, this.areaDictionary.translate(w));
 			}
 		}
 
 		for (Entry<Long, Integer> e : distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-			BitSet singleArea =  distinctDataStorer.getMultiTileDictionary().getBitSet(e.getValue());
+			BitSet singleArea =  distinctDataStorer.getAreaDictionary().getBitSet(e.getValue());
 			assert singleArea.cardinality() == 1;
 			int pos = singleArea.nextSetBit(0);
 			if (!distinctAreas.get(pos).isPseudoArea()) {
 				Integer areaIdx = map.get(distinctAreas.get(pos));
 				oneTileOnlyRels.put(e.getKey(), areaIdx != null ? areaIdx : e.getValue());
 			} else {
-				oneTileOnlyRels.put(e.getKey(), (int) AbstractMapProcessor.UNASSIGNED);
+				oneTileOnlyRels.put(e.getKey(), AbstractMapProcessor.UNASSIGNED);
 			}
 
 		}

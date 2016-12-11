@@ -16,8 +16,6 @@ import uk.me.parabola.splitter.Relation.Member;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
 import uk.me.parabola.splitter.tools.SparseLong2IntMap;
-import uk.me.parabola.splitter.tools.SparseLong2ShortMapFunction;
-import uk.me.parabola.splitter.tools.SparseLong2ShortMap;
 import uk.me.parabola.splitter.writer.OSMWriter;
 
 import java.io.IOException;
@@ -33,20 +31,19 @@ import java.util.concurrent.BlockingQueue;
 class SplitProcessor extends AbstractMapProcessor {
 	private final OSMWriter[] writers;
 
-	private SparseLong2ShortMapFunction coords;
+	private SparseLong2IntMap coords;
 	private SparseLong2IntMap ways; 	
-	private final AreaDictionaryShort writerDictionary;
-	private final AreaDictionaryInt multiTileDictionary;
+	private final AreaDictionary writerDictionary;
 	private final DataStorer dataStorer;
 	private final Long2IntClosedMapFunction nodeWriterMap;
 	private final Long2IntClosedMapFunction wayWriterMap;
 	private final Long2IntClosedMapFunction relWriterMap;
 
 	//	for statistics
-	private long countQuickTest = 0;
-	private long countFullTest = 0;
-	private long countCoords = 0;
-	private long countWays = 0;
+	private long countQuickTest;
+	private long countFullTest;
+	private long countCoords;
+	private long countWays;
 	private final int writerOffset;
 	private final int lastWriter;
 	private final AreaIndex writerIndex;
@@ -69,9 +66,8 @@ class SplitProcessor extends AbstractMapProcessor {
 	SplitProcessor(DataStorer dataStorer, int writerOffset, int numWritersThisPass, SplitterParams mainOptions){
 		this.dataStorer = dataStorer;
 		this.writerDictionary = dataStorer.getAreaDictionary();
-		this.multiTileDictionary = dataStorer.getMultiTileDictionary();
 		this.writers = dataStorer.getWriters();
-		this.coords = new SparseLong2ShortMap("coord");
+		this.coords = new SparseLong2IntMap("coord");
 		this.ways   = new SparseLong2IntMap("way");
 		this.coords.defaultReturnValue(UNASSIGNED);
 		this.ways.defaultReturnValue(UNASSIGNED); 		
@@ -108,7 +104,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	 */
 	private void setUsedWriters(int multiTileWriterIdx) {
 		if (multiTileWriterIdx != UNASSIGNED) {
-			BitSet cl = multiTileDictionary.getBitSet(multiTileWriterIdx);
+			BitSet cl = writerDictionary.getBitSet(multiTileWriterIdx);
 			// set only active writer bits
 			for (int i = cl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = cl.nextSetBit(i + 1)) {
 				usedWriters.set(i);
@@ -134,10 +130,10 @@ class SplitProcessor extends AbstractMapProcessor {
 			setUsedWriters(multiTileWriterIdx);
 		}
 		else{
-			short oldclIndex = UNASSIGNED;
+			int oldclIndex = UNASSIGNED;
 			for (long id : w.getRefs()) {
 				// Get the list of areas that the way is in. 
-				short clIdx = coords.get(id);
+				int clIdx = coords.get(id);
 				if (clIdx != UNASSIGNED){
 					if (oldclIndex != clIdx){ 
 						BitSet cl = writerDictionary.getBitSet(clIdx);
@@ -154,11 +150,10 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		if (!usedWriters.isEmpty()){
 			// store these areas in ways map
-			ways.put(w.getId(), multiTileDictionary.translate(usedWriters));
+			ways.put(w.getId(), writerDictionary.translate(usedWriters));
 			++countWays;
 			if (countWays % 1000000 == 0){
-				System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(multiTileDictionary.size()));
-				ways.stats(0);
+				System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(writerDictionary.size()));
 			}
 			try {
 				writeWay(w);
@@ -185,13 +180,13 @@ class SplitProcessor extends AbstractMapProcessor {
 			if (multiTileWriterIdx != UNASSIGNED) {
 				setUsedWriters(multiTileWriterIdx);
 			} else{
-				short oldclIndex = UNASSIGNED;
+				int oldclIndex = UNASSIGNED;
 				int oldwlIndex = UNASSIGNED;
 				for (Member mem : rel.getMembers()) {
 					// String role = mem.getRole();
 					long id = mem.getRef();
 					if (mem.getType().equals("node")) {
-						short clIdx = coords.get(id);
+						int clIdx = coords.get(id);
 
 						if (clIdx != UNASSIGNED){
 							if (oldclIndex != clIdx){ 
@@ -205,7 +200,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 						if (wlIdx != UNASSIGNED){
 							if (oldwlIndex != wlIdx){ 
-								BitSet wl = multiTileDictionary.getBitSet(wlIdx);
+								BitSet wl = writerDictionary.getBitSet(wlIdx);
 								usedWriters.or(wl);
 							}
 							oldwlIndex = wlIdx;
@@ -275,7 +270,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			usedWriters.clear();
 		if (writerCandidates != null){
 			for (int i = 0; i < writerCandidates.l.size(); i++) {
-				int n = writerCandidates.l.getShort(i);
+				int n = writerCandidates.l.getInt(i);
 				if (n < writerOffset || n > lastWriter)
 					continue;
 				OSMWriter writer = writers[n];
@@ -302,7 +297,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		if (isSpecialNode){
 			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
-			BitSet nodeWriters = multiTileDictionary.getBitSet(multiTileWriterIdx);
+			BitSet nodeWriters = writerDictionary.getBitSet(multiTileWriterIdx);
 			for(int i=nodeWriters.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=nodeWriters.nextSetBit(i+1)){
 				if (usedWriters.get(i) )
 					continue;
@@ -315,15 +310,15 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		
 		if (countWriters > 0){
-			short writersID;
+			int writersID;
 			if (countWriters > 1)
 				writersID = writerDictionary.translate(usedWriters);
 			else  
-				writersID = AreaDictionaryShort.translate(lastUsedWriter); // no need to do lookup in the dictionary
+				writersID = AreaDictionary.translate(lastUsedWriter); // no need to do lookup in the dictionary
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
 			if (countCoords % 10000000 == 0){
-				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size() + " of " + ((1<<16) - 1));
+				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size());
 			}
 		}
 	}
