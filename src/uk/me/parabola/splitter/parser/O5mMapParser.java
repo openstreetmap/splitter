@@ -9,13 +9,13 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- */
-
+ */ 
 package uk.me.parabola.splitter.parser;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import uk.me.parabola.splitter.Area;
@@ -23,7 +23,6 @@ import uk.me.parabola.splitter.Element;
 import uk.me.parabola.splitter.MapProcessor;
 import uk.me.parabola.splitter.Node;
 import uk.me.parabola.splitter.Relation;
-import uk.me.parabola.splitter.SplitFailedException;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;
 
@@ -51,74 +50,70 @@ public class O5mMapParser {
 	private static final int STRING_TABLE_SIZE = 15000;
 	private static final int MAX_STRING_PAIR_SIZE = 250 + 2;
 	private static final String[] REL_REF_TYPES = {"node", "way", "relation", "?"};
-	private static final double FACTOR = 1d / 1000000000; // used with 100*<Val>*FACTOR 
+	private static final double FACTOR = 1d/1000000000; // used with 100*<Val>*FACTOR 
 	
 	// for status messages
 	private final ElementCounter elemCounter = new ElementCounter();
 	// flags set by the processor to signal what information is not needed
-	private final boolean skipTags;
-	private final boolean skipNodes;
-	private final boolean skipWays;
-	private final boolean skipRels;
+	private boolean skipTags;
+	private boolean skipNodes;
+	private boolean skipWays;
+	private boolean skipRels;
 
-	private final FileChannel fileChannel;
-	private MappedByteBuffer fileBuffer;
-	private long fileSize;
-	private long filePos;
-	private long lastGCPos;
-	private static final int RESERVE = 16 * 1024;
-	private static final long WINDOW_SIZE = 1024 * 1024 * 1024;
-	private static final long GC_WINDOW = 1024 * 1024 * 64;
-	
-	private final MapProcessor processor;
+	private final BufferedInputStream fis;
+	private InputStream is;
+	private MapProcessor processor;
 	
 	// buffer for byte -> String conversions
-	private final byte[] cnvBuffer; 
+	private byte[] cnvBuffer; 
 	
+	private byte[] ioBuf;
+	private int ioPos;
 	// the o5m string table
 	private String[][] stringTable;
-	private final String[] stringPair;
+	private String[] stringPair;
 	private int currStringTablePos;
-	// a counter that must be maintained by all routines that read data
+	// a counter that must be maintained by all routines that read data from the stream
 	private int bytesToRead;
-	// total number of bytes read from file
-	private long countBytes;
+	// total number of bytes read from stream
+	long countBytes;
 
 	// performance: save byte position of first occurrence of a data set type (node, way, relation)
 	// to allow skipping large parts of the stream
-	private long[] firstPosInFile;
-	private long[] skipArray;
+	long[] firstPosInFile;
+	long[] skipArray;
 	
 	// for delta calculations
 	private long lastNodeId;
 	private long lastWayId;
 	private long lastRelId;
-	private long[] lastRef;
+	private long lastRef[];
 	private long lastTs;
 	private long lastChangeSet;
-	private int lastLon, lastLat;
+	private int lastLon,lastLat;
 	
 	/**
-	 * A parser for the o5m format.
+	 * A parser for the o5m format
 	 * @param processor A mapProcessor instance
-	 * @param fc the file channel for the input file 
+	 * @param stream The InputStream that contains the OSM data in o5m format 
 	 * @param skipArray An Array of longs that is used to hold information of file position of the first occurrence of 
 	 * each known 05m data type (esp. nodes, ways, and relations). 
-	 * @throws IOException 
 	 */
-	public O5mMapParser(MapProcessor processor, FileChannel fc, long[] skipArray) throws IOException{
-		this.fileChannel = fc;
-		fileSize = fileChannel.size();
+	public O5mMapParser(MapProcessor processor, InputStream stream, long[] skipArray) {
 		this.processor = processor;
+		this.fis = new BufferedInputStream(stream, 4*1024*1024);
+		is = fis;
 		this.skipArray = skipArray;
 		this.skipTags = processor.skipTags();
 		this.skipNodes = processor.skipNodes();
 		this.skipWays = processor.skipWays();
 		this.skipRels = processor.skipRels();
 		this.cnvBuffer = new byte[4000]; // OSM data should not contain string pairs with length > 512
+		this.ioBuf = new byte[8192];
+		this.ioPos = 0;
 		this.stringPair = new String[2];
 		this.lastRef = new long[3];
-		if (skipArray == null) {
+		if (skipArray == null){
 			firstPosInFile = new long[256];
 			Arrays.fill(firstPosInFile, -1);
 		}
@@ -126,106 +121,69 @@ public class O5mMapParser {
 	}
 
 	/**
-	 *  
-	 * 
-	 * @param pos the requested position
+	 * parse the input stream
 	 * @throws IOException 
 	 */
-	private void updateBuffer(long pos) throws IOException {
-		if (pos < 0 || pos > fileSize)
-			throw new SplitFailedException("internal error: file buffer calculation failed");
-		filePos = Math.min(pos, fileSize);
-		
-		fileBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, Math.min(pos, fileSize),
-				Math.min(fileSize - pos, WINDOW_SIZE));
-		if (filePos >= lastGCPos + GC_WINDOW) {
-			// previous fileBuffer keeps memory resources until it is garbage collected
-//			System.out.println("forcing gc at file position " + Utils.format(filePos));
-			System.gc();
-			lastGCPos = filePos;
-		}
-	}
-	
-	/**
-	 * Check if the file buffer has the requested bytes available.
-	 * If not, try to update the buffer.
-	 * @param size
-	 * @throws IOException
-	 */
-	private void checkAvailable(long size) throws IOException {
-		if (fileBuffer == null) {
-			updateBuffer(0);
-		} else {
-			if (fileBuffer.remaining() < size && filePos + fileBuffer.limit() < fileSize)
-				updateBuffer(filePos + fileBuffer.position());
-		}
-	}
-	
-	/**
-	 * parse the input stream.
-	 * @throws IOException 
-	 */
-	public void parse() throws IOException {
-		checkAvailable(RESERVE);
-		int start = fileBuffer.get() & 0xff;
+	public void parse() throws IOException{
+		int start = is.read();
 		++countBytes;
 		if (start != RESET_FLAG) 
 			throw new IOException("wrong header byte " + start);
-		if (skipArray != null) {
-			if (skipNodes) {
+		if (skipArray != null){
+			if (skipNodes ){
 				if (skipWays)
-					skip(skipArray[REL_DATASET] - countBytes); // jump to first relation
+					skip(skipArray[REL_DATASET]-countBytes); // jump to first relation
 				else
-					skip(skipArray[WAY_DATASET] - countBytes); // jump to first way
+					skip(skipArray[WAY_DATASET]-countBytes); // jump to first way
 			}
 		}
 		readFile();
-		if (fileBuffer.capacity() > GC_WINDOW) {
-//			System.out.println("forcing final gc at position " + Utils.format(filePos + fileBuffer.position()));
-			fileBuffer = null;
-			System.gc();
-		}
 	}
 	
-	/**
-	 * Read the file following the initial byte.
-	 * @throws IOException
-	 */
-	private void readFile() throws IOException {
+	private void readFile() throws IOException{
 		boolean done = false;
-		while (!done) {
+		while(!done){
+			is = fis;
 			long size = 0;
-			checkAvailable(RESERVE);
-			int fileType = fileBuffer.get() & 0xff;
+			int fileType = is.read();
 			++countBytes;
-			if (fileType >= 0 && fileType < 0xf0) {
-				if (skipArray == null) {
+			if (fileType >= 0 && fileType < 0xf0){
+				if (skipArray == null){
 					// save first occurrence of a data set type
-					if (firstPosInFile[fileType] == -1) {
-						firstPosInFile[fileType] = Math.max(0, countBytes - 1);
+					if (firstPosInFile[fileType] == -1){
+						firstPosInFile[fileType] = Math.max(0, countBytes-1);    
 					}
 				}
 				bytesToRead = 0;
-				size = readUnsignedNum64();
+				size = readUnsignedNum64FromStream();
 				countBytes += size - bytesToRead; // bytesToRead is negative 
-				bytesToRead = (int) size;
+				bytesToRead = (int)size;
 				
 				boolean doSkip = false;
 				if (fileType == NODE_DATASET && skipNodes) doSkip = true;
 				else if (fileType == WAY_DATASET && skipWays) doSkip = true;
 				else if (fileType == REL_DATASET && skipRels) doSkip = true;
-				switch(fileType) {
+				switch(fileType){
 				case NODE_DATASET: 
 				case WAY_DATASET: 
 				case REL_DATASET: 
 				case BBOX_DATASET:
 				case TIMESTAMP_DATASET:
 				case HEADER_DATASET:
-					if (doSkip) { 
+					if (doSkip){ 
 						skip(bytesToRead);
 						continue;
 					}
-					checkAvailable(bytesToRead);
+					if (bytesToRead > ioBuf.length){
+						ioBuf = new byte[bytesToRead+100];
+					}
+					int bytesRead  = 0;
+					int neededBytes = bytesToRead;
+					while (neededBytes > 0){
+						bytesRead += is.read(ioBuf, bytesRead, neededBytes);
+						neededBytes -= bytesRead;
+					} 
+					ioPos = 0;
 					break;					
 				default:	
 				}
@@ -240,44 +198,40 @@ public class O5mMapParser {
 			else if (fileType == EOD_FLAG) done = true;
 			else if (fileType == RESET_FLAG) reset();
 			else {
-				if (fileType < 0xf0)
-					skip(size); // skip unknown data set
+				if (fileType < 0xf0 )skip(size); // skip unknown data set 
 			}
 		}
 	}
 	
 	/**
-	 * read (and ignore) the file timestamp data set.
+	 * read (and ignore) the file timestamp data set
 	 */
-	private void readFileTimestamp() {
+	private void readFileTimestamp(){
 		/*long fileTimeStamp = */readSignedNum64();
 	}
 	
 	/**
-	 * Skip the given number of bytes.
+	 * Skip the given number of bytes
 	 * @param bytes 
 	 * @throws IOException
 	 */
-	private void skip(long bytes) throws IOException {
+	private void skip(long bytes)throws IOException{
 		long toSkip = bytes;
-		if (fileBuffer.remaining() + RESERVE < toSkip) {
-			updateBuffer(filePos + fileBuffer.position() + toSkip);
-		} else {
-			fileBuffer.position(fileBuffer.position() + (int) toSkip);
-		}
+		while (toSkip > 0)
+			toSkip -= is.skip(toSkip);
 	}
 	
 	/**
-	 * read the bounding box data set.
+	 * read the bounding box data set
 	 * @throws IOException
 	 */
 	private void readBBox() {
-		double leftf = 100L * readSignedNum32() * FACTOR;
-		double bottomf = 100L * readSignedNum32() * FACTOR;
-		double rightf = 100L * readSignedNum32() * FACTOR;
-		double topf = 100L * readSignedNum32() * FACTOR;
+		double leftf = 100L*readSignedNum32() * FACTOR;
+		double bottomf = 100L*readSignedNum32() * FACTOR;
+		double rightf = 100L*readSignedNum32() * FACTOR;
+		double topf = 100L*readSignedNum32() * FACTOR;
 		assert bytesToRead == 0;
-		System.out.println("Bounding box " + leftf + " " + bottomf + " " + rightf + " " + topf);
+		System.out.println("Bounding box "+leftf+" "+bottomf+" "+rightf+" "+topf);
 
 		Area area = new Area(
 				Utils.toMapUnit(bottomf),
@@ -291,7 +245,7 @@ public class O5mMapParser {
 	}
 
 	/**
-	 * read a node data set.
+	 * read a node data set 
 	 * @throws IOException
 	 */
 	private void readNode() throws IOException{
@@ -306,10 +260,10 @@ public class O5mMapParser {
 		int lon = readSignedNum32() + lastLon; lastLon = lon;
 		int lat = readSignedNum32() + lastLat; lastLat = lat;
 			
-		double flon = 100L * lon * FACTOR;
-		double flat = 100L * lat * FACTOR;
-		assert flat >= -90.0 && flat <= 90.0;
-		assert flon >= -180.0 && flon <= 180.0;
+		double flon = 100L*lon * FACTOR;
+		double flat = 100L*lat * FACTOR;
+		assert flat >= -90.0 && flat <= 90.0;  
+		assert flon >= -180.0 && flon <= 180.0;  
 
 		node.set(lastNodeId, flat, flon);
 		readTags(node);
@@ -318,7 +272,7 @@ public class O5mMapParser {
 	}
 	
 	/**
-	 * read a way data set.
+	 * read a way data set
 	 * @throws IOException
 	 */
 	private void readWay() throws IOException{
@@ -335,7 +289,7 @@ public class O5mMapParser {
 		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
 		
-		while (bytesToRead > stop) {
+		while(bytesToRead > stop){
 			lastRef[0] += readSignedNum64();
 			way.addRef(lastRef[0]);
 		}
@@ -347,7 +301,7 @@ public class O5mMapParser {
 	}
 	
 	/**
-	 * read a relation data set.
+	 * read a relation data set
 	 * @throws IOException
 	 */
 	private void readRel() throws IOException{
@@ -363,7 +317,7 @@ public class O5mMapParser {
 		rel.setVersion(version);
 		long refSize = readUnsignedNum32();
 		long stop = bytesToRead - refSize;
-		while (bytesToRead > stop) {
+		while(bytesToRead > stop){
 			long deltaRef = readSignedNum64();
 			int refType = readRelRef();
 			lastRef[refType] += deltaRef;
@@ -377,19 +331,19 @@ public class O5mMapParser {
 	}
 	
 	private void readTags(Element elem) throws IOException{
-		while (bytesToRead > 0) {
+		while (bytesToRead > 0){
 			readStringPair();
-			if (!skipTags) {
-				elem.addTag(stringPair[0], stringPair[1]);
+			if (skipTags == false){
+				elem.addTag(stringPair[0],stringPair[1]);
 			}
 		}
 		assert bytesToRead == 0;
 		
 	}
 	/**
-	 * Store a new string pair (length check must be performed by caller).
+	 * Store a new string pair (length check must be performed by caller)
 	 */
-	private void storeStringPair() {
+	private void storeStringPair(){
 		stringTable[0][currStringTablePos] = stringPair[0];
 		stringTable[1][currStringTablePos] = stringPair[1];
 		++currStringTablePos;
@@ -415,15 +369,16 @@ public class O5mMapParser {
 
 	/**
 	 * Read version, time stamp and change set and author.  
-	 * @return the version
+	 * We are not interested in the values, but we have to maintain the string table.
 	 * @throws IOException
 	 */
+	
 	private int readVersionTsAuthor() throws IOException {
 		int version = readUnsignedNum32(); 
-		if (version != 0) {
+		if (version != 0){
 			// version info
 			long ts = readSignedNum64() + lastTs; lastTs = ts;
-			if (ts != 0) {
+			if (ts != 0){
 				long changeSet = readSignedNum32() + lastChangeSet; lastChangeSet = changeSet;
 				readAuthor();
 			}
@@ -436,47 +391,47 @@ public class O5mMapParser {
 	 */
 	private void readAuthor() throws IOException{
 		int stringRef = readUnsignedNum32();
-		if (stringRef == 0) {
+		if (stringRef == 0){
 			long toReadStart = bytesToRead;
 			long uidNum = readUnsignedNum64();
 			if (uidNum == 0)
 				stringPair[0] = "";
-			else {
+			else{
 				stringPair[0] = Long.toString(uidNum);
-				fileBuffer.get(); // skip terminating zero from uid
+				ioPos++; // skip terminating zero from uid
 				--bytesToRead;
 			}
 			int start = 0;
 			int buffPos = 0; 
 			stringPair[1] = null;
-			while (stringPair[1] == null) {
-				final int b = fileBuffer.get();
+			while(stringPair[1] == null){
+				final int b = ioBuf[ioPos++];
 				--bytesToRead;
 				cnvBuffer[buffPos++] = (byte) b;
 
 				if (b == 0)
-					stringPair[1] = new String(cnvBuffer, start, buffPos - 1, "UTF-8");
+					stringPair[1] = new String(cnvBuffer, start, buffPos-1, "UTF-8");
 			}
 			long bytes = toReadStart - bytesToRead;
 			if (bytes <= MAX_STRING_PAIR_SIZE)
 				storeStringPair();
-		} else { 
-			setStringRefPair(stringRef);
 		}
+		else 
+			setStringRefPair(stringRef);
 		
 		//System.out.println(pair[0]+ "/" + pair[1]);
 	}
 	
 	/**
-	 * read object type ("0".."2") concatenated with role (single string).
+	 * read object type ("0".."2") concatenated with role (single string) 
 	 * @return 0..3 for type (3 means unknown)
 	 */
-	private int readRelRef() throws IOException {
+	private int readRelRef () throws IOException{
 		int refType = -1;
 		long toReadStart = bytesToRead;
 		int stringRef = readUnsignedNum32();
-		if (stringRef == 0) {
-			refType = fileBuffer.get() - '0';
+		if (stringRef == 0){
+			refType = ioBuf[ioPos++] - '0';
 			--bytesToRead;
 
 			if (refType < 0 || refType > 2)
@@ -486,21 +441,22 @@ public class O5mMapParser {
 			int start = 0;
 			int buffPos = 0; 
 			stringPair[1] = null;
-			while (stringPair[1] == null) {
-				final int b = fileBuffer.get();
+			while(stringPair[1] == null){
+				final int b = ioBuf[ioPos++];
 				--bytesToRead;
-				cnvBuffer[buffPos++] = (byte) b;
+				cnvBuffer[buffPos++] =  (byte)b;
 
 				if (b == 0)
-					stringPair[1] = new String(cnvBuffer, start, buffPos - 1, "UTF-8");
+					stringPair[1] = new String(cnvBuffer, start, buffPos-1, "UTF-8");
 			}
 			long bytes = toReadStart - bytesToRead;
 			if (bytes <= MAX_STRING_PAIR_SIZE)
 				storeStringPair();
-		} else {
+		}
+		else {
 			setStringRefPair(stringRef);
 			char c = stringPair[0].charAt(0);
-			switch (c) {
+			switch (c){
 			case 'n': refType = 0; break;
 			case 'w': refType = 1; break;
 			case 'r': refType = 2; break;
@@ -511,23 +467,23 @@ public class O5mMapParser {
 	}
 	
 	/**
-	 * read a string pair (see o5m definition).
+	 * read a string pair (see o5m definition)
 	 * @throws IOException
 	 */
 	private void readStringPair() throws IOException{
 		int stringRef = readUnsignedNum32();
-		if (stringRef == 0) {
+		if (stringRef == 0){
 			long toReadStart = bytesToRead;
 			int cnt = 0;
 			int buffPos = 0; 
 			int start = 0;
-			while (cnt < 2) {
-				final int b = fileBuffer.get();
+			while (cnt < 2){
+				final int b = ioBuf[ioPos++];
 				--bytesToRead;
-				cnvBuffer[buffPos++] = (byte) b;
+				cnvBuffer[buffPos++] =  (byte)b;
 
-				if (b == 0) {
-					stringPair[cnt] = new String(cnvBuffer, start, buffPos - start - 1, "UTF-8");
+				if (b == 0){
+					stringPair[cnt] = new String(cnvBuffer, start, buffPos-start-1, "UTF-8");
 					++cnt;
 					start = buffPos;
 				}
@@ -535,12 +491,12 @@ public class O5mMapParser {
 			long bytes = toReadStart - bytesToRead;
 			if (bytes <= MAX_STRING_PAIR_SIZE)
 				storeStringPair();
-		} else { 
-			setStringRefPair(stringRef);
 		}
+		else 
+			setStringRefPair(stringRef);
 	}
 	
-	/** reset the delta values and string table. */
+	/** reset the delta values and string table */
 	private void reset() {
 		lastNodeId = 0;
 		lastWayId = 0;
@@ -557,25 +513,23 @@ public class O5mMapParser {
 	}
 
 	/**
-	 * read and verify o5m header (known values are o5m2 and o5c2).
+	 * read and verify o5m header (known values are o5m2 and o5c2)
 	 * @throws IOException
 	 */
 	private void readHeader() throws IOException {
-		byte[] ioBuf = new byte[4];
-		fileBuffer.get(ioBuf);
 		if (ioBuf[0] != 'o' || ioBuf[1] != '5' || (ioBuf[2] != 'c' && ioBuf[2] != 'm') || ioBuf[3] != '2') {
 			throw new IOException("unsupported header");
 		}
 	}
-
+	
 	/**
-	 * read a varying length signed number (see o5m definition).
+	 * read a varying length signed number (see o5m definition)
 	 * @return the number
 	 * @throws IOException
 	 */
 	private int readSignedNum32() {
 		int result;
-		int b = fileBuffer.get();
+		int b = ioBuf[ioPos++];
 		--bytesToRead;
 		result = b;
 		if ((b & 0x80) == 0) { // just one byte
@@ -586,7 +540,7 @@ public class O5mMapParser {
 		int sign = b & 0x01;
 		result = (result & 0x7e) >> 1;
 		int fac = 0x40;
-		while (((b = fileBuffer.get()) & 0x80) != 0) { // more bytes will follow
+		while (((b = ioBuf[ioPos++]) & 0x80) != 0) { // more bytes will follow
 			--bytesToRead;
 			result += fac * (b & 0x7f);
 			fac <<= 7;
@@ -600,13 +554,13 @@ public class O5mMapParser {
 	}
 
 	/**
-	 * read a varying length signed number (see o5m definition).
+	 * read a varying length signed number (see o5m definition)
 	 * @return the number
 	 * @throws IOException
 	 */
 	private long readSignedNum64() {
 		long result;
-		int b = fileBuffer.get();
+		int b = ioBuf[ioPos++];
 		--bytesToRead;
 		result = b;
 		if ((b & 0x80) == 0) { // just one byte
@@ -617,7 +571,7 @@ public class O5mMapParser {
 		int sign = b & 0x01;
 		result = (result & 0x7e) >> 1;
 		long fac = 0x40;
-		while (((b = fileBuffer.get()) & 0x80) != 0) { // more bytes will follow
+		while (((b = ioBuf[ioPos++]) & 0x80) != 0) { // more bytes will follow
 			--bytesToRead;
 			result += fac * (b & 0x7f);
 			fac <<= 7;
@@ -629,14 +583,14 @@ public class O5mMapParser {
 		return result;
 
 	}
-	
+
 	/**
-	 * read a varying length unsigned number (see o5m definition).
+	 * read a varying length unsigned number (see o5m definition)
 	 * @return a long
 	 * @throws IOException
 	 */
-	private long readUnsignedNum64() {
-		int b = fileBuffer.get();
+	private long readUnsignedNum64FromStream() throws IOException {
+		int b = is.read();
 		--bytesToRead;
 		long result = b;
 		if ((b & 0x80) == 0) { // just one byte
@@ -644,7 +598,31 @@ public class O5mMapParser {
 		}
 		result &= 0x7f;
 		long fac = 0x80;
-		while (((b = fileBuffer.get()) & 0x80) != 0) { // more bytes will follow
+		while (((b = is.read()) & 0x80) != 0) { // more bytes will follow
+			--bytesToRead;
+			result += fac * (b & 0x7f);
+			fac <<= 7;
+		}
+		--bytesToRead;
+		result += fac * b;
+		return result;
+	}	
+	
+	/**
+	 * read a varying length unsigned number (see o5m definition)
+	 * @return a long
+	 * @throws IOException
+	 */
+	private long readUnsignedNum64() {
+		int b = ioBuf[ioPos++];
+		--bytesToRead;
+		long result = b;
+		if ((b & 0x80) == 0) { // just one byte
+			return result;
+		}
+		result &= 0x7f;
+		long fac = 0x80;
+		while (((b = ioBuf[ioPos++]) & 0x80) != 0) { // more bytes will follow
 			--bytesToRead;
 			result += fac * (b & 0x7f);
 			fac <<= 7;
@@ -661,7 +639,7 @@ public class O5mMapParser {
 	 * @throws IOException
 	 */
 	private int readUnsignedNum32() {
-		int b = fileBuffer.get();
+		int b = ioBuf[ioPos++];
 		--bytesToRead;
 		int result = b;
 		if ((b & 0x80) == 0) { // just one byte
@@ -669,7 +647,7 @@ public class O5mMapParser {
 		}
 		result &= 0x7f;
 		long fac = 0x80;
-		while (((b = fileBuffer.get()) & 0x80) != 0) { // more bytes will follow
+		while (((b = ioBuf[ioPos++]) & 0x80) != 0) { // more bytes will follow
 			--bytesToRead;
 			result += fac * (b & 0x7f);
 			fac <<= 7;
