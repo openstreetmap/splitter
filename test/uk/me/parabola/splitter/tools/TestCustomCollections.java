@@ -232,7 +232,7 @@ public class TestCustomCollections {
 		ref.clear();
 		map.clear();
 		for (int i = 0; i < 100_00; i++) {
-			long id = Math.round((1L << 33) * random.nextDouble());
+			long id = Math.round((1L << 29) * random.nextDouble());
 			int val = (-1 * (1 << 20) + (int) Math.round((1 << 20) * random.nextDouble()));
 			map.put(idOffset + id, val);
 			ref.put(idOffset + id, val);
