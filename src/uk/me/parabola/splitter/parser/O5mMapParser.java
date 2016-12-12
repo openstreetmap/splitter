@@ -23,6 +23,7 @@ import uk.me.parabola.splitter.Element;
 import uk.me.parabola.splitter.MapProcessor;
 import uk.me.parabola.splitter.Node;
 import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.SplitFailedException;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;
 
@@ -64,8 +65,10 @@ public class O5mMapParser {
 	private MappedByteBuffer fileBuffer;
 	private long fileSize;
 	private long filePos;
+	private long lastGCPos;
 	private static final int RESERVE = 16 * 1024;
-	private static final int WINDOW_SIZE = Integer.MAX_VALUE;
+	private static final long WINDOW_SIZE = 1024 * 1024 * 1024;
+	private static final long GC_WINDOW = 1024 * 1024 * 64;
 	
 	private final MapProcessor processor;
 	
@@ -129,9 +132,18 @@ public class O5mMapParser {
 	 * @throws IOException 
 	 */
 	private void updateBuffer(long pos) throws IOException {
+		if (pos < 0 || pos > fileSize)
+			throw new SplitFailedException("internal error: file buffer calculation failed");
+		filePos = Math.min(pos, fileSize);
+		
 		fileBuffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, Math.min(pos, fileSize),
 				Math.min(fileSize - pos, WINDOW_SIZE));
-		filePos = pos;
+		if (filePos >= lastGCPos + GC_WINDOW) {
+			// previous fileBuffer keeps memory resources until it is garbage collected
+//			System.out.println("forcing gc at file position " + Utils.format(filePos));
+			System.gc();
+			lastGCPos = filePos;
+		}
 	}
 	
 	/**
@@ -144,7 +156,7 @@ public class O5mMapParser {
 		if (fileBuffer == null) {
 			updateBuffer(0);
 		} else {
-			if (fileBuffer.remaining() < size)
+			if (fileBuffer.remaining() < size && filePos + fileBuffer.limit() < fileSize)
 				updateBuffer(filePos + fileBuffer.position());
 		}
 	}
@@ -168,6 +180,11 @@ public class O5mMapParser {
 			}
 		}
 		readFile();
+		if (fileBuffer.capacity() > GC_WINDOW) {
+//			System.out.println("forcing final gc at position " + Utils.format(filePos + fileBuffer.position()));
+			fileBuffer = null;
+			System.gc();
+		}
 	}
 	
 	/**
@@ -459,7 +476,7 @@ public class O5mMapParser {
 		long toReadStart = bytesToRead;
 		int stringRef = readUnsignedNum32();
 		if (stringRef == 0) {
-			refType = fileBuffer.get() - 0x30;
+			refType = fileBuffer.get() - '0';
 			--bytesToRead;
 
 			if (refType < 0 || refType > 2)
