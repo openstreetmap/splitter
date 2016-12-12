@@ -59,12 +59,13 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	private SparseBitSet problemRels = new SparseBitSet();
 	private SparseBitSet neededWays = new SparseBitSet();
 	private SparseBitSet neededNodes = new SparseBitSet();
-	private OSMId2ObjectMap<Rectangle> wayBboxMap;
+	private OSMId2ObjectMap<Rectangle> wayBboxMap = new OSMId2ObjectMap<>();
 	private SparseBitSet mpWays = new SparseBitSet();
-	private OSMId2ObjectMap<JoinedWay> mpWayEndNodesMap;
+	private OSMId2ObjectMap<JoinedWay> mpWayEndNodesMap = new OSMId2ObjectMap<>();
 	/** each bit represents one area/tile */
-	private final BitSet workWriterSet;
+	private final BitSet workWriterSet = new BitSet();
 	private long lastCoordId = Long.MIN_VALUE;
+	
 	private int foundWays;
 	private int neededNodesCount; 
 	private int neededWaysCount; 
@@ -82,7 +83,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			problemRels.set(id);
 		}
 		// we allocate this once to avoid massive resizing with large number of tiles
-		workWriterSet = new BitSet();
+		neededMpWaysCount = mpWays.cardinality();
+		if (problemRelList.isEmpty()) {
+			phase = PHASE2_WAYS_ONLY;
+		}
 		return;
 	}
 
@@ -107,7 +111,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 	}
 	@Override
 	public boolean skipRels() {
-		if (phase == PHASE1_RELS_ONLY)
+		if (phase == PHASE1_RELS_ONLY && problemRels.cardinality() > 0)
 			return false;
 		return true;
 	}
@@ -223,7 +227,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			// reallocate to the needed size
 			relMap = new Long2ObjectLinkedOpenHashMap<>(relMap);
 			
-			mpWayEndNodesMap = new OSMId2ObjectMap<>();
 			//System.out.println("Finished adding parents and members of problem relations to problem lists.");
 			System.out.println("Finished adding members of problem relations to problem lists.");
 			stats("starting to collect ids of needed way nodes ...");
@@ -237,7 +240,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			// critical part: we have to allocate possibly large arrays here
 			nodeWriterMap = new Long2IntClosedMap("node", neededNodesCount, UNASSIGNED);
 			wayWriterMap = new Long2IntClosedMap("way", foundWays, UNASSIGNED);
-			wayBboxMap = new OSMId2ObjectMap<>();
 			dataStorer.setWriterMap(DataStorer.NODE_TYPE, nodeWriterMap);
 			dataStorer.setWriterMap(DataStorer.WAY_TYPE, wayWriterMap);
 			nodeLons = new int[neededNodesCount];
@@ -565,7 +567,6 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			rel.setMultiTileWriterIndex(relWriterIdx);
 		}
 	}
-
 
 	/**
 	 * Report some numbers regarding memory usage 
