@@ -152,7 +152,7 @@ class SplitProcessor extends AbstractMapProcessor {
 			// store these areas in ways map
 			ways.put(w.getId(), writerDictionary.translate(usedWriters));
 			++countWays;
-			if (countWays % 1000000 == 0){
+			if (countWays % 10_000_000 == 0){
 				System.out.println("  Number of stored tile combinations in multiTileDictionary: " + Utils.format(writerDictionary.size()));
 			}
 			try {
@@ -317,7 +317,7 @@ class SplitProcessor extends AbstractMapProcessor {
 				writersID = AreaDictionary.translate(lastUsedWriter); // no need to do lookup in the dictionary
 			coords.put(currentNode.getId(), writersID);
 			++countCoords;
-			if (countCoords % 10000000 == 0){
+			if (countCoords % 100_000_000 == 0){
 				System.out.println("coord MAP occupancy: " + Utils.format(countCoords) + ", number of area dictionary entries: " + writerDictionary.size());
 			}
 		}
