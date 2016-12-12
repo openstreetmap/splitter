@@ -321,7 +321,7 @@ public class SparseLong2IntMap {
 			int bias2 = 0;
 			int bytesForRest = bytesToUse;
 			if (bytesToUse > 1) {
-				bytesForRest = calcNeededBytes(minVal2, maxVal2);
+				bytesForRest = Math.min(bytesToUse, calcNeededBytes(minVal2, maxVal2));
 				if (bytesForRest < bytesToUse) {
 					flag |= FLAG_COMP_METHOD_DELTA | (bytesForRest - 1) << 2; 
 					bias2 = maskedChunk[0];

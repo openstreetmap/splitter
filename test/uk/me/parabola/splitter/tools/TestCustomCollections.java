@@ -209,6 +209,18 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset + 1), 0);
 		Assert.assertEquals(map.get(idOffset + 65), -1);
 
+		// special pattern 2
+		map.clear();
+		Assert.assertEquals(map.put(idOffset + 1, -21538), Integer.MIN_VALUE);
+		Assert.assertEquals(map.put(idOffset + 65, -32519), Integer.MIN_VALUE);
+		Assert.assertEquals(map.put(idOffset + 66, 255), Integer.MIN_VALUE);
+		Assert.assertEquals(map.put(idOffset + 67, -32519), Integer.MIN_VALUE);
+		Assert.assertEquals(map.put(idOffset + 122, 0), Integer.MIN_VALUE);
+		Assert.assertEquals(map.get(idOffset + 1), -21538);
+		Assert.assertEquals(map.get(idOffset + 65), -32519);
+		Assert.assertEquals(map.get(idOffset + 66), 255);
+		Assert.assertEquals(map.get(idOffset + 67), -32519);
+
 		// larger values
 		for (int i = 100_000; i < 110_000; i++) {
 			map.put(idOffset + i, i);
