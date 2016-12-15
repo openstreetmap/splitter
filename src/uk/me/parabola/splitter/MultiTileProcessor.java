@@ -266,6 +266,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 			mergeRelMemWriters();
 			propagateWritersOfRelsToMembers();
 
+			mpWayEndNodesMap.clear();
 			wayBboxMap = null;
 			relWriterMap = new Long2IntClosedMap("rel", relMap.size(), UNASSIGNED);
 			

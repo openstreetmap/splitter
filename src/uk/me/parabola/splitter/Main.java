@@ -74,19 +74,6 @@ public class Main {
 	
 	private int start(String[] args) {
 //		uk.me.parabola.splitter.tools.TestCustomCollections.testSparseLong2IntMap();
-//		int v1 = Integer.MIN_VALUE + 12;
-//		int bias1 = Integer.MIN_VALUE + 16;
-//		int d1 = v1 - bias1;
-//		int v2 = d1 + bias1;
-//		
-//		SparseLong2IntMap map = new SparseLong2IntMap("test");
-//		for (int i = 0; i < (1 << 29); i++) {
-//			map.put(i, 1);
-//		}
-//		map.stats(1);
-//		map.trim();
-//		map.stats(1);
-//		map = null;
 		int rc = 0;
 		JVMHealthMonitor healthMonitor = null;
 

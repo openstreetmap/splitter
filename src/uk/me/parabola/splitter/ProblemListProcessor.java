@@ -193,9 +193,8 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				problemWays.add(way.getId());
 			}
 		}
-		if (maybeChanged && areaSet.isEmpty() == false){
-			wayAreaIdx = areaDictionary.translate(areaSet);
-			ways.put(way.getId(), wayAreaIdx);
+		if (maybeChanged && !areaSet.isEmpty()){
+			ways.put(way.getId(), areaDictionary.translate(areaSet));
 		}
 	}
 	
@@ -238,7 +237,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			if (useThis)
 				break;
 		}
-		if (isMPRelType && (isWantedBoundary || hasBoundaryTag == false))
+		if (isMPRelType && (isWantedBoundary || !hasBoundaryTag))
 			useThis = true;
 		else if (isMPRelType && hasBoundaryTag  && admin_level != null){
 			if (wantedBoundaryAdminLevels.contains(admin_level))

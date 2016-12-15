@@ -103,7 +103,7 @@ public class QueueProcessor extends AbstractMapProcessor {
 
 	/** number of OSM elements to collect before adding them to the queue */
 	private static final int NUM_STAGING = 1000;
-	List<Element> staging = new ArrayList<>(NUM_STAGING);
+	private List<Element> staging = new ArrayList<>(NUM_STAGING);
 
 	private void addToQueue(Element el) {
 		try {

@@ -153,7 +153,7 @@ public class AreaDictionary {
 	 * @return the BitSet
 	 */
 	public BitSet getBitSet(final int idx) {
-		return sets.get(idx + DICT_START);
+		return sets.get(DICT_START + idx);
 	}
 	
 	/**
