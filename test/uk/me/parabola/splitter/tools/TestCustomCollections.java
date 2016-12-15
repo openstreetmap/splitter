@@ -14,7 +14,10 @@
 package uk.me.parabola.splitter.tools;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -82,16 +85,71 @@ public class TestCustomCollections {
 		map.finish();
 	}
 
-	@Test
-	public static void testSparseLong2IntMap() {
-		testMap(new SparseLong2IntMap("test"), 0L);
-		testMap(new SparseLong2IntMap("test"), -10000L);
-		testMap(new SparseLong2IntMap("test"), 1L << 35);
-		testMap(new SparseLong2IntMap("test"), -1L << 35);
+	private static void testVals(SparseLong2IntMap map, long idOffset, List<Integer> vals) {
+		map.clear();
+		map.put(1, 0);
+		long key = 128;
+		for (int val : vals) {
+			map.put(idOffset + key++, val);
+		}
+		map.put(1, 0); // trigger saving of chunk
+		key = 128;
+		for (int val : vals) {
+			Assert.assertEquals(map.get(idOffset + key++), val);
+		}
+		map.clear();
 	}
 
-	private static void testMap(SparseLong2IntMap map, long idOffset) {
+	@Test
+	public static void testSparseLong2IntMap() {
+		ByteBuffer buf = ByteBuffer.allocate(4);
+		for (int i = 0; i < 32; i++) {
+			int val = 1 << i;
+			do {
+				for (int j = 1; j <= 4; j++) {
+					int bytesToUse = j;
+					if (bytesToUse == 1 && val >= Byte.MIN_VALUE && val <= Byte.MAX_VALUE
+							|| bytesToUse == 2 && val >= Short.MIN_VALUE && val <= Short.MAX_VALUE
+							|| bytesToUse == 3 && val >= -0x800000 && val <= 0x7fffff) {
+						buf.clear();
+						SparseLong2IntMap.putVal(buf, val, bytesToUse);
+						buf.flip();
+						Assert.assertEquals(val, SparseLong2IntMap.getVal(buf, bytesToUse));
+					}
+				}
+				val = ~val;
+			} while (val < 0);
+		}
+
+		testMap(0L);
+		testMap(-10000L);
+		testMap(1L << 35);
+		testMap(-1L << 35);
+	}
+
+	private static void testMap(long idOffset) {
+		SparseLong2IntMap map = new SparseLong2IntMap("test");
 		map.defaultReturnValue(Integer.MIN_VALUE);
+
+		// special patterns
+		testVals(map, idOffset, Arrays.asList(1)); // single value chunk with 1 byte value
+		testVals(map, idOffset, Arrays.asList(1000)); // single value chunk with 2 byte value
+		testVals(map, idOffset, Arrays.asList(33000)); // single value chunk with 3 byte value
+		testVals(map, idOffset, Arrays.asList(1<<25)); // single value chunk with 4 byte value
+		testVals(map, idOffset, Arrays.asList(856, 856, 844, 844, 646, 646, 646, 646, 646, 646));
+		testVals(map, idOffset, Arrays.asList(260*256, 31*256, 31*256, 24*256));
+		testVals(map, idOffset, Arrays.asList(260, 31, 31, 24));
+		testVals(map, idOffset, Arrays.asList(137, 110, 114, 128, 309, 114));
+		testVals(map, idOffset, Arrays.asList(254, 12, 12, 12, 12));
+		testVals(map, idOffset, Arrays.asList(254, 254, 12, 12));
+		testVals(map, idOffset, Arrays.asList(254, 12, 13));
+		testVals(map, idOffset, Arrays.asList(1000, 800, 700, 820));
+		testVals(map, idOffset, Arrays.asList(1000, 1000, 700));
+		testVals(map, idOffset, Arrays.asList(-32519, 255, -32519));
+		testVals(map, idOffset, Arrays.asList(-1, 1, 200, 1));
+		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, 1234));
+		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, Integer.MIN_VALUE + 1, 1234));
+		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, 1234, Integer.MIN_VALUE + 1));
 
 		for (int i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i);
@@ -128,8 +186,10 @@ public class TestCustomCollections {
 			Assert.assertEquals(map.size(), i);
 		}
 		// random read access 2 
+		Assert.assertEquals(map.get(idOffset + 1010), 333);
 		for (int i = 1; i < 1000; i++) {
 			int key = 1000 + (int) (Math.random() * 200);
+			
 			Assert.assertEquals(map.get(idOffset + key), 333);
 		}
 
@@ -211,16 +271,11 @@ public class TestCustomCollections {
 
 		// special pattern 2
 		map.clear();
-		Assert.assertEquals(map.put(idOffset + 1, -21538), Integer.MIN_VALUE);
-		Assert.assertEquals(map.put(idOffset + 65, -32519), Integer.MIN_VALUE);
-		Assert.assertEquals(map.put(idOffset + 66, 255), Integer.MIN_VALUE);
-		Assert.assertEquals(map.put(idOffset + 67, -32519), Integer.MIN_VALUE);
-		Assert.assertEquals(map.put(idOffset + 122, 0), Integer.MIN_VALUE);
-		Assert.assertEquals(map.get(idOffset + 1), -21538);
-		Assert.assertEquals(map.get(idOffset + 65), -32519);
-		Assert.assertEquals(map.get(idOffset + 66), 255);
-		Assert.assertEquals(map.get(idOffset + 67), -32519);
+		
+		
 
+		
+		map.clear();
 		// larger values
 		for (int i = 100_000; i < 110_000; i++) {
 			map.put(idOffset + i, i);
@@ -255,5 +310,5 @@ public class TestCustomCollections {
 			int val = map.get(id);
 			Assert.assertEquals(map.get(id), val);
 		});
-	}  
+	}
 }
