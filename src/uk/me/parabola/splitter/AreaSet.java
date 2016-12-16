@@ -26,6 +26,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
  *
  */
 public final class AreaSet implements Iterable<Integer> {
+	private static final int BIN_SEARCH_LIMIT = 10;
 	private final IntArrayList list;
 	private boolean locked;
 	
@@ -57,6 +58,7 @@ public final class AreaSet implements Iterable<Integer> {
 	 * Lock this set. A locked set cannot be changed.
 	 */
 	public void lock() {
+		this.list.trim();
 		this.locked = true;
 	}
 	
@@ -68,7 +70,7 @@ public final class AreaSet implements Iterable<Integer> {
      * @return the value of the bit with the specified index
      */
 	public boolean get(final int index) {
-		if (list.size() < 6) {
+		if (list.size() < BIN_SEARCH_LIMIT) {
 			return list.contains(index);
 		}
 		return Arrays.binarySearch(list.elements(), 0, list.size(), index) >= 0;
@@ -98,9 +100,14 @@ public final class AreaSet implements Iterable<Integer> {
 	public void clear(final int index) {
 		if (locked)
 			throw new IllegalAccessError("AreaSet is locked");
-		int p = Arrays.binarySearch(list.elements(), index);
-		if (p >= 0) {
-			list.rem(p);
+		int pos;
+		if (list.size() < BIN_SEARCH_LIMIT) {
+			list.rem(index);
+		} else {
+			pos = Arrays.binarySearch(list.elements(), index);
+			if (pos >= 0) {
+				list.removeInt(pos);
+		}
 		}
 	}
 
