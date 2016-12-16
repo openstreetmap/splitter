@@ -945,7 +945,7 @@ class MultiTileProcessor extends AbstractMapProcessor {
 		protected final int numMembers;
 		private final String name;
 		
-		private int multiTileWriterIndex = -1;
+		private int multiTileWriterIndex = UNASSIGNED;
 		private int lastVisitId;
 		private short flags; 	// flags for the MultiTileProcessor
 		
