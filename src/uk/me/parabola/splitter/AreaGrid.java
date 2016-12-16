@@ -13,6 +13,8 @@
 
 package uk.me.parabola.splitter;
 
+import java.util.BitSet;
+
 /**
  * A grid that covers the area covered by all areas. Each grid element contains 
  * information about the tiles that are intersecting the grid element and whether 
@@ -61,7 +63,7 @@ public class AreaGrid implements AreaIndex{
 		// bounds of the complete grid
 		private Area bounds = null;
 		private int[][] indexGrid;
-		private AreaSet[] testGrid;
+		private BitSet[] testGrid;
 		private Grid[][] subGrid = null; 
 		private final int maxCompares;
 		private int usedSubGridElems = 0;
@@ -80,9 +82,9 @@ public class AreaGrid implements AreaIndex{
 			}
 			indexGrid = new int[gridDimLon + 1][gridDimLat + 1];
 			// is true for an element if the list of areas needs to be tested
-			testGrid = new AreaSet[gridDimLon + 1];
+			testGrid = new BitSet[gridDimLon + 1];
 			for (int lon = 0; lon < testGrid.length; lon++) {
-				testGrid[lon] = new AreaSet(gridDimLat + 1);
+				testGrid[lon] = new BitSet(gridDimLat + 1);
 			}
 			this.bounds = bounds;
 			maxCompares = fillGrid(usedAreas);
