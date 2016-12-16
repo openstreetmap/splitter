@@ -20,7 +20,6 @@ import uk.me.parabola.splitter.writer.OSMWriter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Date;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -54,7 +53,7 @@ class SplitProcessor extends AbstractMapProcessor {
 	private final ArrayList<Thread> workerThreads;
 	protected final InputQueueInfo STOP_MSG = new InputQueueInfo(null);
 
-	private BitSet usedWriters;
+	private AreaSet usedWriters;
 	
 	/**
 	 * Distribute the OSM data to separate OSM files. 
@@ -85,7 +84,7 @@ class SplitProcessor extends AbstractMapProcessor {
 		nodeWriterMap = dataStorer.getWriterMap(DataStorer.NODE_TYPE);
 		wayWriterMap = dataStorer.getWriterMap(DataStorer.WAY_TYPE);
 		relWriterMap = dataStorer.getWriterMap(DataStorer.REL_TYPE);
-		usedWriters = new BitSet(); 
+		usedWriters = new AreaSet(); 
 
 		int noOfWorkerThreads = Math.min(this.maxThreads - 1, numWritersThisPass);
 		workerThreads = new ArrayList<>(noOfWorkerThreads);
@@ -104,10 +103,11 @@ class SplitProcessor extends AbstractMapProcessor {
 	 */
 	private void setUsedWriters(int multiTileWriterIdx) {
 		if (multiTileWriterIdx != UNASSIGNED) {
-			BitSet cl = writerDictionary.getBitSet(multiTileWriterIdx);
+			AreaSet cl = writerDictionary.getSet(multiTileWriterIdx);
 			// set only active writer bits
-			for (int i = cl.nextSetBit(writerOffset); i >= 0 && i <= lastWriter; i = cl.nextSetBit(i + 1)) {
-				usedWriters.set(i);
+			for (int i : cl) {
+				if (i >= writerOffset && i <= lastWriter)
+					usedWriters.set(i);
 			}
 		}
 	}
@@ -136,8 +136,7 @@ class SplitProcessor extends AbstractMapProcessor {
 				int clIdx = coords.get(id);
 				if (clIdx != UNASSIGNED){
 					if (oldclIndex != clIdx){ 
-						BitSet cl = writerDictionary.getBitSet(clIdx);
-						usedWriters.or(cl);
+						usedWriters.or(writerDictionary.getSet(clIdx));
 						if (wayWriterMap != null){
 							// we can stop here because all other nodes
 							// will be in the same tile
@@ -190,8 +189,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 						if (clIdx != UNASSIGNED){
 							if (oldclIndex != clIdx){ 
-								BitSet wl = writerDictionary.getBitSet(clIdx);
-								usedWriters.or(wl);
+								usedWriters.or(writerDictionary.getSet(clIdx));
 							}
 							oldclIndex = clIdx;
 						}
@@ -200,8 +198,7 @@ class SplitProcessor extends AbstractMapProcessor {
 
 						if (wlIdx != UNASSIGNED){
 							if (oldwlIndex != wlIdx){ 
-								BitSet wl = writerDictionary.getBitSet(wlIdx);
-								usedWriters.or(wl);
+								usedWriters.or(writerDictionary.getSet(wlIdx));
 							}
 							oldwlIndex = wlIdx;
 						}
@@ -266,11 +263,9 @@ class SplitProcessor extends AbstractMapProcessor {
 		if (writerCandidates == null && !isSpecialNode)  {
 			return;
 		}
-		if (isSpecialNode || writerCandidates != null && writerCandidates.l.size() > 1)
-			usedWriters.clear();
+		usedWriters.clear();
 		if (writerCandidates != null){
-			for (int i = 0; i < writerCandidates.l.size(); i++) {
-				int n = writerCandidates.l.getInt(i);
+			for (int n : writerCandidates.set) {
 				if (n < writerOffset || n > lastWriter)
 					continue;
 				OSMWriter writer = writers[n];
@@ -297,8 +292,8 @@ class SplitProcessor extends AbstractMapProcessor {
 		}
 		if (isSpecialNode){
 			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
-			BitSet nodeWriters = writerDictionary.getBitSet(multiTileWriterIdx);
-			for(int i=nodeWriters.nextSetBit(writerOffset); i>=0 && i <= lastWriter; i=nodeWriters.nextSetBit(i+1)){
+			AreaSet nodeWriters = writerDictionary.getSet(multiTileWriterIdx);
+			for (int i : nodeWriters) {
 				if (usedWriters.get(i) )
 					continue;
 				if (maxThreads > 1) {
@@ -343,9 +338,9 @@ class SplitProcessor extends AbstractMapProcessor {
 		writeElement(currentRelation, usedWriters);
 	}
 
-	private void writeElement (Element el, BitSet writersToUse) throws IOException {
+	private void writeElement (Element el, AreaSet writersToUse) throws IOException {
 		if (!writersToUse.isEmpty()) {
-			for (int n = writersToUse.nextSetBit(0); n >= 0; n = writersToUse.nextSetBit(n + 1)) {
+			for (int n : writersToUse) {
 				if (maxThreads > 1) {
 					addToWorkingQueue(n, el);
 				} else {

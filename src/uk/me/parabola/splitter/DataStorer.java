@@ -14,7 +14,6 @@ package uk.me.parabola.splitter;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,7 +165,7 @@ public class DataStorer {
 		return writers;
 	}
 
-	public void storeRelationAreas(long id, BitSet areaSet) {
+	public void storeRelationAreas(long id, AreaSet areaSet) {
 		oneDistinctAreaOnlyRels.put(id, areaDictionary.translate(areaSet));
 	}
 
@@ -175,7 +174,7 @@ public class DataStorer {
 	}
 
 	/**
-	 * If the BitSet ids in oneTileOnlyRels were produced with a different set
+	 * If the ids in oneTileOnlyRels were produced with a different set
 	 * of areas we have to translate the values
 	 * 
 	 * @param distinctAreas
@@ -187,7 +186,7 @@ public class DataStorer {
 		Map<Area, Integer> map = new HashMap<>();
 		for (Area distinctArea : distinctAreas) {
 			if (distinctArea.getMapId() < 0 && !distinctArea.isPseudoArea()) {
-				BitSet w = new BitSet();
+				AreaSet w = new AreaSet();
 				for (int i = 0; i < getNumOfAreas(); i++) {
 					if (this.areaDictionary.getArea(i).contains(distinctArea)) {
 						w.set(i);
@@ -198,9 +197,9 @@ public class DataStorer {
 		}
 
 		for (Entry<Long, Integer> e : distinctDataStorer.oneDistinctAreaOnlyRels.entrySet()) {
-			BitSet singleArea =  distinctDataStorer.getAreaDictionary().getBitSet(e.getValue());
+			AreaSet singleArea =  distinctDataStorer.getAreaDictionary().getSet(e.getValue());
 			assert singleArea.cardinality() == 1;
-			int pos = singleArea.nextSetBit(0);
+			int pos = singleArea.iterator().next();
 			if (!distinctAreas.get(pos).isPseudoArea()) {
 				Integer areaIdx = map.get(distinctAreas.get(pos));
 				oneTileOnlyRels.put(e.getKey(), areaIdx != null ? areaIdx : e.getValue());

@@ -12,32 +12,28 @@
  */
 package uk.me.parabola.splitter;
 
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
 /**
- * Maps a BitSet containing the used areas to an int value.  
+ * Maps a set containing the used areas to an int value.  
  * An OSM element is written to one or more areas. Every used
  * combination of areas is translated to an int.
- * @author GerdP
+ * @author Gerd Petermann
  *
  */
 public class AreaDictionary {
 	private static final int DICT_START = Short.MAX_VALUE; 
 	private final Area[] areas; 
-	private final ArrayList<BitSet> sets; 
-	private final ArrayList<IntArrayList> arrays; 
+	private final ArrayList<AreaSet> sets; 
 	private final int numOfAreas;
-	private final HashMap<BitSet, Integer> index;
-	private final HashSet<BitSet> simpleNeighbours = new HashSet<>();
+	private final HashMap<AreaSet, Integer> index;
+	private final HashSet<AreaSet> simpleNeighbours = new HashSet<>();
 	private final int overlapAmount;
 	
 	/**
@@ -50,8 +46,7 @@ public class AreaDictionary {
 		this.overlapAmount = overlapAmount;
 		this.numOfAreas = areas.size();
 		sets = new ArrayList<>();
-		arrays = new ArrayList<>();
-		index = new HashMap<>();
+		index = new HashMap<>(areas.size() * 4, 0.5f);
 		init();
 	}
 	
@@ -60,10 +55,9 @@ public class AreaDictionary {
 	 */
 	private void init() {
 		ArrayList<Rectangle> rectangles = new ArrayList<>(numOfAreas);
-		ArrayList<BitSet> areaSets = new ArrayList<>(numOfAreas);
+		ArrayList<AreaSet> areaSets = new ArrayList<>(numOfAreas);
 		for (int i = 0; i < numOfAreas; i++) {
-			BitSet b = new BitSet();
-			b.set(i);
+			AreaSet b = new AreaSet(i);
 			translate(b);
 			rectangles.add(Utils.area2Rectangle(areas[i], 0));
 			areaSets.add(b);
@@ -74,28 +68,24 @@ public class AreaDictionary {
 	}
 	
 	/**
-	 * Calculate the int value for a given BitSet. The BitSet must not 
+	 * Calculate the int value for a given AreaSet. The AreaSet must not 
 	 * contain values higher than numOfAreas.
-	 * @param areaSet the BitSet 
-	 * @return an Integer value that identifies this BitSet, never null 
+	 * @param areaSet the AreaSet 
+	 * @return an Integer value that identifies this AreaSet, never null 
 	 */
-	public Integer translate(final BitSet areaSet) {
+	public Integer translate(final AreaSet areaSet) {
 		Integer combiIndex = index.get(areaSet);
 		if (combiIndex == null) {
-			BitSet bnew = new BitSet();
-
-			bnew.or(areaSet);
-			IntArrayList a = new IntArrayList();
-			for (int i = areaSet.nextSetBit(0); i >= 0; i = areaSet.nextSetBit(i + 1)) {
-				a.add(i);
-			}
 			combiIndex = (sets.size() - DICT_START);
 			if (combiIndex == Integer.MAX_VALUE) {
 				throw new SplitFailedException("areaDictionary is full. Try to decrease number of areas.");
 			}
-			sets.add(bnew);
-			arrays.add(a);
-			index.put(bnew, combiIndex);
+			AreaSet set = new AreaSet(areaSet);
+			set.lock();
+			sets.add(set);
+			index.put(set, combiIndex);
+			if (sets.size() % 1000 == 0)
+				System.out.println("dictionary contains now " + Utils.format(sets.size()) + " entries");
 		}
 		return combiIndex;
 	}
@@ -107,9 +97,9 @@ public class AreaDictionary {
 	 * @param rectangles 
 	 * @param areaSets
 	 */
-	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<BitSet> areaSets){
+	private void findSimpleNeigbours(ArrayList<Rectangle> rectangles, ArrayList<AreaSet> areaSets){
 		ArrayList<Rectangle> newRectangles = new ArrayList<>();
-		ArrayList<BitSet> newAreaSets = new ArrayList<>();
+		ArrayList<AreaSet> newAreaSets = new ArrayList<>();
 		
 		for (int i = 0; i < rectangles.size(); i++) {
 			Rectangle r1 = rectangles.get(i);
@@ -121,8 +111,7 @@ public class AreaDictionary {
 				else if (r1.x == r2.x && r1.width == r2.width && (r1.y == r2.getMaxY() || r2.y == r1.getMaxY()))
 					isSimple = true;
 				if (isSimple) {
-					BitSet simpleNeighbour = new BitSet();
-					simpleNeighbour.or(areaSets.get(i));
+					AreaSet simpleNeighbour = new AreaSet(areaSets.get(i));
 					simpleNeighbour.or(areaSets.get(j));
 					if (simpleNeighbour.cardinality() <= 10 && !simpleNeighbours.contains(simpleNeighbour)) {
 						simpleNeighbours.add(simpleNeighbour);
@@ -147,24 +136,16 @@ public class AreaDictionary {
 	}
 	
 	/**
-	 * Return the BitSet that is related to the int value.
+	 * Return the AreaSet that is related to the int value.
 	 * The caller must make sure that the index is valid.
 	 * @param idx a value that was returned by the translate() method.  
-	 * @return the BitSet
+	 * @return the AreaSet
 	 */
-	public BitSet getBitSet(final int idx) {
+	public AreaSet getSet(final int idx) {
 		return sets.get(DICT_START + idx);
 	}
 	
-	/**
-	 * Return a list containing the area ids for the given int value.  
-	 * @param idx a value that was returned by the translate() method.  
-	 * @return a list containing the area ids 
-	 */
-	public IntArrayList getList(final int idx) {
-		return arrays.get(DICT_START + idx);
-	}
-	
+
 	/**
 	 * return the number of sets in this dictionary 
 	 * @return the number of sets in this dictionary
@@ -177,7 +158,7 @@ public class AreaDictionary {
 		return numOfAreas;
 	}
 
-	public boolean mayCross(BitSet areaSet) {
+	public boolean mayCross(AreaSet areaSet) {
 		return simpleNeighbours.contains(areaSet) == false;
 	}
 	

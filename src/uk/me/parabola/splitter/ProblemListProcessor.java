@@ -17,7 +17,6 @@ import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.tools.SparseLong2IntMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.regex.Pattern;
@@ -44,7 +43,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	private final LongArrayList problemRels = new LongArrayList();
 
 	/** each bit represents one distinct area */
-	private final BitSet areaSet = new BitSet();
+	private final AreaSet areaSet = new AreaSet();
 	
 	private int phase = PHASE1_NODES_AND_WAYS;
 	private long countCoords = 0;
@@ -137,11 +136,9 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (areaCandidates == null) 
 			return;
 		
-		if (areaCandidates.l.size() > 1)
-			areaSet.clear();
+		areaSet.clear();
 		
-		for (int i = 0; i < areaCandidates.l.size(); i++) {
-			int n = areaCandidates.l.getInt(i);
+		for (int n : areaCandidates.set) {
 			if (n < areaOffset || n > lastAreaOffset)
 				continue;
 
@@ -170,22 +167,20 @@ class ProblemListProcessor extends AbstractMapProcessor {
 			return;
 		boolean maybeChanged = false;
 		int oldclIndex = UNASSIGNED;
-		int wayAreaIdx; 
 		areaSet.clear();
 		for (long id : way.getRefs()){ 
 			// Get the list of areas that the way is in. 
 			int clIdx = coords.get(id);
 			if (clIdx != UNASSIGNED && oldclIndex != clIdx){
-				BitSet cl = areaDictionary.getBitSet(clIdx);
-				areaSet.or(cl);
+				areaSet.or(areaDictionary.getSet(clIdx));
 				oldclIndex = clIdx;
 				maybeChanged = true;
 			}
 		}
 		if (!isFirstPass && maybeChanged || isLastPass){
-			wayAreaIdx = ways.get(way.getId());
+			int wayAreaIdx = ways.get(way.getId());
 			if (wayAreaIdx != UNASSIGNED)
-				areaSet.or(areaDictionary.getBitSet(wayAreaIdx));
+				areaSet.or(areaDictionary.getSet(wayAreaIdx));
 		}
 		
 		if (isLastPass){
@@ -251,7 +246,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 		if (!isFirstPass){
 			relAreaIdx = dataStorer.getUsedRels().get(rel.getId());
 			if (relAreaIdx != null)
-				areaSet.or(areaDictionary.getBitSet(relAreaIdx));
+				areaSet.or(areaDictionary.getSet(relAreaIdx));
 		}
 		int oldclIndex = UNASSIGNED;
 		int oldwlIndex = UNASSIGNED;
@@ -263,8 +258,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 
 				if (clIdx != UNASSIGNED){
 					if (oldclIndex != clIdx){ 
-						BitSet wl = areaDictionary.getBitSet(clIdx);
-						areaSet.or(wl);
+						areaSet.or(areaDictionary.getSet(clIdx));
 					}
 					oldclIndex = clIdx;
 
@@ -275,8 +269,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 
 				if (wlIdx != UNASSIGNED){
 					if (oldwlIndex != wlIdx){ 
-						BitSet wl = areaDictionary.getBitSet(wlIdx);
-						areaSet.or(wl);
+						areaSet.or(areaDictionary.getSet(wlIdx));
 					}
 					oldwlIndex = wlIdx;
 				}
@@ -329,7 +322,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 	 * @param areaCombis
 	 * @return true if the combination of distinct areas can contain a problem polygon
 	 */
-	static boolean checkIfMultipleAreas(BitSet areaCombis){
+	static boolean checkIfMultipleAreas(AreaSet areaCombis){
 		// this returns a few false positives for those cases
 		// where a way or rel crosses two pseudo-areas at a 
 		// place that is far away from the real areas

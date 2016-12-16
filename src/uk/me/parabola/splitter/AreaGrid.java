@@ -13,8 +13,6 @@
 
 package uk.me.parabola.splitter;
 
-import java.util.BitSet;
-
 /**
  * A grid that covers the area covered by all areas. Each grid element contains 
  * information about the tiles that are intersecting the grid element and whether 
@@ -63,14 +61,14 @@ public class AreaGrid implements AreaIndex{
 		// bounds of the complete grid
 		private Area bounds = null;
 		private int[][] indexGrid;
-		private BitSet[] testGrid;
+		private AreaSet[] testGrid;
 		private Grid[][] subGrid = null; 
 		private final int maxCompares;
 		private int usedSubGridElems = 0;
 		private final int gridDimLon;
 		private final int gridDimLat;
 
-		public Grid(BitSet usedAreas, Area bounds) {
+		public Grid(AreaSet usedAreas, Area bounds) {
 			// each element contains an index to the areaDictionary or unassigned
 			if (usedAreas == null){
 				gridDimLon = TOP_GRID_DIM_LON;
@@ -82,9 +80,9 @@ public class AreaGrid implements AreaIndex{
 			}
 			indexGrid = new int[gridDimLon + 1][gridDimLat + 1];
 			// is true for an element if the list of areas needs to be tested
-			testGrid = new BitSet[gridDimLon + 1];
+			testGrid = new AreaSet[gridDimLon + 1];
 			for (int lon = 0; lon < testGrid.length; lon++) {
-				testGrid[lon] = new BitSet(gridDimLat + 1);
+				testGrid[lon] = new AreaSet(gridDimLat + 1);
 			}
 			this.bounds = bounds;
 			maxCompares = fillGrid(usedAreas);
@@ -99,7 +97,7 @@ public class AreaGrid implements AreaIndex{
 		 * @param usedAreas 
 		 * @return maximum number of area tests needed for any returned GridResult 
 		 */
-		private int fillGrid(BitSet usedAreas) {
+		private int fillGrid(AreaSet usedAreas) {
 			int gridStepLon, gridStepLat;
 			if (bounds == null){
 				// calculate grid area
@@ -128,8 +126,7 @@ public class AreaGrid implements AreaIndex{
 			assert gridStepLat * gridDimLat >= gridHeight : "gridStepLat is too small";
 
 			int maxAreaSearch = 0;
-			BitSet areaSet = new BitSet(); 
-			BitSet[][] gridAreas = new BitSet[gridDimLon+1][gridDimLat+1];
+			AreaSet[][] gridAreas = new AreaSet[gridDimLon+1][gridDimLat+1];
 
 			for (int j = 0; j < areaDictionary.getNumOfAreas(); j++) {
 				Area extBounds = areaDictionary.getExtendedArea(j); 
@@ -149,7 +146,7 @@ public class AreaGrid implements AreaIndex{
 					for (int lat = startLat; lat <= endLat; lat++) {
 						int testMinLat = gridMinLat + gridStepLat * lat;
 						if (gridAreas[lon][lat]== null)
-							gridAreas[lon][lat] = new BitSet();
+							gridAreas[lon][lat] = new AreaSet();
 						// add this area
 						gridAreas[lon][lat].set(j);
 						if (!extBounds.contains(testMinLat, testMinLon)
@@ -162,10 +159,11 @@ public class AreaGrid implements AreaIndex{
 			}
 			for (int lon = 0; lon <= gridDimLon; lon++) {
 				for (int lat = 0; lat <= gridDimLat; lat++) {
-					areaSet = (gridAreas[lon][lat]);
+					AreaSet areaSet = (gridAreas[lon][lat]);
 					if (areaSet == null)
 						indexGrid[lon][lat] = AbstractMapProcessor.UNASSIGNED;
 					else {
+						areaSet.lock();
 						if (testGrid[lon].get(lat)){
 							int numTests = areaSet.cardinality();
 							if (numTests  >  MAX_TESTS){ 
@@ -228,7 +226,7 @@ public class AreaGrid implements AreaIndex{
 			if (idx == AbstractMapProcessor.UNASSIGNED) 
 				return null;
 			r.testNeeded = testGrid[gridLonIdx].get(gridLatIdx);
-			r.l = areaDictionary.getList(idx);
+			r.set = areaDictionary.getSet(idx);
 			return r; 		
 		}
 	}
