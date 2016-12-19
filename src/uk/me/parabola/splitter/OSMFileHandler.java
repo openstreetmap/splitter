@@ -18,7 +18,9 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.io.Reader;
+import java.nio.channels.FileChannel;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -76,9 +78,10 @@ public class OSMFileHandler {
 			try {
 				if (filename.endsWith(".o5m")) {
 					File file = new File(filename);
-					try (InputStream stream = new FileInputStream(file)) {
+					try (RandomAccessFile raf = new RandomAccessFile(file, "r");
+							FileChannel fileChannel = raf.getChannel()) {
 						long[] skipArray = skipArrayMap.get(filename);
-						O5mMapParser o5mParser = new O5mMapParser(processor, stream, skipArray);
+						O5mMapParser o5mParser = new O5mMapParser(processor, fileChannel, skipArray);
 						o5mParser.parse();
 						if (skipArray == null) {
 							skipArray = o5mParser.getSkipArray();
