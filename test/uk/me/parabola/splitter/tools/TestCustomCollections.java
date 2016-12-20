@@ -87,7 +87,7 @@ public class TestCustomCollections {
 
 	private static void testVals(SparseLong2IntMap map, long idOffset, List<Integer> vals) {
 		map.clear();
-		map.put(1, 0);
+		map.put(1, -12000);
 		long key = 128;
 		for (int val : vals) {
 			map.put(idOffset + key++, val);
@@ -269,10 +269,11 @@ public class TestCustomCollections {
 		Assert.assertEquals(map.get(idOffset + 1), 0);
 		Assert.assertEquals(map.get(idOffset + 65), -1);
 
-		// special pattern 2
 		map.clear();
-		
-		
+		map.put(idOffset + 1, 22);
+		map.put(idOffset + 5, 22);
+		map.put(idOffset + 100, 44);
+		Assert.assertEquals(map.put(idOffset + 5, 33), 22);
 
 		
 		map.clear();
@@ -286,8 +287,10 @@ public class TestCustomCollections {
 		Random random = new Random(101);
 		Map<Long,Integer> ref = new HashMap<>();
 		// special cases long chunks (all 64 values used and random
-		for (int i = 0; i < 1000; i++) {
-			map.put(idOffset + i, random.nextInt(Integer.MAX_VALUE));
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 1000; j++) {
+				map.put(idOffset + j, random.nextInt(Integer.MAX_VALUE));
+			}
 		}
 //		map.stats(0);
 		ref.entrySet().forEach(e -> {

@@ -491,7 +491,7 @@ public final class SparseLong2IntMap {
 		int bytesToUse = Integer.BYTES; // assume worst case
 		if (chunkLen == MAX_STORED_BYTES_FOR_CHUNK) {
 			// special case: no flag is written if we have the max. size
-		} else if (chunkLen <= 2 || chunkLen == MAX_STORED_BYTES_FOR_CHUNK ) {
+		} else if (chunkLen <= 2) {
 			bytesToUse = chunkLen;
 		} else {
 			flag = inBuf.get();
@@ -499,8 +499,9 @@ public final class SparseLong2IntMap {
 		}
 		int bias = bias1;
 		int start = bias + getVal(inBuf, bytesToUse);
-		if (targetChunk == null && (chunkLen <= 2 || chunkLen == 1 + bytesToUse)) {
-			// must be single value chunk
+		boolean singleValueChunk = (chunkLen <= 2 || chunkLen == 1 + bytesToUse);
+
+		if (targetChunk == null && singleValueChunk) {
 			return start;
 		}
 		long chunkMask = mp.getMask();
@@ -514,9 +515,11 @@ public final class SparseLong2IntMap {
 		int mPos = 0;
 		maskedChunk[mPos++] = start;
 		// rest of values might be encoded with different number of bytes
-		bytesToUse = ((flag >> 2) & FLAG_USED_BYTES_MASK) + 1; 
-		if ((flag & FLAG_COMP_METHOD_DELTA) != 0) {
-			bias = start;
+		if (chunkLen != MAX_STORED_BYTES_FOR_CHUNK) {
+			bytesToUse = ((flag >> 2) & FLAG_USED_BYTES_MASK) + 1; 
+			if ((flag & FLAG_COMP_METHOD_DELTA) != 0) {
+				bias = start;
+			}
 		}
 		int val = start;
 		if (targetChunk == null && (flag & FLAG_COMP_METHOD_RLE) == 0) {
@@ -548,7 +551,10 @@ public final class SparseLong2IntMap {
 			int opos = 0;
 			while (chunkMask != 0) {
 				if ((chunkMask & 1) != 0) {
-					targetChunk[opos] = maskedChunk[j++];
+					targetChunk[opos] = maskedChunk[j];
+					if (!singleValueChunk) {
+						j++;
+					}
 				}
 				opos++;
 				chunkMask >>>= 1;
