@@ -108,7 +108,6 @@ public final class SparseLong2IntMap {
 	// bit masks for the flag byte
 	private static final int FLAG_USED_BYTES_MASK = 0x03; // number of bytes - 1 
 	private static final int FLAG_COMP_METHOD_DELTA = 0x10; // rest of vals are delta encoded, bias is first val
-	private static final int FLAG_COMP_METHOD_DELTA3 = 0x40; // all vals are delta encoded, bias is in 1st val, r-shifted by 4
 	private static final int FLAG_COMP_METHOD_RLE = 0x80; // values are run length encoded
 
 	// for statistics
@@ -304,14 +303,7 @@ public final class SparseLong2IntMap {
 				bias2 = start;
 			}
 		}
-		int lenNoCompress;
-		if ((flag & FLAG_COMP_METHOD_DELTA3) != 0) {
-			lenNoCompress = prefixLen + numVals * bytesForRest; 
-		} else {
-			lenNoCompress = prefixLen + bytesFor1st + (numVals-1) * bytesForRest;
-		}
-		lenNoCompress = Math.min(MAX_STORED_BYTES_FOR_CHUNK, lenNoCompress);
-		
+		int lenNoCompress = Math.min(MAX_STORED_BYTES_FOR_CHUNK, prefixLen + bytesFor1st + (numVals-1) * bytesForRest);
 		int lenRLE = prefixLen; 
 	
 		int numCounts = 0;
@@ -325,11 +317,7 @@ public final class SparseLong2IntMap {
 			numCounts++;
 			tmpChunk[opos++] = maskedChunk[i];
 			tmpChunk[opos++] = runLength;
-			if ((flag & FLAG_COMP_METHOD_DELTA3) != 0) {
-				lenRLE += bytesForRest + 1;
-			} else {
-				lenRLE += (numCounts == 1 ? bytesFor1st : bytesForRest) + 1;
-			}
+			lenRLE += (numCounts == 1 ? bytesFor1st : bytesForRest) + 1;
 			if (lenRLE >= lenNoCompress) 
 				break;
 		}
@@ -348,11 +336,6 @@ public final class SparseLong2IntMap {
 		}
 		int bytesToUse = bytesFor1st;
 		int bias = 0;
-		if ((flag & FLAG_COMP_METHOD_DELTA3) != 0) {
-			bias = bias2;
-			putVal(bufEncoded, bias2 >> 4, bytesToUse);
-			bytesToUse = bytesForRest;
-		}
 		if (lenRLE < lenNoCompress) {
 			int pos = 0;
 			while (pos < opos) {
@@ -515,11 +498,6 @@ public final class SparseLong2IntMap {
 			bytesToUse = (flag & FLAG_USED_BYTES_MASK) + 1;	
 		}
 		int bias = bias1;
-		if ((flag & FLAG_COMP_METHOD_DELTA3) != 0) {
-			bias = (getVal(inBuf, bytesToUse) << 4) + bias1;
-			bytesToUse = ((flag >> 2) & FLAG_USED_BYTES_MASK) + 1; 
-		}
-
 		int start = bias + getVal(inBuf, bytesToUse);
 		if (targetChunk == null && (chunkLen <= 2 || chunkLen == 1 + bytesToUse)) {
 			// must be single value chunk
