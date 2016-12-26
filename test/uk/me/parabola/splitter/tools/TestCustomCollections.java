@@ -95,7 +95,7 @@ public class TestCustomCollections {
 		map.put(1, 0); // trigger saving of chunk
 		key = 128;
 		for (int val : vals) {
-			Assert.assertEquals(map.get(idOffset + key++), val);
+			Assert.assertEquals(map.get(idOffset + key++), val, "values " + vals.toString());
 		}
 		map.clear();
 	}
@@ -132,12 +132,15 @@ public class TestCustomCollections {
 		map.defaultReturnValue(Integer.MIN_VALUE);
 
 		// special patterns
+		testVals(map, idOffset, Arrays.asList(1,2,1,1,1,2,1,1,2,1,1,2));
+		testVals(map, idOffset, Arrays.asList(1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2));
+		testVals(map, idOffset, Arrays.asList(66560, 7936, 7936, 6144));
+		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, 1234));
 		testVals(map, idOffset, Arrays.asList(1)); // single value chunk with 1 byte value
 		testVals(map, idOffset, Arrays.asList(1000)); // single value chunk with 2 byte value
 		testVals(map, idOffset, Arrays.asList(33000)); // single value chunk with 3 byte value
 		testVals(map, idOffset, Arrays.asList(1<<25)); // single value chunk with 4 byte value
 		testVals(map, idOffset, Arrays.asList(856, 856, 844, 844, 646, 646, 646, 646, 646, 646));
-		testVals(map, idOffset, Arrays.asList(260*256, 31*256, 31*256, 24*256));
 		testVals(map, idOffset, Arrays.asList(260, 31, 31, 24));
 		testVals(map, idOffset, Arrays.asList(137, 110, 114, 128, 309, 114));
 		testVals(map, idOffset, Arrays.asList(254, 12, 12, 12, 12));
@@ -147,7 +150,6 @@ public class TestCustomCollections {
 		testVals(map, idOffset, Arrays.asList(1000, 1000, 700));
 		testVals(map, idOffset, Arrays.asList(-32519, 255, -32519));
 		testVals(map, idOffset, Arrays.asList(-1, 1, 200, 1));
-		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, 1234));
 		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, Integer.MIN_VALUE + 1, 1234));
 		testVals(map, idOffset, Arrays.asList(Integer.MIN_VALUE + 1, 1234, Integer.MIN_VALUE + 1));
 
