@@ -73,7 +73,6 @@ public class Main {
 	}
 	
 	private int start(String[] args) {
-//		uk.me.parabola.splitter.tools.TestCustomCollections.testSparseLong2IntMap();
 		int rc = 0;
 		JVMHealthMonitor healthMonitor = null;
 
@@ -380,7 +379,6 @@ public class Main {
 			}
 		}
 		String boundaryTagsParm = params.getBoundaryTags();
-		// TODO: check ?
 
 		int wantedAdminLevelString = params.getWantedAdminLevel();
 		if (wantedAdminLevelString < 0 || wantedAdminLevelString > 12) {
