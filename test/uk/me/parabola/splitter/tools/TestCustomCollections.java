@@ -291,13 +291,16 @@ public class TestCustomCollections {
 		// special cases long chunks (all 64 values used and random
 		for (int i = 0; i < 3; i++) {
 			for (int j = 0; j < 1000; j++) {
-				map.put(idOffset + j, random.nextInt(Integer.MAX_VALUE));
+				int val = random.nextInt(Integer.MAX_VALUE);
+				map.put(idOffset + j, val);
+				ref.put(idOffset + j, val);
 			}
 		}
 //		map.stats(0);
 		ref.entrySet().forEach(e -> {
-			int val = map.get(e.getKey());
-			Assert.assertEquals(map.get(e.getValue()), val);
+			long id = e.getKey(); 
+			int val = map.get(id);
+			Assert.assertEquals(val, (int)e.getValue());
 		});
 		
 		
@@ -313,7 +316,7 @@ public class TestCustomCollections {
 		ref.entrySet().forEach(e -> {
 			long id = e.getKey(); 
 			int val = map.get(id);
-			Assert.assertEquals(map.get(id), val);
+			Assert.assertEquals(val, (int)e.getValue());
 		});
 	}
 }
