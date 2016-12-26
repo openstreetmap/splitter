@@ -13,10 +13,9 @@
 
 package uk.me.parabola.splitter.tools;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
+import static org.junit.Assert.assertEquals;
 import uk.me.parabola.splitter.tools.SparseBitSet;
+import org.junit.Test;
 
 /**
  * Unit tests for the sparse BitSet implementation
@@ -29,17 +28,17 @@ public class TestSparseBitSet {
 	public void testSparseBitSetSequential() {
 		SparseBitSet sparseSet = new SparseBitSet();
 		for (long i = 1; i < NUM; i++) {
-			Assert.assertEquals(sparseSet.get(i), false, "get(" + i + ")");
+			assertEquals("get(" + i + ")", false, sparseSet.get(i));
 		}
 		for (long i = 1; i < NUM; i++) {
 			sparseSet.set(i);
-			Assert.assertEquals(sparseSet.get(i), true, "get(" + i + ")");
+			assertEquals("get(" + i + ")", true, sparseSet.get(i));
 		}
-		Assert.assertEquals(sparseSet.cardinality(), NUM - 1, "cardinality() returns wrong value");
+		assertEquals("cardinality() returns wrong value", NUM - 1, sparseSet.cardinality());
 		for (long i = 1; i < NUM; i++) {
 			sparseSet.clear(i);
-			Assert.assertEquals(sparseSet.get(i), false, "get(" + i + ")");
-			Assert.assertEquals(sparseSet.cardinality(), NUM - i - 1, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", false, sparseSet.get(i));
+			assertEquals("cardinality() returns wrong value", NUM - i - 1, sparseSet.cardinality());
 		}
 
 	}
@@ -49,11 +48,11 @@ public class TestSparseBitSet {
 		SparseBitSet sparseSet = new SparseBitSet();
 		for (long i : POS) {
 			sparseSet.set(i);
-			Assert.assertEquals(sparseSet.get(i), true, "get(" + i + ")");
-			Assert.assertEquals(sparseSet.cardinality(), 1, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", true, sparseSet.get(i));
+			assertEquals("cardinality() returns wrong value", 1, sparseSet.cardinality());
 			sparseSet.clear(i);
-			Assert.assertEquals(sparseSet.get(i), false, "get(" + i + ")");
-			Assert.assertEquals(sparseSet.cardinality(), 0, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", false, sparseSet.get(i));
+			assertEquals("cardinality() returns wrong value", 0, sparseSet.cardinality());
 		}
 
 	}

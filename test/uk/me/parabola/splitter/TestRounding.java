@@ -13,8 +13,9 @@
 
 package uk.me.parabola.splitter;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 /**
  * Unit tests for the rounding up/down utility methods.
@@ -77,18 +78,24 @@ public class TestRounding {
 		testRound(-5, 2, -4);
 	}
 
-	private void testRoundDown(int value, int shift, int outcome) {
-		Assert.assertEquals(RoundingUtils.roundDown(value, shift), outcome, "Before: " + Integer.toHexString(value) +
-						", After: " + Integer.toHexString(RoundingUtils.roundDown(value, shift)));
+	private static void testRoundDown(int value, int shift, int outcome) {
+		assertEquals(
+				"Before: " + Integer.toHexString(value) + ", After: "
+						+ Integer.toHexString(RoundingUtils.roundDown(value, shift)),
+				outcome, RoundingUtils.roundDown(value, shift));
 	}
 
-	private void testRoundUp(int value, int shift, int outcome) {
-		Assert.assertEquals(RoundingUtils.roundUp(value, shift), outcome, "Before: " + Integer.toHexString(value) +
-						", After: " + Integer.toHexString(RoundingUtils.roundUp(value, shift)));
+	private static void testRoundUp(int value, int shift, int outcome) {
+		assertEquals(
+				"Before: " + Integer.toHexString(value) + ", After: "
+						+ Integer.toHexString(RoundingUtils.roundUp(value, shift)),
+				outcome, RoundingUtils.roundUp(value, shift));
 	}
 
-	private void testRound(int value, int shift, int outcome) {
-		Assert.assertEquals(RoundingUtils.round(value, shift), outcome, "Before: " + Integer.toHexString(value) +
-						", After: " + Integer.toHexString(RoundingUtils.round(value, shift)));
+	private static void testRound(int value, int shift, int outcome) {
+		assertEquals(
+				"Before: " + Integer.toHexString(value) + ", After: "
+						+ Integer.toHexString(RoundingUtils.round(value, shift)),
+				outcome, RoundingUtils.round(value, shift));
 	}
 }
