@@ -13,12 +13,11 @@
 
 package uk.me.parabola.splitter;
 
-public abstract class AbstractMapProcessor implements MapProcessor {
-	public static final short UNASSIGNED = Short.MIN_VALUE;
+import java.util.concurrent.BlockingQueue;
 
-	public boolean isStartNodeOnly(){
-		return false;
-	}
+public abstract class AbstractMapProcessor implements MapProcessor {
+	public static final int UNASSIGNED = Short.MIN_VALUE;
+
 	public boolean skipTags(){
 		return false;
 	}
@@ -46,4 +45,44 @@ public abstract class AbstractMapProcessor implements MapProcessor {
 	public int getPhase() {
 		return 1;
 	}
+	
+	public void startFile() {};
+		
+	/**
+	 * Simple method that allows all processors to use the producer/consumer pattern
+	 */
+	public final boolean consume(BlockingQueue<OSMMessage> queue) {
+		while (true) {
+			try {
+				OSMMessage msg = queue.take();
+				switch (msg.type) {
+				case ELEMENTS:
+					for (Element el : msg.elements) {
+						if (el instanceof Node)
+							processNode((Node) el);
+						else if (el instanceof Way)
+							processWay((Way) el);
+						else if (el instanceof Relation)
+							processRelation((Relation) el);
+					}
+					break;
+				case BOUNDS:
+					boundTag(msg.bounds);
+					break;
+				case END_MAP:
+					return endMap();
+				case START_FILE:
+					startFile();
+					break;
+				case EXIT:
+					return true;
+				default:
+					break;
+				}
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
+
 }

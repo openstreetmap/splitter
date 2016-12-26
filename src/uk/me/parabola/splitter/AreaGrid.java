@@ -24,29 +24,22 @@ import java.util.BitSet;
  *
  */
 public class AreaGrid implements AreaIndex{
-	private final Area bounds;
 	private final Grid grid;
 	protected final AreaGridResult r;
-	protected final AreaDictionaryShort areaDictionary;
+	protected final AreaDictionary areaDictionary;
 
 	/**
 	 * Create a grid to speed up the search of area candidates.
 	 * @param areaDictionary 
-	 * @param withOuter 
 	 */
-	AreaGrid(AreaDictionaryShort areaDictionary){
-		this.areaDictionary = areaDictionary;  
+	AreaGrid(AreaDictionary areaDictionary) {
+		this.areaDictionary = areaDictionary;
 		r = new AreaGridResult();
-		long start = System.currentTimeMillis();
-
 		grid = new Grid(null, null);
-		bounds = grid.getBounds();
-		
-		System.out.println("Grid(s) created in " + (System.currentTimeMillis() - start) + " ms");
 	}
 
 	public Area getBounds(){
-		return bounds;
+		return grid.getBounds();
 	}
 
 	public AreaGridResult get (final Node n){
@@ -69,15 +62,15 @@ public class AreaGrid implements AreaIndex{
 		private int gridMinLat, gridMinLon; 
 		// bounds of the complete grid
 		private Area bounds = null;
-		private short [][] grid;
-		private boolean [][] testGrid;
+		private int[][] indexGrid;
+		private BitSet[] testGrid;
 		private Grid[][] subGrid = null; 
 		private final int maxCompares;
 		private int usedSubGridElems = 0;
 		private final int gridDimLon;
 		private final int gridDimLat;
 
-		public Grid(BitSet usedAreas, Area bounds) {
+		public Grid(AreaSet usedAreas, Area bounds) {
 			// each element contains an index to the areaDictionary or unassigned
 			if (usedAreas == null){
 				gridDimLon = TOP_GRID_DIM_LON;
@@ -87,23 +80,26 @@ public class AreaGrid implements AreaIndex{
 				gridDimLon = SUB_GRID_DIM_LON;
 				gridDimLat = SUB_GRID_DIM_LAT;
 			}
-			grid = new short[gridDimLon + 1][gridDimLat + 1];
+			indexGrid = new int[gridDimLon + 1][gridDimLat + 1];
 			// is true for an element if the list of areas needs to be tested
-			testGrid = new boolean[gridDimLon + 1][gridDimLat + 1];
+			testGrid = new BitSet[gridDimLon + 1];
+			for (int lon = 0; lon < testGrid.length; lon++) {
+				testGrid[lon] = new BitSet(gridDimLat + 1);
+			}
 			this.bounds = bounds;
 			maxCompares = fillGrid(usedAreas);
 		}
+		
 		public Area getBounds() {
 			return bounds;
 		}
+		
 		/**
 		 * Create the grid and fill each element
 		 * @param usedAreas 
-		 * @param testGrid 
-		 * @param grid 
-		 * @return 
+		 * @return maximum number of area tests needed for any returned GridResult 
 		 */
-		private int fillGrid(BitSet usedAreas) {
+		private int fillGrid(AreaSet usedAreas) {
 			int gridStepLon, gridStepLat;
 			if (bounds == null){
 				// calculate grid area
@@ -113,6 +109,8 @@ public class AreaGrid implements AreaIndex{
 					if (usedAreas == null || usedAreas.get(i))
 						tmpBounds = (tmpBounds ==null) ? extBounds : tmpBounds.add(extBounds);
 				}
+				if (tmpBounds == null)
+					return 0;
 				// create new Area to make sure that we don't update the existing area
 				bounds = new Area(tmpBounds.getMinLat() , tmpBounds.getMinLong(), tmpBounds.getMaxLat(), tmpBounds.getMaxLong());
 			}
@@ -130,8 +128,7 @@ public class AreaGrid implements AreaIndex{
 			assert gridStepLat * gridDimLat >= gridHeight : "gridStepLat is too small";
 
 			int maxAreaSearch = 0;
-			BitSet areaSet = new BitSet(); 
-			BitSet[][] gridAreas = new BitSet[gridDimLon+1][gridDimLat+1];
+			AreaSet[][] gridAreas = new AreaSet[gridDimLon+1][gridDimLat+1];
 
 			for (int j = 0; j < areaDictionary.getNumOfAreas(); j++) {
 				Area extBounds = areaDictionary.getExtendedArea(j); 
@@ -151,24 +148,25 @@ public class AreaGrid implements AreaIndex{
 					for (int lat = startLat; lat <= endLat; lat++) {
 						int testMinLat = gridMinLat + gridStepLat * lat;
 						if (gridAreas[lon][lat]== null)
-							gridAreas[lon][lat] = new BitSet();
+							gridAreas[lon][lat] = new AreaSet();
 						// add this area
 						gridAreas[lon][lat].set(j);
 						if (!extBounds.contains(testMinLat, testMinLon)
 								|| !extBounds.contains(testMinLat+ gridStepLat, testMinLon+ gridStepLon)){
 							// grid area is not completely within area 
-							testGrid[lon][lat] = true;
+							testGrid[lon].set(lat);
 						}
 					}
 				}
 			}
 			for (int lon = 0; lon <= gridDimLon; lon++) {
 				for (int lat = 0; lat <= gridDimLat; lat++) {
-					areaSet = (gridAreas[lon][lat]);
+					AreaSet areaSet = (gridAreas[lon][lat]);
 					if (areaSet == null)
-						grid[lon][lat] = AbstractMapProcessor.UNASSIGNED;
+						indexGrid[lon][lat] = AbstractMapProcessor.UNASSIGNED;
 					else {
-						if (testGrid[lon][lat]){
+						areaSet.lock();
+						if (testGrid[lon].get(lat)){
 							int numTests = areaSet.cardinality();
 							if (numTests  >  MAX_TESTS){ 
 								if (gridStepLat > MIN_GRID_LAT && gridStepLon > MIN_GRID_LON){
@@ -188,7 +186,7 @@ public class AreaGrid implements AreaIndex{
 							}
 							maxAreaSearch = Math.max(maxAreaSearch, numTests);
 						}
-						grid[lon][lat] = areaDictionary.translate(areaSet);
+						indexGrid[lon][lat] = areaDictionary.translate(areaSet);
 					}
 				}
 			}
@@ -226,11 +224,11 @@ public class AreaGrid implements AreaIndex{
 				}
 			}
 			// get list of area candidates from grid
-			short idx = grid[gridLonIdx][gridLatIdx];
+			int idx = indexGrid[gridLonIdx][gridLatIdx];
 			if (idx == AbstractMapProcessor.UNASSIGNED) 
 				return null;
-			r.testNeeded = testGrid[gridLonIdx][gridLatIdx];
-			r.l = areaDictionary.getList(idx);
+			r.testNeeded = testGrid[gridLonIdx].get(gridLatIdx);
+			r.set = areaDictionary.getSet(idx);
 			return r; 		
 		}
 	}

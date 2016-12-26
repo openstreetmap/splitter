@@ -19,7 +19,7 @@ import java.util.List;
  * @author Steve Ratcliffe
  */
 public class Relation extends Element {
-	private final List<Member> members = new ArrayList<Member>();
+	private final List<Member> members = new ArrayList<>();
 
 	public void addMember(String type, long ref, String role) {
 		Member mem = new Member(type, ref, role);
@@ -30,7 +30,7 @@ public class Relation extends Element {
 		return members;
 	}
 
-	static class Member {
+	public static class Member {
 		private String type;
 		private long ref;
 		private String role;

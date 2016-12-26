@@ -13,6 +13,8 @@
 
 package uk.me.parabola.splitter;
 
+import java.util.concurrent.BlockingQueue;
+
 public interface MapProcessor {
 
 	/**
@@ -75,4 +77,17 @@ public interface MapProcessor {
 	 * should be called again with a new reader for all these input files.
 	 */
 	boolean endMap();
+	
+	/**
+	 * For use with the producer/consumer pattern
+	 * @param queue
+	 * @return
+	 */
+	boolean consume(BlockingQueue<OSMMessage> queue);
+	
+	/**
+	 * Called for each single input file
+	 */
+	void startFile();
+	
 }

@@ -184,7 +184,7 @@ public class Utils {
 				break;
 			default:
 				System.out.println("Unsupported path iterator type " + type
-						+ ". This is an mkgmap error.");
+						+ ". This is an internal splitter error.");
 			}
 
 			pit.next();
@@ -238,7 +238,7 @@ public class Utils {
 				break;
 			default:
 				System.out.println("Unsupported path iterator type " + type
-						+ ". This is an mkgmap error.");
+						+ ". This is an internal splitter error.");
 			}
 
 			pit.next();

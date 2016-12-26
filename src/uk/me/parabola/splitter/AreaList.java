@@ -14,6 +14,7 @@ package uk.me.parabola.splitter;
 
 import java.awt.Point;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -35,6 +36,9 @@ import uk.me.parabola.splitter.geo.City;
 import uk.me.parabola.splitter.geo.CityFinder;
 import uk.me.parabola.splitter.geo.CityLoader;
 import uk.me.parabola.splitter.geo.DefaultCityFinder;
+import uk.me.parabola.splitter.kml.KmlParser;
+import uk.me.parabola.splitter.kml.KmlWriter;
+import uk.me.parabola.splitter.solver.PolygonDesc;
 
 /**
  * A list of areas.  It can be read and written to a file.
@@ -154,6 +158,18 @@ public class AreaList {
 		System.out.println("Areas read from file");
 		for (Area area : areas) {
 			System.out.println(area.getMapId() + " " + area.toString());
+		}
+	}
+	
+	public void dumpHex() {
+		System.out.println(areas.size() + " areas:");
+		for (Area area : areas) {
+			System.out.format("Area %08d: %d,%d to %d,%d covers %s", area.getMapId(), area.getMinLat(),
+					area.getMinLong(), area.getMaxLat(), area.getMaxLong(), area.toHexString());
+
+			if (area.getName() != null)
+				System.out.print(' ' + area.getName());
+			System.out.println();
 		}
 	}
 
@@ -295,4 +311,40 @@ public class AreaList {
 		areas.clear();
 		areas.addAll(calculateAreas);
 	}
+	
+	/**
+	 * 
+	 * @param fileOutputDir
+	 * @param polygons
+	 * @param kmlOutputFile
+	 * @param outputType
+	 * @throws IOException
+	 */
+	public void writeListFiles(File fileOutputDir, List<PolygonDesc> polygons,
+			String kmlOutputFile, String outputType) throws IOException {
+		for (PolygonDesc pd : polygons){
+			List<uk.me.parabola.splitter.Area> areasPart = new ArrayList<>();
+			for (uk.me.parabola.splitter.Area a : areas){
+				if (pd.getArea().intersects(a.getRect()))
+					areasPart.add(a);
+			}
+			if (kmlOutputFile != null){
+				File out = new File(kmlOutputFile);
+				String kmlOutputFilePart = pd.getName() + "-" + out.getName();
+				if (out.getParent() != null)
+					out = new File(out.getParent(), kmlOutputFilePart);
+				else
+					out = new File(kmlOutputFilePart);
+				if (out.getParent() == null)
+					out = new File(fileOutputDir, kmlOutputFilePart);
+				KmlWriter.writeKml(out.getPath(), areasPart);
+			}
+			AreaList al = new AreaList(areasPart, null);
+			al.setGeoNamesFile(geoNamesFile);
+			al.writePoly(new File(fileOutputDir, pd.getName() + "-" + "areas.poly").getPath());
+			al.writeArgsFile(new File(fileOutputDir, pd.getName() + "-" + "template.args").getPath(), outputType, pd.getMapId());
+		}
+	}
+	
+
 }

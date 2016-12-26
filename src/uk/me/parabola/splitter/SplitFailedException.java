@@ -9,7 +9,7 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- */ 
+ */
 package uk.me.parabola.splitter;
 
 /**
@@ -21,8 +21,9 @@ public class SplitFailedException extends RuntimeException {
 	public SplitFailedException(String s) {
 		super(s);
 	}
-    public SplitFailedException(String message, Throwable cause) {
-        super(message, cause);
-    }
-	
+
+	public SplitFailedException(String message, Throwable cause) {
+		super(message, cause);
+	}
+
 }
