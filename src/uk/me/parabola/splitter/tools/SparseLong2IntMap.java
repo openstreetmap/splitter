@@ -181,7 +181,7 @@ public final class SparseLong2IntMap {
 	 * @author Gerd Petermann
 	 *
 	 */
-	private class MemPos{
+	private static class MemPos{
 		final int x,y,z;
 		final Mem mem;
 		final int largeVectorIndex;
@@ -578,7 +578,6 @@ public final class SparseLong2IntMap {
 		int idx = mem.largeVector[chunkid];  // performance bottleneck: produces many cache misses
 		if (idx == 0)
 			return null;
-		currentChunkIdInStore = idx;
 		int x = idx & CHUNK_STORE_X_MASK;
 		int y = (idx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 		y--; // we store the y value incremented by 1

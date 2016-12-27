@@ -294,6 +294,9 @@ class SplitProcessor extends AbstractMapProcessor {
 			// this node is part of a multi-tile-polygon, add it to all tiles covered by the parent 
 			AreaSet nodeWriters = writerDictionary.getSet(multiTileWriterIdx);
 			for (int i : nodeWriters) {
+				if (i < writerOffset || i > lastWriter)
+					continue;
+
 				if (usedWriters.get(i) )
 					continue;
 				if (maxThreads > 1) {
@@ -341,6 +344,8 @@ class SplitProcessor extends AbstractMapProcessor {
 	private void writeElement (Element el, AreaSet writersToUse) throws IOException {
 		if (!writersToUse.isEmpty()) {
 			for (int n : writersToUse) {
+				if (n < writerOffset || n > lastWriter)
+					continue;
 				if (maxThreads > 1) {
 					addToWorkingQueue(n, el);
 				} else {
