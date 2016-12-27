@@ -20,7 +20,7 @@ import org.junit.Test;
 /**
  * Unit tests for the sparse BitSet implementation
  */
-public class TestSparseBitSet {
+public class SparseBitSetTest {
 	private final int NUM = 10000;
 	private final long[] POS = { 1, 63, 64, 65, 4711, 12345654321L };
 

@@ -20,7 +20,7 @@ import org.junit.Test;
 /**
  * Unit tests for the sparse BitSet implementation
  */
-public class TestAreaSet {
+public class AreaSetTest {
 	private final int NUM = 10000;
 	private final int[] POS = { 1, 63, 64, 65, 4711, 78231};
 

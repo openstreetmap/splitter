@@ -239,7 +239,7 @@
 	
 			<batchtest fork="yes" todir="tmp/report">
 				<fileset dir="test">
-					<include name="**/Test*.java"/>
+					<include name="**/*Test.java"/>
 	
 					<!-- These are standalone tests, not  unit tests. -->
 					<exclude name="main/**"/>

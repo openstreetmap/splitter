@@ -20,7 +20,7 @@ import org.junit.Test;
 /**
  * Unit tests for the rounding up/down utility methods.
  */
-public class TestConvert {
+public class ConvertTest {
 	@Test
 	public void testParseDouble() {
 		parse("0");

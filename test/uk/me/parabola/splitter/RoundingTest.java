@@ -20,7 +20,7 @@ import org.junit.Test;
 /**
  * Unit tests for the rounding up/down utility methods.
  */
-public class TestRounding {
+public class RoundingTest {
 	@Test
 	public void testPositiveRoundingDown() {
 		for (int i = 0; i < 50000; i += 19) {

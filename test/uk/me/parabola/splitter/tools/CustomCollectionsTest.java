@@ -27,7 +27,7 @@ import org.junit.Test;
 /**
  * 
  */
-public class TestCustomCollections {
+public class CustomCollectionsTest {
 
 	//@Test(expectedExceptions = IllegalArgumentException.class)
 	//public void testInit() {

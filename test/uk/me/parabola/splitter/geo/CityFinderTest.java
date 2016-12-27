@@ -26,7 +26,7 @@ import org.junit.Test;
  *
  * @author Chris Miller
  */
-public class TestCityFinder {
+public class CityFinderTest {
 	@Test
 	public void testFinder() {
 		List<City> cities = getCities();
