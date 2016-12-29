@@ -104,7 +104,7 @@ public final class AreaSet implements Iterable<Integer> {
 		if (list.size() < BIN_SEARCH_LIMIT) {
 			list.rem(index);
 		} else {
-			pos = Arrays.binarySearch(list.elements(), index);
+			pos = Arrays.binarySearch(list.elements(), 0, list.size(), index);
 			if (pos >= 0) {
 				list.removeInt(pos);
 		}
