@@ -237,7 +237,7 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
           <para>
             The maximum number of areas that can be processed in a single pass
             during the second stage of processing.
-            This must be a number from 1 to 4096.
+            This must be a number from 1 to 9999.
             Higher numbers mean fewer passes over the source file and hence
             quicker overall processing, but also require more memory.
             If you find you are running out of memory but don't want to
@@ -252,7 +252,7 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
             value or reduce the size of the input file you're trying to split.
           </para>
           <para>
-            Default: 512
+            Default: 2048
           </para>
         </listitem>
       </varlistentry>
