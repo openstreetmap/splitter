@@ -138,7 +138,8 @@ public class O5mMapParser {
 					filePos = skipArray[WAY_DATASET]; // jump to first way
 			}
 		}
-		readFile();
+		if (filePos >= 0)
+			readFile();
 	}
 	
 	/**
@@ -603,8 +604,9 @@ public class O5mMapParser {
 		fillBuffer();
 
 		int pos = (int) (filePos - bufStart);
-		if (pos >= bufSize)
-			throw new IOException("no data in file buffer");
+		if (pos < 0 || pos >= bufSize) {
+			throw new IOException("no data in file buffer, pos="+pos);
+		}
 		filePos++;
 		return fileBuffer.get(pos);
 		
