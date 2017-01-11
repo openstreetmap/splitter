@@ -127,8 +127,6 @@ public final class SparseLong2IntMap {
 	/** a chunk that is stored with a length between 1 and 3 has no flag byte and is always a single value chunk. */  
 	private static final int SINGLE_VAL_CHUNK_LEN_NO_FLAG = 3;  
 	
-	long[] useMethods = new long[10]; 
-	int method; 
 	// for statistics
 	private final String dataDesc;
 	
@@ -354,14 +352,6 @@ public final class SparseLong2IntMap {
 		int len4 = toBytes(bitsForDict + bitsForRLE + (numCounts - 1) * (bitsForRLE + (dict.size() > 2 ? bitsForPos : 0)));
 		boolean useRLE = numCounts < 5 && maxRunLen > 1 && (Math.min(len2, len4) < Math.min(len1, len3));
 		boolean useDict = (useRLE) ? len2 > len4 : len1 > len3;
-		if (useRLE & useDict)
-			method = 3;
-		else if (useRLE & !useDict)
-			method = 4;
-		else if (!useRLE & useDict)
-			method = 5;
-		else if (!useRLE & !useDict)
-			method = 6;
 		
 //		System.out.println(len1 + " " + len2 + " " + len3 + " " + len4 + " " + useDict + " " + useRLE + " "  + dict.size() + " " + numCounts);
 //		if (useRLE && numVals / 2 < numCounts) {
@@ -437,7 +427,6 @@ public final class SparseLong2IntMap {
 
 			bufEncoded.put(bitWriter.getBytes(), 0, bitWriter.getLength());
 		} else {
-			method = 7;
 			// no flag byte for worst case 
 			for (int i = 0; i < numVals; i++){
 				putVal(bufEncoded, currentChunk[i], 4);
@@ -513,13 +502,10 @@ public final class SparseLong2IntMap {
 		}
 		bufEncoded.clear();
 		bufEncoded.putLong(mask);
-		method = 0;
 		if (minVal == maxVal) {
-			method = 1;
 			// nice: single value chunk 
 			int bytesFor1st = bytesNeeded(minVal, maxVal);
 			if (bytesFor1st > SINGLE_VAL_CHUNK_LEN_NO_FLAG) {
-				method = 2;
 				bufEncoded.put((byte) (bytesFor1st - 1)); // flag byte
 			}
 			putVal(bufEncoded, maskedChunk[0], bytesFor1st);
@@ -527,7 +513,6 @@ public final class SparseLong2IntMap {
 			chunkCompress(simpleLen, minVal, maxVal);
 			assert bufEncoded.position() > SINGLE_VAL_CHUNK_LEN_NO_FLAG;
 		}
-		++useMethods[method];
 		bufEncoded.flip();
 		putChunk();
 		if (SELF_TEST) {
@@ -971,7 +956,6 @@ public final class SparseLong2IntMap {
 				(totalChunks == 0 ? 0 : (size() / totalChunks)) + ".");
 		System.out.println(dataDesc + " Map details: bytes ~" + Utils.format(totalBytes/1024/1024) + " MB, including " +
 				topMap.size() + " array(s) with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
-		System.out.println(dataDesc + " Compression methods" + Arrays.toString(useMethods));
 		System.out.println();
 	}
 
