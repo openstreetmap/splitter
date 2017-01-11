@@ -44,7 +44,7 @@ public interface Args {
 	public static final String ALASKA = TEST_RESOURCE_OSM + "alaska-2016-12-27.osm.pbf";
 	public static final String HAMBURG = TEST_RESOURCE_OSM + "hamburg-2016-12-26.osm.pbf";
 
-	/** expected file sizes for ALASKA file */
+	/** expected summed line sizes for ALASKA file */
 	public static final Map<String, Integer> expectedAlaska = new LinkedHashMap<String, Integer>() {
 		{
 			put(DEF_AREAS_KML, 5158);
@@ -56,7 +56,7 @@ public interface Args {
 		}
 	};
 
-	/** expected file sizes for HAMBURG file */
+	/** expected summed line sizes for HAMBURG file */
 	public static final Map<String, Integer> expectedHamburg = new LinkedHashMap<String, Integer>() {
 		{
 			put(DEF_AREAS_KML, 3143);
