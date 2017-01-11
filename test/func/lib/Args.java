@@ -47,24 +47,24 @@ public interface Args {
 	/** expected file sizes for ALASKA file */
 	public static final Map<String, Integer> expectedAlaska = new LinkedHashMap<String, Integer>() {
 		{
-			put(DEF_AREAS_KML, 5373);
-			put(DEF_AREAS_LIST, 1142);
-			put(DEF_AREAS_POLY, 484);
-			put(DEF_DENSITIES, 840190);
-			put(DEF_PROBLEM_LIST, 13727);
-			put(DEF_TEMPLATE, 1034);
+			put(DEF_AREAS_KML, 5158);
+			put(DEF_AREAS_LIST, 1076);
+			put(DEF_AREAS_POLY, 446);
+			put(DEF_DENSITIES, 769055);
+			put(DEF_PROBLEM_LIST, 12157);
+			put(DEF_TEMPLATE, 930);
 		}
 	};
 
 	/** expected file sizes for HAMBURG file */
 	public static final Map<String, Integer> expectedHamburg = new LinkedHashMap<String, Integer>() {
 		{
-			put(DEF_AREAS_KML, 3278);
-			put(DEF_AREAS_LIST, 658);
-			put(DEF_AREAS_POLY, 289);
-			put(DEF_DENSITIES, 2317);
-			put(DEF_PROBLEM_LIST, 57647);
-			put(DEF_TEMPLATE, 734);
+			put(DEF_AREAS_KML, 3143);
+			put(DEF_AREAS_LIST, 616);
+			put(DEF_AREAS_POLY, 263);
+			put(DEF_DENSITIES, 2157);
+			put(DEF_PROBLEM_LIST, 51017);
+			put(DEF_TEMPLATE, 662);
 		}
 	};
 }

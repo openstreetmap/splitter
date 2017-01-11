@@ -79,7 +79,12 @@ public class SolverAndProblemGeneratorTest extends Base {
 			String f = entry.getKey();
 			long expectedSize = entry.getValue();
 			assertTrue("no " + f + " generated", new File(f).exists());
-			assertEquals(f + " has wrong size", expectedSize, Files.size(Paths.get(f, "")));
+			List<String> lines = Files.readAllLines(Paths.get(f, ""));
+			long realSize = 0;
+			for (String l : lines) {
+				realSize += l.length();
+			}
+			assertEquals(f + " has wrong size", expectedSize, realSize);
 		}
 	}
 
