@@ -13,13 +13,14 @@
 
 package uk.me.parabola.splitter;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 /**
  * Unit tests for the rounding up/down utility methods.
  */
-public class TestConvert {
+public class ConvertTest {
 	@Test
 	public void testParseDouble() {
 		parse("0");
@@ -52,7 +53,9 @@ public class TestConvert {
 		parse("120.1234567890123456789012345678");
 	}
 
-	private void parse(String dbl) {
-		Assert.assertEquals(Convert.parseDouble(dbl), Double.parseDouble(dbl), "Double parsing failed when parsing " + dbl);
+	private static void parse(String dbl) {
+		final double epsilon = 3.0e-10; 
+		assertEquals("Double parsing failed when parsing " + dbl, Double.parseDouble(dbl), Convert.parseDouble(dbl),
+				epsilon);
 	}
 }

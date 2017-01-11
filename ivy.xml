@@ -28,8 +28,8 @@
 		<dependency org="xpp3" name="xpp3" rev="1.1.4c"
 								conf="compile->default(*)"/>
 
-		<dependency org="org.testng" name="testng" rev="6.8.8"
-								conf="test->default(*),master(*)"/>
-
+		<dependency org="junit" name="junit" rev="4.11"
+			    				conf="test->runtime(*),master(*)" />
+ 
 	</dependencies>
 </ivy-module>

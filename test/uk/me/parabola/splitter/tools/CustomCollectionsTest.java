@@ -13,6 +13,8 @@
 
 package uk.me.parabola.splitter.tools;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -21,17 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-import uk.me.parabola.splitter.tools.Long2IntClosedMap;
-import uk.me.parabola.splitter.tools.Long2IntClosedMapFunction;
-import uk.me.parabola.splitter.tools.SparseLong2IntMap;
-
+import org.junit.Test;
 /**
  * 
  */
-public class TestCustomCollections {
+public class CustomCollectionsTest {
 
 	//@Test(expectedExceptions = IllegalArgumentException.class)
 	//public void testInit() {
@@ -39,26 +35,26 @@ public class TestCustomCollections {
 	//}
 
 	@Test
-	public static void testLong2IntMap() {
+	public void testLong2IntMap() {
 		testMap(new Long2IntClosedMap("test", 10000, -1));
 	}
 
 	private static void testMap(Long2IntClosedMapFunction map) {
 		int val;
 		for (int i = 1; i < 1000; i++) {
-			int j = map.add((long)i*10, i);
-			Assert.assertEquals(j, i-1);
-			Assert.assertEquals(map.size(), i);
+			int j = map.add((long) i * 10, i);
+			assertEquals(i - 1, j);
+			assertEquals(i, map.size());
 		}
 
 		for (int i = 1; i < 1000; i++) {
-			int pos = map.getKeyPos(i*10);
-			Assert.assertEquals(i, pos+1);
+			int pos = map.getKeyPos(i * 10);
+			assertEquals(pos + 1, i);
 		}
 
 		for (int i = 1; i < 1000; i++) {
-			val = map.getRandom(i*10);
-			Assert.assertEquals(i, val);
+			val = map.getRandom(i * 10);
+			assertEquals(val, i);
 		}
 
 		try {
@@ -71,16 +67,16 @@ public class TestCustomCollections {
 		try{
 			val = map.getRandom(5);
 		} catch (IllegalArgumentException e){
-			Assert.assertEquals(e.getMessage(), "random access on sequential-only map requested");
+			assertEquals("random access on sequential-only map requested", e.getMessage());
 		}
 		val = map.getSeq(5);
-		Assert.assertEquals(val,-1);
+		assertEquals(-1, val);
 		val = map.getSeq(10);
-		Assert.assertEquals(val,1);
+		assertEquals(1, val);
 		val = map.getSeq(19);
-		Assert.assertEquals(val,-1);
+		assertEquals(-1, val);
 		val = map.getSeq(30);
-		Assert.assertEquals(val,3);
+		assertEquals(3, val);
 
 		map.finish();
 	}
@@ -95,13 +91,13 @@ public class TestCustomCollections {
 		map.put(1, 0); // trigger saving of chunk
 		key = 128;
 		for (int val : vals) {
-			Assert.assertEquals(map.get(idOffset + key++), val, "values " + vals.toString());
+			assertEquals("values " + vals.toString(), val, map.get(idOffset + key++));
 		}
 		map.clear();
 	}
 
 	@Test
-	public static void testSparseLong2IntMap() {
+	public void testSparseLong2IntMap() {
 		ByteBuffer buf = ByteBuffer.allocate(4);
 		for (int i = 0; i < 32; i++) {
 			int val = 1 << i;
@@ -114,7 +110,7 @@ public class TestCustomCollections {
 						buf.clear();
 						SparseLong2IntMap.putVal(buf, val, bytesToUse);
 						buf.flip();
-						Assert.assertEquals(val, SparseLong2IntMap.getVal(buf, bytesToUse));
+						assertEquals(SparseLong2IntMap.getVal(buf, bytesToUse), val);
 					}
 				}
 				val = ~val;
@@ -127,9 +123,10 @@ public class TestCustomCollections {
 		testMap(-1L << 35);
 	}
 
+	private static int UNASSIGNED = Integer.MIN_VALUE;
 	private static void testMap(long idOffset) {
 		SparseLong2IntMap map = new SparseLong2IntMap("test");
-		map.defaultReturnValue(Integer.MIN_VALUE);
+		map.defaultReturnValue(UNASSIGNED);
 
 		// special patterns
 		testVals(map, idOffset, Arrays.asList(1,2,1,1,1,2,1,1,2,1,1,2));
@@ -155,79 +152,77 @@ public class TestCustomCollections {
 
 		for (int i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i);
-			Assert.assertEquals(j, Integer.MIN_VALUE);
-			Assert.assertEquals(map.size(), i);
+			assertEquals(UNASSIGNED, j);
+			assertEquals(i, map.size());
 		}
 
 		for (int i = 1; i < 1000; i++) {
 			boolean b = map.containsKey(idOffset + i);
-			Assert.assertEquals(b, true);
+			assertEquals(true, b);
 		}
 
 
 		for (int i = 1; i < 1000; i++) {
-			Assert.assertEquals(map.get(idOffset + i), i);
+			assertEquals(i, map.get(idOffset + i));
 		}
 
 		// random read access 
 		for (int i = 1; i < 1000; i++) {
 			int key = (int) Math.max(1, (Math.random() * 1000));
-			Assert.assertEquals(map.get(idOffset + key), key);
+			assertEquals(key, map.get(idOffset + key));
 		}
 
 		for (int i = 1000; i < 2000; i++) {
-			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+			assertEquals(UNASSIGNED, map.get(idOffset + i));
 		}
 		for (int i = 1000; i < 2000; i++) {
 			boolean b = map.containsKey(idOffset + i);
-			Assert.assertEquals(b, false);
+			assertEquals(false, b);
 		}
 		for (int i = 1000; i < 1200; i++) {
 			int j = map.put(idOffset + i, 333);
-			Assert.assertEquals(j, Integer.MIN_VALUE);
-			Assert.assertEquals(map.size(), i);
+			assertEquals(UNASSIGNED, j);
+			assertEquals(i, map.size());
 		}
 		// random read access 2 
-		Assert.assertEquals(map.get(idOffset + 1010), 333);
+		assertEquals(333, map.get(idOffset + 1010));
 		for (int i = 1; i < 1000; i++) {
 			int key = 1000 + (int) (Math.random() * 200);
-			
-			Assert.assertEquals(map.get(idOffset + key), 333);
+			assertEquals(333, map.get(idOffset + key));
 		}
 
-
 		for (int i = -2000; i < -1000; i++) {
-			Assert.assertEquals(map.get(idOffset + i), Integer.MIN_VALUE);
+			assertEquals(UNASSIGNED, map.get(idOffset + i));
 		}
 		for (int i = -2000; i < -1000; i++) {
 			boolean b = map.containsKey(idOffset + i);
-			Assert.assertEquals(b, false);
+			assertEquals(false, b);
 		}
 		long mapSize = map.size();
 		// seq. update existing records 
 		for (int i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i+333);
-			Assert.assertEquals(j, i);
-			Assert.assertEquals(map.size(), mapSize);
+			assertEquals(i, j);
+			assertEquals(mapSize, map.size());
 		}
 		// random read access 3, update existing entries 
 		for (int i = 1; i < 1000; i++) {
 			int j = map.put(idOffset + i, i+555);
-			Assert.assertEquals(true, j == i+333 | j == i+555);
-			Assert.assertEquals(map.size(), mapSize);
+			assertEquals(true, j == i+333 | j == i+555);
+			assertEquals(mapSize, map.size());
 		}
 				
-		Assert.assertEquals(map.get(idOffset + 123456), Integer.MIN_VALUE);
+		assertEquals(UNASSIGNED, map.get(idOffset + 123456));
 		map.put(idOffset + 123456,  999);
-		Assert.assertEquals(map.get(idOffset + 123456), 999);
+		assertEquals(999, map.get(idOffset + 123456));
 		map.put(idOffset + 123456,  888);
-		Assert.assertEquals(map.get(idOffset + 123456), 888);
+		assertEquals(888, map.get(idOffset + 123456));
 
-		Assert.assertEquals(map.get(idOffset - 123456), Integer.MIN_VALUE);
+		assertEquals(UNASSIGNED, map.get(idOffset - 123456));
 		map.put(idOffset - 123456,  999);
-		Assert.assertEquals(map.get(idOffset - 123456), 999);
+		assertEquals(999, map.get(idOffset - 123456));
 		map.put(idOffset - 123456,  888);
-		Assert.assertEquals(map.get(idOffset - 123456), 888);
+		assertEquals(888, map.get(idOffset - 123456));
 		map.put(idOffset + 3008,  888);
 		map.put(idOffset + 3009,  888);
 		map.put(idOffset + 3010,  876);
@@ -249,33 +244,33 @@ public class TestCustomCollections {
 		// add a very different key
 		map.put(idOffset + 5000,  889);
 		map.put(idOffset + 5001,  222);
-		Assert.assertEquals(map.get(idOffset + 3008), 889);
-		Assert.assertEquals(map.get(idOffset + 3009), 888);
-		Assert.assertEquals(map.get(idOffset + 3010), 876);
-		Assert.assertEquals(map.get(idOffset + 3011), 876);
-		Assert.assertEquals(map.get(idOffset + 3012), 678);
-		Assert.assertEquals(map.get(idOffset + 3013), 678);
-		Assert.assertEquals(map.get(idOffset + 3014), 678);
-		Assert.assertEquals(map.get(idOffset + 4000), 889);
-		Assert.assertEquals(map.get(idOffset + 4001), 888);
-		Assert.assertEquals(map.get(idOffset + 4002), 876);
-		Assert.assertEquals(map.get(idOffset + 4003), 876);
-		Assert.assertEquals(map.get(idOffset + 5000), 889);
-		Assert.assertEquals(map.get(idOffset + 5001), 222);
+		assertEquals(889, map.get(idOffset + 3008));
+		assertEquals(888, map.get(idOffset + 3009));
+		assertEquals(876, map.get(idOffset + 3010));
+		assertEquals(876, map.get(idOffset + 3011));
+		assertEquals(678, map.get(idOffset + 3012));
+		assertEquals(678, map.get(idOffset + 3013));
+		assertEquals(678, map.get(idOffset + 3014));
+		assertEquals(889, map.get(idOffset + 4000));
+		assertEquals(888, map.get(idOffset + 4001));
+		assertEquals(876, map.get(idOffset + 4002));
+		assertEquals(876, map.get(idOffset + 4003));
+		assertEquals(889, map.get(idOffset + 5000));
+		assertEquals(222, map.get(idOffset + 5001));
 		
 		map.clear();
 		// special pattern 1
-		Assert.assertEquals(map.put(idOffset + 1, 0), Integer.MIN_VALUE);
-		Assert.assertEquals(map.put(idOffset + 65, -1), Integer.MIN_VALUE);
-		Assert.assertEquals(map.get(idOffset + 999), Integer.MIN_VALUE);
-		Assert.assertEquals(map.get(idOffset + 1), 0);
-		Assert.assertEquals(map.get(idOffset + 65), -1);
+		assertEquals(UNASSIGNED, map.put(idOffset + 1, 0));
+		assertEquals(UNASSIGNED, map.put(idOffset + 65, -1));
+		assertEquals(UNASSIGNED, map.get(idOffset + 999));
+		assertEquals(0, map.get(idOffset + 1));
+		assertEquals(-1, map.get(idOffset + 65));
 
 		map.clear();
 		map.put(idOffset + 1, 22);
 		map.put(idOffset + 5, 22);
 		map.put(idOffset + 100, 44);
-		Assert.assertEquals(map.put(idOffset + 5, 33), 22);
+		assertEquals(22, map.put(idOffset + 5, 33));
 
 		
 		map.clear();
@@ -284,7 +279,7 @@ public class TestCustomCollections {
 			map.put(idOffset + i, i);
 		}
 		for (int i = 100_000; i < 110_000; i++) {
-			Assert.assertEquals(map.get(idOffset + i), i);
+			assertEquals(i, map.get(idOffset + i));
 		}
 		Random random = new Random(101);
 		Map<Long,Integer> ref = new HashMap<>();
@@ -298,9 +293,9 @@ public class TestCustomCollections {
 		}
 //		map.stats(0);
 		ref.entrySet().forEach(e -> {
-			long id = e.getKey(); 
+			long id = e.getKey();
 			int val = map.get(id);
-			Assert.assertEquals(val, (int)e.getValue());
+			assertEquals(val, (int)e.getValue());
 		});
 		
 		
@@ -314,9 +309,9 @@ public class TestCustomCollections {
 		}
 //		map.stats(0);
 		ref.entrySet().forEach(e -> {
-			long id = e.getKey(); 
+			long id = e.getKey();
 			int val = map.get(id);
-			Assert.assertEquals(val, (int)e.getValue());
+			assertEquals(val, (int)e.getValue());
 		});
 	}
 }

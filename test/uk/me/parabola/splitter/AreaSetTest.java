@@ -13,15 +13,14 @@
 
 package uk.me.parabola.splitter;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import static org.junit.Assert.assertEquals;
 
-import uk.me.parabola.splitter.AreaSet;
+import org.junit.Test;
 
 /**
  * Unit tests for the sparse BitSet implementation
  */
-public class TestAreaSet {
+public class AreaSetTest {
 	private final int NUM = 10000;
 	private final int[] POS = { 1, 63, 64, 65, 4711, 78231};
 
@@ -34,17 +33,17 @@ public class TestAreaSet {
 	public void testAreaSetSequential() {
 		AreaSet set = new AreaSet();
 		for (int i = 1; i < NUM; i++) {
-			Assert.assertEquals(set.get(i), false, "get(" + i + ")");
+			assertEquals("get(" + i + ")", false, set.get(i));
 		}
 		for (int i = 1; i < NUM; i++) {
 			set.set(i);
-			Assert.assertEquals(set.get(i), true, "get(" + i + ")");
+			assertEquals("get(" + i + ")", true, set.get(i));
 		}
-		Assert.assertEquals(set.cardinality(), NUM - 1, "cardinality() returns wrong value");
+		assertEquals("cardinality() returns wrong value", NUM - 1, set.cardinality());
 		for (int i = 1; i < NUM; i++) {
 			set.clear(i);
-			Assert.assertEquals(set.get(i), false, "get(" + i + ")");
-			Assert.assertEquals(set.cardinality(), NUM - i - 1, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", false, set.get(i));
+			assertEquals("cardinality() returns wrong value", NUM - i - 1, set.cardinality());
 		}
 
 	}
@@ -54,13 +53,12 @@ public class TestAreaSet {
 		AreaSet set = new AreaSet();
 		for (int i : POS) {
 			set.set(i);
-			Assert.assertEquals(set.get(i), true, "get(" + i + ")");
-			Assert.assertEquals(set.cardinality(), 1, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", true, set.get(i));
+			assertEquals("cardinality() returns wrong value", 1, set.cardinality());
 			set.clear(i);
-			Assert.assertEquals(set.get(i), false, "get(" + i + ")");
-			Assert.assertEquals(set.cardinality(), 0, "cardinality() returns wrong value");
+			assertEquals("get(" + i + ")", false, set.get(i));
+			assertEquals("cardinality() returns wrong value", 0, set.cardinality());
 		}
-
 	}
 
 	@Test

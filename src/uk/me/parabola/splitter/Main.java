@@ -60,6 +60,19 @@ public class Main {
 
 	private SplitterParams mainOptions;
 
+	/**
+	 * Used for unit tests
+	 */
+	public static void mainNoSystemExit(String... args) {
+		Main m = new Main();
+		try {
+			m.start(args);	
+		} catch (StopNoErrorException e) {
+			if (e.getMessage() != null)
+				System.out.println(e.getMessage());
+		}
+	}  
+	
 	public static void main(String[] args) {
 		Main m = new Main();
 		try {
