@@ -177,7 +177,7 @@ class ProblemListProcessor extends AbstractMapProcessor {
 				maybeChanged = true;
 			}
 		}
-		if (!isFirstPass && maybeChanged || isLastPass){
+		if (!isFirstPass && maybeChanged || (isLastPass & !isFirstPass)){
 			int wayAreaIdx = ways.get(way.getId());
 			if (wayAreaIdx != UNASSIGNED)
 				areaSet.or(areaDictionary.getSet(wayAreaIdx));

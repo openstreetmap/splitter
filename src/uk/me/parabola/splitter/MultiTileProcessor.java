@@ -552,12 +552,10 @@ class MultiTileProcessor extends AbstractMapProcessor {
 						continue;
 					}
 					AreaSet memWriters = areaDictionary.getSet(memWriterIdx);
-					AreaSet test = new AreaSet(memWriters);
-					test.subtract(relWriters);
-					if (test.isEmpty() == false){
-						relWriters.or(memWriters);
+					int oldSize = relWriters.cardinality();
+					relWriters.or(memWriters);
+					if (oldSize != relWriters.cardinality())
 						changed = true;
-					}
 				}
 			}
 		}

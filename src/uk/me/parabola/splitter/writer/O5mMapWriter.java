@@ -12,11 +12,8 @@
  */ 
 package uk.me.parabola.splitter.writer;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
-
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -27,13 +24,14 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import uk.me.parabola.splitter.Area;
 import uk.me.parabola.splitter.Element;
 import uk.me.parabola.splitter.Node;
 import uk.me.parabola.splitter.Relation;
+import uk.me.parabola.splitter.Relation.Member;
 import uk.me.parabola.splitter.Utils;
 import uk.me.parabola.splitter.Way;
-import uk.me.parabola.splitter.Relation.Member;
 
 /**
  * Implements the needed methods to write the result in the o5m format. 
@@ -62,7 +60,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	
 	private static final double FACTOR = 10000000;
 
-	private DataOutputStream dos;
+	private OutputStream os;
 
 	private byte[][][] stw__tab; // string table
 	private byte[] s1Bytes;
@@ -74,10 +72,10 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	private long lastRef[];
 	private int lastLon,lastLat;
 	
-	int lastWrittenDatasetType = 0;
+	private int lastWrittenDatasetType = 0;
 	
 	// index of last entered element in string table
-	short stw__tabi= 0; 
+	private short stw__tabi= 0; 
 	
 	  // has table; elements point to matching strings in stw__tab[];
 	  // -1: no matching element;
@@ -93,37 +91,37 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	
 	private byte[] numberConversionBuf;
 
-	final static Map<String, byte[]> wellKnownTagKeys = new HashMap<>();
-	final static Map<String, byte[]> wellKnownTagVals = new HashMap<>();
-	final static String[] tagKeys = { "1", "1outer", "1inner", "type", // relation specific  
-			// 50 most often used keys (taken from taginfo 2016-11-20)
-			"building", "source", 
-			"highway", "addr:housenumber", "addr:street", "name", 
-			"addr:city", "addr:postcode", "natural", "source:date", "addr:country",
-			"landuse", "surface", "created_by", "power",
-			"tiger:cfcc", "waterway", "tiger:county", 
-			"start_date", "tiger:reviewed", "wall",  
-			"amenity", "oneway", "ref:bag", "ref",  
-			"attribution", "tiger:name_base", "building:levels",
-			"maxspeed", "barrier", "tiger:name_type", "height", 
-			"service", "source:addr", "tiger:tlid", "tiger:source",  
-			"lanes", "access", "addr:place", "tiger:zip_left", 
-			"tiger:upload_uuid", "layer", "tracktype", 
-			"ele", "tiger:separated", "tiger:zip_right", 
-			"yh:WIDTH", "place", "foot"
-			};
-	final static String[] tagVals = { "yes", "no", "residential", "garage", "water", "tower",
-			"footway", "Bing", "PGS", "private", "stream", "service",
-			"house", "unclassified", "track", "traffic_signals","restaurant","entrance"
-			};
-
+	private final static Map<String, byte[]> wellKnownTagKeys = new HashMap<>(60, 0.25f);
+	private final static Map<String, byte[]> wellKnownTagVals = new HashMap<>(20, 0.25f);
+	
 	static {
 		try {
-			for (String s : tagKeys) {
+			for (String s : Arrays.asList(
+					 "1", "1outer", "1inner", "type", // relation specific  
+						// 50 most often used keys (taken from taginfo 2016-11-20)
+						"building", "source", 
+						"highway", "addr:housenumber", "addr:street", "name", 
+						"addr:city", "addr:postcode", "natural", "source:date", "addr:country",
+						"landuse", "surface", "created_by", "power",
+						"tiger:cfcc", "waterway", "tiger:county", 
+						"start_date", "tiger:reviewed", "wall",  
+						"amenity", "oneway", "ref:bag", "ref",  
+						"attribution", "tiger:name_base", "building:levels",
+						"maxspeed", "barrier", "tiger:name_type", "height", 
+						"service", "source:addr", "tiger:tlid", "tiger:source",  
+						"lanes", "access", "addr:place", "tiger:zip_left", 
+						"tiger:upload_uuid", "layer", "tracktype", 
+						"ele", "tiger:separated", "tiger:zip_right", 
+						"yh:WIDTH", "place", "foot"
+					)) {
 				wellKnownTagKeys.put(s, s.getBytes("UTF-8"));
 			}
 
-			for (String s : tagVals) {
+			for (String s : Arrays.asList(
+					"yes", "no", "residential", "garage", "water", "tower",
+					"footway", "Bing", "PGS", "private", "stream", "service",
+					"house", "unclassified", "track", "traffic_signals","restaurant","entrance"
+					)) {
 				wellKnownTagVals.put(s, s.getBytes("UTF-8"));
 			}
 		} catch (Exception e) {
@@ -138,7 +136,7 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	}
 
 	private void reset() throws IOException{
-		dos.write(RESET_FLAG);
+		os.write(RESET_FLAG);
 		resetVars();
 	}
 	
@@ -170,9 +168,8 @@ public class O5mMapWriter extends AbstractOSMWriter{
 
 		String filename = String.format(Locale.ROOT, "%08d.o5m", mapId);
 		try {
-			FileOutputStream fos = new FileOutputStream(new File(outputDir, filename));
-			dos = new DataOutputStream(new BufferedOutputStream(fos));
-			dos.write(RESET_FLAG);
+			os = new BufferedOutputStream(new FileOutputStream(new File(outputDir, filename)));
+			os.write(RESET_FLAG);
 			writeHeader();
 			writeBBox();
 		} catch (IOException e) {
@@ -199,16 +196,16 @@ public class O5mMapWriter extends AbstractOSMWriter{
 	}
 
 	private void writeDataset(int fileType, ByteArrayOutputStream stream) throws IOException {
-		dos.write(fileType);
-		writeUnsignedNum(stream.size(), dos);
-		stream.writeTo(dos);
+		os.write(fileType);
+		writeUnsignedNum(stream.size(), os);
+		stream.writeTo(os);
 		lastWrittenDatasetType = fileType;
 	}
 
 	public void finishWrite() {
 		try {
-			dos.write(EOD_FLAG);
-			dos.close();
+			os.write(EOD_FLAG);
+			os.close();
 			stw__hashtab = null;
 			stw__tabprev = null;
 			stw__tabnext = null;
