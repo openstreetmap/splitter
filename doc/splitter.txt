@@ -114,9 +114,9 @@ Do not specify it with --overlap unless you have a good reason to do so.
 :  Set the filename for the split files. In the example the first file will be
 called 63240001.osm.pbf and the next one will be 63240002.osm.pbf and so on.
 
-;--max-areas=512
+;--max-areas=2048
 :  The maximum number of areas that can be processed in a single pass during
-the second stage of processing. This must be a number from 1 to 4096. Higher
+the second stage of processing. This must be a number from 1 to 9999. Higher
 numbers mean fewer passes over the source file and hence quicker overall
 processing, but also require more memory. If you find you are running out of
 memory but don't want to increase your --max-nodes value, try reducing this

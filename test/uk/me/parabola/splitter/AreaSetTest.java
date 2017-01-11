@@ -60,4 +60,24 @@ public class AreaSetTest {
 			assertEquals("cardinality() returns wrong value", 0, set.cardinality());
 		}
 	}
+
+	@Test
+	public void testErr542() {
+		// crashed with r542
+		AreaSet set = new AreaSet();
+		set.set(1);
+		set.set(4);
+		set.set(7);
+		set.set(8);
+		set.set(9);
+		set.set(10);
+		set.set(11);
+		set.set(12);
+		set.set(13);
+		set.set(14);
+		set.set(15);
+		set.set(29);
+		set.clear(29);
+		set.clear(29);
+	}
 }
