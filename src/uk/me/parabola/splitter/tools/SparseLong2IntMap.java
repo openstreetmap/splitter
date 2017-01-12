@@ -912,18 +912,19 @@ public final class SparseLong2IntMap {
 	 * calculate and print performance values regarding memory.
 	 */
 	public void stats(int msgLevel) {
-		long totalBytes = currentChunk.length * Integer.BYTES;
-		long totalChunks = 1; // current chunk
-			
 		if (size() == 0){
 			System.out.println(dataDesc + " Map is empty");
 			return;
 		}
+		long totalBytes = currentChunk.length * Integer.BYTES;
+		long totalChunks = 1; // current chunk
+			
 		for (Mem mem : topMap.values()) {
 			totalChunks += mem.getUsedChunks();
 			totalBytes += mem.estimatedBytes;
 		}
-		float bytesPerKey = size()==0 ? 0: (float)(totalBytes*100 / size()) / 100;
+		
+		float bytesPerKey = (float) (totalBytes * 100 / size()) / 100;
 		System.out.println(dataDesc + " Map: " + Utils.format(size()) + " stored long/int pairs require ca. " +
 				bytesPerKey + " bytes per pair. " +
 				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " +
