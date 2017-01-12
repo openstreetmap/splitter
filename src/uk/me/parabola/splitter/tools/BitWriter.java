@@ -29,7 +29,6 @@ public class BitWriter {
 	// The byte buffer and its current length (allocated length)
 	private byte[] buf;  // The buffer
 	private int bufsize;  // The allocated size
-	private int cntExtra; // TODO remove this and the code 
 
 	/** The number of bits already used in the current byte of the buffer. */
 	private int usedBits;
@@ -49,7 +48,6 @@ public class BitWriter {
 
 	public void clear() {
 		Arrays.fill(buf, (byte) 0);
-		cntExtra = 0;
 		index = 0;
 		usedBits = 0;
 	}
@@ -145,13 +143,11 @@ public class BitWriter {
 		
 		if (bval == Integer.MIN_VALUE) {
 			// catch special case : Math.abs(Integer.MIN_VALUE) returns Integer.MIN_VALUE
-			cntExtra++;
 			putn(top, nb);
 			val = Math.abs(val - mask);
 		}
 		assert val >= 0;
 		while (val > mask) {
-			cntExtra++;
 			putn(top, nb);
 			val -= mask;
 		}
@@ -160,10 +156,6 @@ public class BitWriter {
 		} else {
 			putn(val, nb);
 		}
-	}
-	
-	public int getCntExtra() {
-		return cntExtra;
 	}
 
 	public byte[] getBytes() {
