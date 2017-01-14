@@ -281,6 +281,7 @@ public class CustomCollectionsTest {
 		for (int i = 100_000; i < 110_000; i++) {
 			assertEquals(i, map.get(idOffset + i));
 		}
+		map.clear();
 		Random random = new Random(101);
 		Map<Long,Integer> ref = new HashMap<>();
 		// special cases long chunks (all 64 values used and random
@@ -295,13 +296,13 @@ public class CustomCollectionsTest {
 		ref.entrySet().forEach(e -> {
 			long id = e.getKey();
 			int val = map.get(id);
-			assertEquals(val, (int)e.getValue());
+			assertEquals("id=" + id, (int) e.getValue(), val);
 		});
 		
 		
 		ref.clear();
 		map.clear();
-		for (int i = 0; i < 100_00; i++) {
+		for (int i = 0; i < 10_000; i++) {
 			long id = Math.round((1L << 29) * random.nextDouble());
 			int val = (-1 * (1 << 20) + (int) Math.round((1 << 20) * random.nextDouble()));
 			map.put(idOffset + id, val);
@@ -311,7 +312,17 @@ public class CustomCollectionsTest {
 		ref.entrySet().forEach(e -> {
 			long id = e.getKey();
 			int val = map.get(id);
-			assertEquals(val, (int)e.getValue());
+			assertEquals("id=" + id, (int) e.getValue(), val);
 		});
+		
+		// simulate split where all nodes fall into same tile
+		map.clear();
+		for (int i = 0; i < 1 << 27; i+=64) {
+			map.put(idOffset + i,  12);
+		}
+		assertEquals("id=" + idOffset+ 2048, 12, map.get(idOffset + 2048));
+		assertEquals("id=" + idOffset+ 2048*1024, 12, map.get(idOffset + 2048*1024));
+		assertEquals("id=" + idOffset+ 2048*1024 + 1, UNASSIGNED, map.get(idOffset + 2048*1024+1));
+		return;
 	}
 }
