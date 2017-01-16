@@ -31,11 +31,11 @@ import uk.me.parabola.splitter.Utils;
  *
  * Inspired by SparseInt2ShortMapInline.
  *
- * A HashMap is used to address large vectors which address chunks. The HashMap
+ * A HashMap is used to address {@link ChunkMem} instances which address chunks. The HashMap
  * is the only part that stores long values, and it will be very small as long
- * as long as input is normal OSM data and not something with random numbers.
+ * as input is normal OSM data and not something with random keys.
  * A chunk stores up to CHUNK_SIZE values. A separately stored bit-mask is used
- * to separate used and unused entries in the chunk. Thus, the chunk length
+ * to separate used and unused entries in the chunk. Thus, the stored chunk length
  * depends on the number of used entries, not on the highest used entry.
  * Such a "masked encoded" entry may look like this
  * v1,v1,v1,v1,v1,v1,v2,v2,v2,v2,v1,v1,v1,v1,v1,u,?,?,...}
@@ -45,11 +45,18 @@ import uk.me.parabola.splitter.Utils;
  *
  * After applying Run Length Encryption on this the chunk looks like this:
  * {v1,6,v2,4,v1,5,?,?,?}
- *
+ * Further compression is achieved by using a dictionary if appropriate. The dictionary
+ * contains all distinct values. These are then addressed by the position in the dictionary.
+ * The above example will be reduced to this:
+ * {v1,v2,6,4,5}
+ * Note that there is no need to store the position when the dictionary contains 
+ * two entries.
+ * If a dictionary contains only one entry we only store the dictionary and the bit mask.
+ *  
  * Fortunately, OSM data is distributed in a way that a lot of chunks contain
  * just one distinct value. 
  *
- * Since we have OSM ids with 64 bits, we have to divide the key into 3 parts:
+ * Since we have OSM IDs with 64 bits, we have to divide the key into 3 parts:
  * 37 bits for the value that is stored in the HashMap.
  * 21 bits for the chunkId (this gives the required length of a large vector)
  * 6 bits for the position in the chunk
@@ -62,15 +69,17 @@ import uk.me.parabola.splitter.Utils;
  * y is the position of the store (0-1048575), we store a value incremented by 1 to ensure a non-zero value for used chunks
  * z is the position of the chunk within the store. (0-15)
  * The maximum values for these three values are chosen so that we can place them
- * together into one int (32 bits).
+ * together into the int value that is kept in the large vector.
  */
 
 public final class SparseLong2IntMap {
 	private static final boolean SELF_TEST = false;
-	private static final int CHUNK_SIZE = 64; 					// 64  = 1<< 6 (last 6 bits of the key)
+	private static final int CHUNK_SIZE = 64;
+	private static final int CHUNK_SHIFT = Integer.numberOfTrailingZeros(CHUNK_SIZE);
+	
 	private static final int MAX_BYTES_FOR_VAL = Integer.BYTES;
 	private static final int MAX_STORED_BYTES_FOR_CHUNK = CHUNK_SIZE * MAX_BYTES_FOR_VAL;
-	private static final int CHUNK_STORE_BITS_FOR_X = Integer.SIZE - Integer.numberOfLeadingZeros(MAX_STORED_BYTES_FOR_CHUNK-1); // values 1 .. 256 are stored as 0..255
+	private static final int CHUNK_STORE_BITS_FOR_X = Integer.SIZE - Integer.numberOfLeadingZeros(MAX_STORED_BYTES_FOR_CHUNK - 1); // values 1 .. 256 are stored as 0..255
 	private static final int CHUNK_STORE_BITS_FOR_Z = 8; // must not be higher than 8
 	private static final int CHUNK_STORE_BITS_FOR_Y = Integer.SIZE - (CHUNK_STORE_BITS_FOR_X + CHUNK_STORE_BITS_FOR_Z);  	
 	private static final int CHUNK_STORE_ELEMS = 1 << CHUNK_STORE_BITS_FOR_Z;
@@ -104,7 +113,7 @@ public final class SparseLong2IntMap {
 	private long oldModCount;
 
 	private long currentChunkId;
-	private Mem currentMem;
+	private ChunkMem currentMem;
 	private final int [] currentChunk = new int[CHUNK_SIZE]; // stores the values in the real position
 	private final int [] testChunk = new int[CHUNK_SIZE]; // for internal test 
 	private final int [] maskedChunk = new int[CHUNK_SIZE]; // a chunk after applying the "mask encoding"
@@ -123,14 +132,14 @@ public final class SparseLong2IntMap {
 	private static final int FLAG2_ALL_POSITIVE = 0x20;
 	private static final int FLAG2_ALL_NEGATIVE = 0x40;
 	private static final int FLAG2_DICT_SIZE_IS_2 = 0x80;	
-	private static final int FLAG_BITS_FOR_DICT_SIZE = Integer.SIZE - Integer.numberOfLeadingZeros(CHUNK_SIZE-1);
+	private static final int FLAG_BITS_FOR_DICT_SIZE = Integer.SIZE - Integer.numberOfLeadingZeros(CHUNK_SIZE - 1);
 	/** a chunk that is stored with a length between 1 and 3 has no flag byte and is always a single value chunk. */  
 	private static final int SINGLE_VAL_CHUNK_LEN_NO_FLAG = 3;  
 	
 	// for statistics
 	private final String dataDesc;
 	
-	private Long2ObjectOpenHashMap<Mem> topMap;
+	private Long2ObjectOpenHashMap<ChunkMem> topMap;
 
 	static final long MAX_MEM = Runtime.getRuntime().maxMemory() / 1024 / 1024;
 	static final int POINTER_SIZE = (MAX_MEM < 32768) ? 4 : 8; // presuming that compressedOOps is enabled
@@ -148,7 +157,7 @@ public final class SparseLong2IntMap {
 		// sanity check to make sure that we can store enough chunks with the same length
 		// If this test fails it is not possible to store the same value for all ids 
 		long reserve = ((1L << CHUNK_STORE_BITS_FOR_Y) - 1) * CHUNK_SIZE - LARGE_VECTOR_SIZE;
-		assert reserve > 0: "Bad combination of constants";
+		assert reserve > 0 : "Bad combination of constants";
 		this.dataDesc = dataDesc;
 		System.out.println(dataDesc + " Map: uses " + this.getClass().getSimpleName());
 		clear();
@@ -159,33 +168,36 @@ public final class SparseLong2IntMap {
 	 * @author Gerd Petermann
 	 *
 	 */
-	static class Mem {
+	static class ChunkMem {
 		private final long topId;
 		private long estimatedBytes; // estimate value for the allocated bytes
-		private final int[] largeVector;
+		private int[] largeVector; // only used when sparseVector is growing too large
+		private Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
 		private byte[][][] chunkStore;
 		private final int[] freePosInStore;
 		/**  maps chunks that can be reused. */
-		private Int2ObjectOpenHashMap<IntArrayList> reusableChunks;
-		private int countChunks;
+		private int chunkCount;
+		private int lastFlag;
+		private long lastChunkId = INVALID_CHUNK_ID;
+		private boolean checkReuse;
 		
-		public Mem(long topID) {
+		public ChunkMem(long topID) {
 			this.topId = topID;
-			largeVector = new int[LARGE_VECTOR_SIZE];
 			chunkStore = new byte[MAX_STORED_BYTES_FOR_CHUNK][][];
 			freePosInStore = new int[MAX_STORED_BYTES_FOR_CHUNK];
-			reusableChunks = new Int2ObjectOpenHashMap<>(0);
+			reusableChunks = new Int2ObjectOpenHashMap<>(0, Hash.VERY_FAST_LOAD_FACTOR);
+			largeVector = new int[LARGE_VECTOR_SIZE];
 			estimatedBytes = LARGE_VECTOR_SIZE * Integer.BYTES 
 					+ (MAX_STORED_BYTES_FOR_CHUNK) * (8 + 1 * Integer.BYTES) + 3 * (24 + 16) + 190; 
 		}
 
-		public void grow(int x) {
+		private void grow(int x) {
 			int oldCapacity = chunkStore[x].length;
-	        int newCapacity = oldCapacity < 1024 ? oldCapacity * 2 : oldCapacity + (oldCapacity >> 1);
-	        if (newCapacity >= MAX_Y_VAL) 
-	            newCapacity = MAX_Y_VAL;
-	        if (newCapacity <= oldCapacity)
-	        	return;
+			int newCapacity = oldCapacity < 1024 ? oldCapacity * 2 : oldCapacity + (oldCapacity >> 1);
+			if (newCapacity >= MAX_Y_VAL)
+				newCapacity = MAX_Y_VAL;
+			if (newCapacity <= oldCapacity)
+				return;
 			resize(x, newCapacity);
 		}
 
@@ -193,53 +205,62 @@ public final class SparseLong2IntMap {
 			int oldCapacity = chunkStore[x].length;
 			if (newCapacity < oldCapacity)
 				assert chunkStore[x][newCapacity] == null;
-	        chunkStore[x] = Arrays.copyOf(chunkStore[x], newCapacity);
-	        // bytes for pointers seem to depends on the capacity ?
-	        estimatedBytes += (newCapacity - oldCapacity) *  8; // pointer-pointer  
+			chunkStore[x] = Arrays.copyOf(chunkStore[x], newCapacity);
+			estimatedBytes += (newCapacity - oldCapacity) * 8; // pointer-pointer
 		}
 
-		public void startStore(int x) {
-			chunkStore[x] = new byte[2][];
-			estimatedBytes += 24 + 2 * 8; // pointer-pointer
-		}
-		
-		private void storeChunk(long chunkId, ByteBuffer bufEncoded) {
+		private void putChunk(long chunkId, ByteBuffer bufEncoded) {
 			int len = bufEncoded.limit();
 			int x = len - (1 + BYTES_FOR_MASK); 
-			int reuseFlag = getFlag(chunkId);
-			if (reuseFlag != 0) {
-				int reuseX = reuseFlag & CHUNK_STORE_X_MASK;
-				// this is a rewrite, add the previously used chunk to the reusable list
-				IntArrayList reusableChunk = reusableChunks.get(reuseX);
-				if (reusableChunk == null) {
-					reusableChunk = new IntArrayList(8);
-					reusableChunks.put(reuseX, reusableChunk);
-					estimatedBytes += 8 * Integer.BYTES + 24 + Integer.BYTES + POINTER_SIZE + 16; // for the IntArrayList instance 
-					estimatedBytes += 20; // estimate for the hash map entry
-				}
-				reusableChunk.add(reuseFlag);
-			} else
-				countChunks++;
+
 			if (chunkStore[x] == null) {
-				startStore(x);
+				chunkStore[x] = new byte[2][];
+				estimatedBytes += 24 + 2 * 8; // pointer-pointer
 			}
-			IntArrayList reusableChunk = reusableChunks.get(x);
+			
+			IntArrayList reusableChunk = null;
+			int reuseFlag = 0;
+			int lastX = -1;
+			if (lastChunkId != (chunkId & OLD_CHUNK_ID_MASK)) {
+				chunkCount++;
+			} else {
+				lastX = lastFlag & CHUNK_STORE_X_MASK;
+				if (x == lastX) {
+					reuseFlag = lastFlag;
+				} else {
+					// this is a rewrite with a different length, add the previously used chunk to the reusable list
+					reusableChunk = reusableChunks.get(lastX);
+					if (reusableChunk == null) {
+						reusableChunk = new IntArrayList(8);
+						reusableChunks.put(lastX, reusableChunk);
+						estimatedBytes += 8 * Integer.BYTES + 24 + Integer.BYTES + POINTER_SIZE + 16; // for the IntArrayList instance 
+						estimatedBytes += 20; // estimate for the hash map entry
+					}
+					reusableChunk.add(lastFlag);
+					checkReuse = true;
+				}
+			}
+			if (x != lastX && checkReuse) {
+				reusableChunk = reusableChunks.get(x);
+				if (reusableChunk != null && !reusableChunk.isEmpty()) {
+					reuseFlag = reusableChunk.removeInt(reusableChunk.size() - 1);
+				}
+			}
 			int y, z;
 			byte[] store;
-			if (reusableChunk != null && !reusableChunk.isEmpty()) {
-				int reusedIdx = reusableChunk.removeInt(reusableChunk.size() - 1);
-				y = (reusedIdx >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
+			if (reuseFlag != 0) {
+				y = (reuseFlag >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 				y--; // we store the y value incremented by 1
-				z = (reusedIdx >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
+				z = (reuseFlag >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 				store = chunkStore[x][y];
 			} else {
 				y = ++freePosInStore[x] / CHUNK_STORE_ELEMS;
-				if (y >= chunkStore[x].length) 
+				if (y >= chunkStore[x].length)
 					grow(x);
 				if (chunkStore[x][y] == null) {
 					int numChunks = (len < 16) ? CHUNK_STORE_ELEMS : 8;
 					chunkStore[x][y] = new byte[numChunks * len + 1];
-					estimatedBytes += 24 + numChunks * len  + 1;
+					estimatedBytes += 24 + numChunks * len + 1;
 					int padding = 8 - (numChunks & 7);
 					if (padding < 8)
 						estimatedBytes += padding;
@@ -250,7 +271,7 @@ public final class SparseLong2IntMap {
 					int newNum = Math.min(CHUNK_STORE_ELEMS, z + 8);
 					store = Arrays.copyOf(store, newNum * len + 1);
 					chunkStore[x][y] = store;
-					estimatedBytes += (newNum- z) * len;
+					estimatedBytes += (newNum - z) * len;
 				}
 			}
 
@@ -262,55 +283,59 @@ public final class SparseLong2IntMap {
 			assert x < 1 << CHUNK_STORE_BITS_FOR_X;
 			assert y < 1 << CHUNK_STORE_BITS_FOR_Y;
 			assert z < 1 << CHUNK_STORE_BITS_FOR_Z;
-			int idx = (z & CHUNK_STORE_Z_MASK) << CHUNK_STORE_Z_SHIFT 
+			int flag = (z & CHUNK_STORE_Z_MASK) << CHUNK_STORE_Z_SHIFT 
 					| (y & CHUNK_STORE_Y_MASK) << CHUNK_STORE_Y_SHIFT
 					| (x & CHUNK_STORE_X_MASK);
 
-			assert idx != 0;
-			int vectorPos = (int) (chunkId & CHUNK_ID_MASK) / CHUNK_SIZE;
-			largeVector[vectorPos] = idx;
+			assert flag != 0;
+			
+			int vectorPos = getVectorPos(chunkId);
+			largeVector[vectorPos] = flag;
 		}
 
-		public int getUsedChunks() {
-			return countChunks;
+		/**
+		 * Calculate the position in the large vector
+		 * @param chunkId the (unshifted) key
+		 * @return the position in the large vector 
+		 */
+		private static int getVectorPos (long chunkId) {
+			return (int) (chunkId & CHUNK_ID_MASK) >> CHUNK_SHIFT;
+		}
+		
+		private int getFlag(long chunkId) {
+			int vectorPos = getVectorPos(chunkId);
+			return largeVector[vectorPos];
+		}
+		
+		/**
+		 * @return number of used chunks
+		 */
+		public int getChunkCount() {
+			return chunkCount;
 		}
 
-		int getFlag(long key) {
-			int chunkid = (int) (key & CHUNK_ID_MASK) / CHUNK_SIZE;
-			return largeVector[chunkid];
-		}
-		public ByteBuffer getStoredChunk(long key) {
+		/**
+		 * Get a {@link }ByteBuffer} that contains the stored (encoded) chunk.
+		 * @param key the key
+		 * @param forUpdate 
+		 * @return the buffer or null if no chunk 
+		 */
+		public ByteBuffer getStoredChunk(long key, boolean forUpdate) {
 			int flag = getFlag(key);
 			if (flag == 0)
 				return null;
 			int x = flag & CHUNK_STORE_X_MASK;
 			int y = (flag >> CHUNK_STORE_Y_SHIFT) & CHUNK_STORE_Y_MASK;
 			y--; // we store the y value incremented by 1
-			assert y < LARGE_VECTOR_SIZE;
 			int z = (flag >> CHUNK_STORE_Z_SHIFT) & CHUNK_STORE_Z_MASK;
 			int chunkLenWithMask = x + 1 + BYTES_FOR_MASK;
 			int startPos = z * chunkLenWithMask + 1;
+			if (forUpdate) {
+				lastChunkId = key & OLD_CHUNK_ID_MASK; 
+				lastFlag = flag;
+			}
 			return ByteBuffer.wrap(chunkStore[x][y], startPos, chunkLenWithMask);
 		}
-
-		/**
-		 * For statistics.
-		 * @param msgLevel2 
-		 */
-		public int count(int[] all, int count, int msgLevel) {
-			int totalChunks = 0;
-			for (int x = 0; x < freePosInStore.length; x++) {
-				if (freePosInStore[x] == 0)
-					continue;
-				all[x] += freePosInStore[x];
-				if (msgLevel >= 1) {
-					System.out.println("mem store no: " + count + " len: " + (x+1) + " " + freePosInStore[x]);
-				}
-				totalChunks += freePosInStore[x];
-			}
-			return totalChunks;
-		}
-
 	}
 	
 	/**
@@ -377,7 +402,7 @@ public final class SparseLong2IntMap {
 		return Long.SIZE - Long.numberOfLeadingZeros(Math.abs(val)) + 1;
 	}
   
-	private Mem getMem (long key) {
+	private ChunkMem getMem (long key) {
 		long topID = (key >> TOP_ID_SHIFT);
 		if (currentMem == null || currentMem.topId != topID) {
 			currentMem = topMap.get(topID);
@@ -596,17 +621,17 @@ public final class SparseLong2IntMap {
 			assert bufEncoded.position() > SINGLE_VAL_CHUNK_LEN_NO_FLAG;
 		}
 		bufEncoded.flip();
-		Mem mem = getMem(currentChunkId);
+		ChunkMem mem = getMem(currentChunkId);
 		if (mem == null) {
 			long topID = currentChunkId >> TOP_ID_SHIFT;
-			mem = new Mem(topID);
+			mem = new ChunkMem(topID);
 			topMap.put(topID, mem);
 			currentMem = mem;
 		}
-		mem.storeChunk(currentChunkId, bufEncoded);
+		mem.putChunk(currentChunkId, bufEncoded);
 		if (SELF_TEST) {
 			Arrays.fill(testChunk, unassigned);
-			decodeStoredChunk(mem.getStoredChunk(currentChunkId), testChunk, -1);
+			decodeStoredChunk(currentChunkId, testChunk, -1);
 			for (int i = 0; i < CHUNK_SIZE; i++) {
 				if (testChunk[i] != currentChunk[i]) {
 					assert false : "current chunk id=" + currentChunkId + " key=" + (currentChunkId + i)
@@ -682,7 +707,12 @@ public final class SparseLong2IntMap {
 	 * @param chunkOffset gives the wanted element (targetChunk must be null)
 	 * @return the extracted value or unassigned 
 	 */
-	private int decodeStoredChunk (ByteBuffer inBuf, int[] targetChunk, int chunkOffset) {
+	private int decodeStoredChunk (long key, int[] targetChunk, int chunkOffset) {
+		ChunkMem mem = getMem(key);
+		if (mem == null)
+			return unassigned;
+
+		ByteBuffer inBuf = mem.getStoredChunk(key, targetChunk == currentChunk);
 		if (inBuf == null)
 			return unassigned;
 		long chunkMask = inBuf.getLong();
@@ -856,11 +886,7 @@ public final class SparseLong2IntMap {
 		oldModCount = modCount;
 		currentChunkId = key & OLD_CHUNK_ID_MASK; 
 		
-		Mem mem = getMem(key);
-		if (mem == null)
-			return;
-		ByteBuffer bb = mem.getStoredChunk(key);
-		decodeStoredChunk(bb, currentChunk, -1);
+		decodeStoredChunk(key, currentChunk, -1);
 	}
 
 	
@@ -876,11 +902,7 @@ public final class SparseLong2IntMap {
 		if (currentChunkId == chunkId) {
 			return currentChunk[chunkoffset];
 		}
-		Mem mem = getMem(key);
-		if (mem == null)
-			return unassigned;
-
-		return decodeStoredChunk(mem.getStoredChunk(key), null, chunkoffset);
+		return decodeStoredChunk(key, null, chunkoffset);
 	}
 
 	public void clear() {
@@ -919,21 +941,27 @@ public final class SparseLong2IntMap {
 		long totalBytes = currentChunk.length * Integer.BYTES;
 		long totalChunks = 1; // current chunk
 			
-		for (Mem mem : topMap.values()) {
-			totalChunks += mem.getUsedChunks();
+		for (ChunkMem mem : topMap.values()) {
+			totalChunks += mem.getChunkCount();
 			totalBytes += mem.estimatedBytes;
 		}
-		
+		int largeVectors = topMap.size();
 		float bytesPerKey = (float) (totalBytes * 100 / size()) / 100;
 		System.out.println(dataDesc + " Map: " + Utils.format(size()) + " stored long/int pairs require ca. " +
 				bytesPerKey + " bytes per pair. " +
-				totalChunks + " chunks are used, the avg. number of values in one "+CHUNK_SIZE+"-chunk is " +
+				Utils.format(totalChunks) + " chunks are used, the avg. number of values in one " + CHUNK_SIZE + "-chunk is " +
 				(totalChunks == 0 ? 0 : (size() / totalChunks)) + ".");
-		System.out.println(dataDesc + " Map details: bytes ~" + Utils.format(totalBytes/1024/1024) + " MB, including " +
-				topMap.size() + " array(s) with " + LARGE_VECTOR_SIZE * Integer.BYTES/1024/1024 + " MB");  
+		if (msgLevel >= 0) {
+			String details = dataDesc + " Map details: ~" + bytesToMB(totalBytes) + ", including " + topMap.size()
+					+ largeVectors + " array(s) with " + bytesToMB(LARGE_VECTOR_SIZE * Integer.BYTES);
+			System.out.println(details);
+		}
 		System.out.println();
 	}
 
+	private static String bytesToMB (long bytes) {
+		return ((bytes + (1 << 19)) >>> 20) + " MB";
+	}
 	
 	/*
 	void  test(){
