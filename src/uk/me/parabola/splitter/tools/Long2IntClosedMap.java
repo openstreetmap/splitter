@@ -61,7 +61,6 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		this.maxSize = maxSize;
 		index = new LongArrayList();
 		bounds = new IntArrayList();
-		vals = new int[maxSize];
 		keys = new int[maxSize];
 		this.unassigned = unassigned;
 	}
@@ -85,7 +84,12 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 			oldTopId = topId;
 		}
 		keys[size] = (int)(key & LOW_ID_MASK);
-		vals[size] = val;
+		if (val != unassigned) {
+			if (vals == null)
+				allocVals();
+
+			vals[size] = val;
+		}
 		currentKey = key;
 		size++;
 		return size-1;
@@ -99,21 +103,24 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 				BufferedOutputStream stream = new BufferedOutputStream(fos);
 				DataOutputStream dos = new DataOutputStream(stream)) {
 			long lastKey = Long.MIN_VALUE;
-			for (int indexPos = 0; indexPos < index.size(); indexPos++){
-				long topId = index.getLong(indexPos);
-				int lowerBound = bounds.getInt(indexPos);
-				int upperBound = size;
-				if (indexPos+1 < index.size())
-					upperBound = bounds.getInt(indexPos+1);
-				long topVal = topId << TOP_ID_SHIFT;
-				for (int i = lowerBound; i <  upperBound; i++){
-					long key = topVal | (keys[i] & LOW_ID_MASK);
-					int val = vals[i];
-					assert i == 0  || lastKey < key;
-					lastKey = key;
-					if (val != unassigned){
-						dos.writeLong(key);
-						dos.writeInt(val);
+			if (vals != null) {
+				for (int indexPos = 0; indexPos < index.size(); indexPos++){
+					long topId = index.getLong(indexPos);
+					int lowerBound = bounds.getInt(indexPos);
+					int upperBound = size;
+					if (indexPos+1 < index.size())
+						upperBound = bounds.getInt(indexPos+1);
+					long topVal = topId << TOP_ID_SHIFT;
+					for (int i = lowerBound; i <  upperBound; i++){
+						long key = topVal | (keys[i] & LOW_ID_MASK);
+
+						int val = vals[i];
+						assert i == 0  || lastKey < key;
+						lastKey = key;
+						if (val != unassigned){
+							dos.writeLong(key);
+							dos.writeInt(val);
+						}
 					}
 				}
 			}
@@ -141,8 +148,10 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 
 	@Override
 	public  int getRandom(long key){
+		if (vals == null)
+			return unassigned;
 		int pos = getKeyPos(key);
-		if (pos >= 0)
+		if (pos >= 0) 
 			return vals[pos];
 		return unassigned;
 	}
@@ -228,6 +237,8 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 		int pos = getKeyPos(key);
 		if (pos < 0)
 			throw new IllegalArgumentException("replace on unknown key requested");
+		if (vals == null)
+			allocVals();
 		int oldVal = vals[pos];
 		vals[pos] = val;
 		return oldVal;
@@ -236,6 +247,11 @@ public class Long2IntClosedMap implements Long2IntClosedMapFunction{
 	@Override
 	public void stats(String prefix) {
 		System.out.println(prefix + name + "WriterMap contains " + Utils.format(size) + " pairs.");
+	}
+	
+	private void allocVals() {
+		vals = new int[maxSize];
+		Arrays.fill(vals, unassigned);
 	}
 }
 
