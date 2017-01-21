@@ -945,7 +945,6 @@ public final class SparseLong2IntMap {
 			totalChunks += mem.getChunkCount();
 			totalBytes += mem.estimatedBytes;
 		}
-		int largeVectors = topMap.size();
 		float bytesPerKey = (float) (totalBytes * 100 / size()) / 100;
 		System.out.println(dataDesc + " Map: " + Utils.format(size()) + " stored long/int pairs require ca. " +
 				bytesPerKey + " bytes per pair. " +
@@ -953,7 +952,7 @@ public final class SparseLong2IntMap {
 				(totalChunks == 0 ? 0 : (size() / totalChunks)) + ".");
 		if (msgLevel >= 0) {
 			String details = dataDesc + " Map details: ~" + bytesToMB(totalBytes) + ", including " + topMap.size()
-					+ largeVectors + " array(s) with " + bytesToMB(LARGE_VECTOR_SIZE * Integer.BYTES);
+					+ " array(s) with " + bytesToMB(LARGE_VECTOR_SIZE * Integer.BYTES);
 			System.out.println(details);
 		}
 		System.out.println();
