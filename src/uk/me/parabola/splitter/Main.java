@@ -433,7 +433,7 @@ public class Main {
 				System.out.println("Setting default overlap=2000 because keep-complete=false is in use.");
 			}
 
-			if (mainOptions.getProblemReport() != null) {
+			if (params.getProblemReport() != null) {
 				System.out.println(
 						"Parameter --problem-report is ignored, because parameter --keep-complete=false is used");
 			}
