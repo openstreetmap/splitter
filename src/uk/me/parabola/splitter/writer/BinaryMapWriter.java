@@ -161,11 +161,13 @@ public class BinaryMapWriter extends AbstractOSMWriter {
 				// }
 				if (versionMethod != REMOVE_VERSION) {
 					int version = getWriteVersion(e);
-					b.setVersion(version);
-					b.setTimestamp(0);
-					b.setChangeset(0);
-					b.setUid(0);
-					b.setUserSid(0);
+					if (version != 0) {
+						b.setVersion(version);
+						b.setTimestamp(0);
+						b.setChangeset(0);
+						b.setUid(0);
+						b.setUserSid(0);
+					}
 				}
 				return b;
 			}
