@@ -38,7 +38,7 @@ public interface Args {
 	public static final String[] MAIN_ARGS = { "--status-freq=0", 
 			"--write-kml=" + DEF_AREAS_KML,
 			"--problem-report=" + DEF_PROBLEM_LIST,
-			"--max-nodes=500000",
+			"--max-nodes=500000", 
 			};
 	
 	public static final String ALASKA = TEST_RESOURCE_OSM + "alaska-2016-12-27.osm.pbf";
@@ -49,10 +49,18 @@ public interface Args {
 		{
 			put(DEF_AREAS_KML, 5158);
 			put(DEF_AREAS_LIST, 1076);
-			put(DEF_AREAS_POLY, 446);
+			put(DEF_AREAS_POLY, 371);
 			put(DEF_DENSITIES, 769055);
 			put(DEF_PROBLEM_LIST, 12157);
 			put(DEF_TEMPLATE, 930);
+		}
+	};
+
+	/** expected summed line sizes for ALASKA file */
+	public static final Map<String, Integer> expectedAlaskaOverlap = new LinkedHashMap<String, Integer>() {
+		{
+			putAll(expectedAlaska);
+			remove(DEF_PROBLEM_LIST);
 		}
 	};
 
@@ -61,7 +69,7 @@ public interface Args {
 		{
 			put(DEF_AREAS_KML, 3143);
 			put(DEF_AREAS_LIST, 616);
-			put(DEF_AREAS_POLY, 263);
+			put(DEF_AREAS_POLY, 204);
 			put(DEF_DENSITIES, 2157);
 			put(DEF_PROBLEM_LIST, 51017);
 			put(DEF_TEMPLATE, 662);

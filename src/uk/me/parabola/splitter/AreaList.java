@@ -207,7 +207,7 @@ public class AreaList {
 						if (point.y == nextPoint.y && point.y == lastPoint.y)
 							continue;
 					}
-					pw.format(Locale.ROOT, "  %e  %e%n",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y));
+					pw.format(Locale.ROOT, "  %f  %f%n",Utils.toDegrees(point.x) ,Utils.toDegrees(point.y));
 					
 				}
 				pw.println("END");

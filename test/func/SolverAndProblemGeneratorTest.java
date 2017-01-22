@@ -62,6 +62,11 @@ public class SolverAndProblemGeneratorTest extends Base {
 	}
 
 	@Test
+	public void testAlaskaOverlap() throws IOException {
+		runSplitter(Args.expectedAlaskaOverlap,"--stop-after=split","--keep-complete=false", Args.ALASKA);
+	}
+
+	@Test
 	/** verifies that --max-areas has no effect on the output */
 	public void testAlaskaMaxAreas7() throws IOException {
 		runSplitter(Args.expectedAlaska,"--stop-after=gen-problem-list","--max-areas=5", Args.ALASKA);
