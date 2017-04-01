@@ -59,9 +59,14 @@ public class ProblemLists {
 				Area a1 = realAreas.get(i);
 				for (int j = i + 1; j < realAreas.size(); j++) {
 					Area a2 = realAreas.get(j);
-					if (a1.intersects(a2)) {
+					if (a1.overlaps(a2)) {
 						overlappingTiles.add(a1.getMapId());
 						overlappingTiles.add(a2.getMapId());
+						System.out.format("overlapping areas %08d and %08d : (%d,%d to %d,%d) and (%d,%d to %d,%d)\n",
+								a1.getMapId(), a2.getMapId(), 
+								a1.getMinLat(), a1.getMinLong(), a1.getMaxLat(), a1.getMaxLong(),
+								a2.getMinLat(), a2.getMinLong(), a2.getMaxLat(), a2.getMaxLong());
+						a1.overlaps(a2);
 					}
 				}
 			}

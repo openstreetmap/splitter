@@ -205,8 +205,14 @@ public class Area {
 	 */
 	public final boolean intersects(Area bbox) {
 		return minLat <= bbox.getMaxLat() && maxLat >= bbox.getMinLat() && 
-			minLong <= bbox.getMaxLong() && maxLong >= bbox.getMinLong();
+				minLong <= bbox.getMaxLong() && maxLong >= bbox.getMinLong(); 
 	}
+	
+	public final boolean overlaps(Area bbox) {
+		return minLat < bbox.getMaxLat() && maxLat > bbox.getMinLat() && 
+				minLong < bbox.getMaxLong() && maxLong > bbox.getMinLong(); 
+	}
+	
  
 	public Area add(Area area) {
 		return new Area(
