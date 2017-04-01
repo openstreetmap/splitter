@@ -106,7 +106,7 @@ public class AreaList {
 	private void readList(String filename) throws IOException {
 		areas.clear();
 
-		Pattern pattern = Pattern.compile("([0-9]{8}):" +
+		Pattern pattern = Pattern.compile("([0-9]{8})[ ]*:" +
 		"[ ]*([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
 		" to ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)");
 
