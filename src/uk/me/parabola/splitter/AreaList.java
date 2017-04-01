@@ -107,7 +107,7 @@ public class AreaList {
 		areas.clear();
 
 		Pattern pattern = Pattern.compile("([0-9]{8}):" +
-		" ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
+		"[ ]*([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)" +
 		" to ([\\p{XDigit}x-]+),([\\p{XDigit}x-]+)");
 
 		try (Reader r = new FileReader(filename);
@@ -118,19 +118,23 @@ public class AreaList {
 				if (line.isEmpty() || line.charAt(0) == '#')
 					continue;
 
-				Matcher matcher = pattern.matcher(line);
-				matcher.find();
-				String mapid = matcher.group(1);
+				try {
+					Matcher matcher = pattern.matcher(line);
+					matcher.find();
+					String mapid = matcher.group(1);
 
-				Area area = new Area(
-						Integer.decode(matcher.group(2)),
-						Integer.decode(matcher.group(3)),
-						Integer.decode(matcher.group(4)),
-						Integer.decode(matcher.group(5)));
-				if (!area.verify())
-					throw new IllegalArgumentException("Invalid area in file "+ filename+ ": " + line);
-				area.setMapId(Integer.parseInt(mapid));
-				areas.add(area);
+					Area area = new Area(
+							Integer.decode(matcher.group(2)),
+							Integer.decode(matcher.group(3)),
+							Integer.decode(matcher.group(4)),
+							Integer.decode(matcher.group(5)));
+					if (!area.verify())
+						throw new IllegalArgumentException("Invalid area in file "+ filename+ ": " + line);
+					area.setMapId(Integer.parseInt(mapid));
+					areas.add(area);
+				} catch (IllegalStateException e) {
+					throw new IllegalArgumentException("Cannot parse line " + line);
+				}
 			}
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Bad number in areas list file");
