@@ -1,27 +1,24 @@
 /*
- * Copyright (C) 2006 Steve Ratcliffe
- * 
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2 as
- *  published by the Free Software Foundation.
- * 
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- * 
- * 
- * Author: Steve Ratcliffe
- * Create date: 14-Dec-2006
+ * Copyright (C) 2017, Gerd Petermann
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 or
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  */
 package uk.me.parabola.splitter.tools;
 
 import java.util.Arrays;
 
 /**
- * A class to write the bitstream.
+ * A class to write the bitstream. Based on code in mkgmap.
  *
  * @author Steve Ratcliffe
+ * @author Gerd Petermann
  */
 public class BitWriter {
 	// Choose so that chunks will not fill it.
