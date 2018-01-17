@@ -204,10 +204,14 @@ public class Main {
 			writeAreas = true;
 			int alignment = 1 << (24 - resolution);
 			System.out.println("Map is being split for resolution " + resolution + ':');
-			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units ("
-					+ Utils.toDegrees(alignment) + " degrees)");
-			System.out.println(
-					" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
+			if (mainOptions.getAlignForDem() < 0) {
+				System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units ("
+						+ Utils.toDegrees(alignment) + " degrees)");
+				System.out.println(
+						" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
+			} else {
+				System.out.println(" - area boundaries are aligned to 1/" + mainOptions.getAlignForDem() + " degrees");
+			}
 			areasCalculator.fillDensityMap(osmFileHandler, fileOutputDir);
 			areaList.setAreas(areasCalculator.calcAreas());
 			if (areaList.getAreas().isEmpty()) {
@@ -221,8 +225,11 @@ public class Main {
 			if (mapId + areaList.getAreas().size() > 99999999) {
 				throw new SplitFailedException("Too many areas for initial mapid " + mapId);
 			}
+			if (mainOptions.getAlignForDem() > 0)
+				areaList.realignForDem(mainOptions.getAlignForDem());
 			areaList.setMapIds(mapId);
 		}
+		
 		areaList.setAreaNames();
 		if (writeAreas) {
 			areaList.write(new File(fileOutputDir, "areas.list").getPath());
@@ -345,6 +352,11 @@ public class Main {
 		int resolution = params.getResolution();
 		if (resolution < 1 || resolution > 24) {
 			System.err.println("The --resolution parameter must be a value between 1 and 24. Reasonable values are close to 13.");
+			throw new IllegalArgumentException();
+		}
+		int alignDem = params.getAlignForDem();
+		if (alignDem != -1 && alignDem != 1200 && alignDem != 3600) {
+			System.err.println("The --align-dem parameter must be a either -1, 1200, or 3600.");
 			throw new IllegalArgumentException();
 		}
 

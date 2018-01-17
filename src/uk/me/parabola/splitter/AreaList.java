@@ -349,6 +349,30 @@ public class AreaList {
 			al.writeArgsFile(new File(fileOutputDir, pd.getName() + "-" + "template.args").getPath(), outputType, pd.getMapId());
 		}
 	}
+
+	public void realignForDem(int res) {
+		List<Area> aligned = new ArrayList<>();
+		for (Area unal : areas) {
+			aligned.add(calcHGTArea(unal, res));
+		}
+		areas.clear();
+		areas.addAll(aligned);
+	}
 	
+	private static Area calcHGTArea(Area bbox, int res) {
+		double top = Utils.toDegrees(bbox.getMaxLat());
+		double bottom = Utils.toDegrees(bbox.getMinLat());
+		double left = Utils.toDegrees(bbox.getMinLong());
+		double right = Utils.toDegrees(bbox.getMaxLong());
+		// expand move upper left corner close to hgt raster
+		double hgtDis = 1.0D / res;
+		double hgtTop = Math.round(top / hgtDis) * hgtDis;
+		double hgtBottom = Math.round(bottom / hgtDis) * hgtDis;
+		double hgtLeft = Math.round(left / hgtDis) * hgtDis;
+		double hgtRight = Math.round(right/ hgtDis) * hgtDis;
+
+		return new Area(Utils.toMapUnit(hgtBottom), Utils.toMapUnit(hgtLeft), Utils.toMapUnit(hgtTop), Utils.toMapUnit(hgtRight));
+	}
+		 	
 
 }
