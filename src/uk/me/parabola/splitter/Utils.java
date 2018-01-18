@@ -245,7 +245,46 @@ public class Utils {
 		}
 		return new java.awt.geom.Area(path);
 	}
-	
+
+	/**
+	 * Convert area with coordinates in degrees to area in MapUnits
+	 * @param area
+	 * @return
+	 */
+	public static java.awt.geom.Area AreaMapUnitAlignForDem(java.awt.geom.Area area, int DemRes){
+		if (area == null)
+			return null;
+		double hgtDis = 1.0D / DemRes;
+
+		double[] res = new double[6];
+		Path2D path = new Path2D.Double();
+		PathIterator pit = area.getPathIterator(null);
+		while (!pit.isDone()) {
+			int type = pit.currentSegment(res);
+
+			double lat = toMapUnit(Math.round(toDegrees((int)res[1])/ hgtDis) * hgtDis);
+			double lon = toMapUnit(Math.round(toDegrees((int)res[0])/ hgtDis) * hgtDis);
+			
+			switch (type) {
+			case PathIterator.SEG_LINETO:
+				path.lineTo(lon, lat);
+				break;
+			case PathIterator.SEG_MOVETO: 
+				path.moveTo(lon, lat);
+				break;
+			case PathIterator.SEG_CLOSE:
+				path.closePath();
+				break;
+			default:
+				System.out.println("Unsupported path iterator type " + type
+						+ ". This is an internal splitter error.");
+			}
+
+			pit.next();
+		}
+		return new java.awt.geom.Area(path);
+	}
+
 	// returns true if the way is a closed polygon with a clockwise
 	// direction
 	public static boolean clockwise(List<Point> points) {

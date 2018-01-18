@@ -13,6 +13,7 @@
 package uk.me.parabola.splitter.solver;
 
 import java.awt.geom.Area;
+import uk.me.parabola.splitter.Utils;
 
 /**
  * Store a java area with a name and mapid 
@@ -39,5 +40,12 @@ public class PolygonDesc {
 
 	public int getMapId() {
 		return mapId;
+	}
+
+	public PolygonDesc realignForDem(int res) {
+		if (res < 0)
+			return this;
+		Area alignedArea = Utils.AreaMapUnitAlignForDem(area, res);
+		return new PolygonDesc(name, alignedArea, mapId);
 	}
 }

@@ -15,6 +15,7 @@ package uk.me.parabola.splitter;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -24,6 +25,7 @@ import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.kml.KmlWriter;
 import uk.me.parabola.splitter.solver.AreasCalculator;
+import uk.me.parabola.splitter.solver.PolygonDesc;
 import uk.me.parabola.splitter.writer.AbstractOSMWriter;
 import uk.me.parabola.splitter.writer.BinaryMapWriter;
 import uk.me.parabola.splitter.writer.O5mMapWriter;
@@ -248,7 +250,15 @@ public class Main {
 		String outputType = mainOptions.getOutput();
 		
 		if (!areasCalculator.getPolygons().isEmpty()) {
-			areaList.writeListFiles(outputDir, areasCalculator.getPolygons(), kmlOutputFile, outputType);
+			List<PolygonDesc> polygons = areasCalculator.getPolygons();
+			if (mainOptions.getAlignForDem() > 0) {
+				ArrayList<PolygonDesc> aligned = new ArrayList<>();
+				for (PolygonDesc pd : polygons) {
+					aligned.add(pd.realignForDem(mainOptions.getAlignForDem()));
+				}
+				polygons = aligned;
+			}
+			areaList.writeListFiles(outputDir, polygons, kmlOutputFile, outputType);
 		}
 		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 		areaList.dumpHex();
