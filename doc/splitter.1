@@ -36,19 +36,14 @@ Tiles join exactly with no overlap or gaps.
 You will need a lot of memory on your computer if you intend to split a
 large area.
 A few options allow configuring how much memory you need.
-With the default parameters, you need about 4-5 bytes for every node and
+With the default parameters, you need about 2 bytes for every node and
 way.
-This doesn't sound a lot but there are about 1700 million nodes in the
-whole planet file and so you cannot process the whole planet in one pass
-on a 32 bit machine using this utility, as the maximum java heap
+This doesn't sound a lot but there are about 4300 million nodes in the
+whole planet file  (Jan 2018) and so you cannot process the whole planet in one 
+pass on a 32 bit machine using this utility, as the maximum java heap
 space is 2G.
-It is possible with 64 bit java and about 7GB of heap or with multiple
+It is possible with 64 bit java and about 10GB of heap or with multiple
 passes.
-.PP
-The Europe extract from Cloudmade or Geofabrik can be processed within
-the 2G limit if you have sufficient memory.
-With the default options Europe is split into about 750 tiles.
-The Europe extract is about half of the size of the complete planet file.
 .PP
 On the other hand a single country, even a well mapped one such as
 Germany or the UK, will be possible on a modest machine, even a netbook.
