@@ -21,12 +21,12 @@ You will need a lot of memory on your computer if you intend to split a large
 area. A few options allow configuring how much memory you need.  With the
 default parameters, you need about 4-5 bytes for every node and way. This
 doesn't sound a lot but there are about 1700 million nodes in the whole planet
-file and so you cannot process the whole planet in one pass file on a 32 bit
-machine using this utility as the maximum java heap space is 2G. It is
+file and so you cannot process the whole planet in one pass on a 32 bit
+machine using this utility, as the maximum java heap space is 2G. It is
 possible with 64 bit java and about 7GB of heap or with multiple passes.
 
 The Europe extract from Cloudmade or Geofabrik can be processed within the 2G
-limit if you have sufficient memory. With the default options europe is split
+limit if you have sufficient memory. With the default options Europe is split
 into about 750 tiles. The Europe extract is about half of the size of the
 complete planet file.
 
@@ -50,21 +50,20 @@ This will produce a number of .osm.pbf files that can be read by mkgmap.
 There are also other files produced:
 
 The ''template.args'' file is a file that can be used with the -c option of
-mkgmap that will compile all the files. You can use it as is or you can copy
-it and edit it to include your own options. For example instead of each
+mkgmap that will compile all the files. You can use it as is or you can 
+edit it to include your own options. For example instead of each
 description being "OSM Map" it could be "NW Scotland" as appropriate.
 
 The ''areas.list'' file is the list of bounding boxes that were calculated. If
-you want you can use this on a subsequent call the the splitter using the
+you want, you can use this on subsequent calls of splitter using the
 --split-file option to use exactly the same areas as last time. This might be
 useful if you produce a map regularly and want to keep the tile areas the same
 from month to month. It is also useful to avoid the time it takes to
 regenerate the file each time (currently about a third of the overall time
 taken to perform the split). Of course if the map grows enough that one of the
-tiles overflows you will have to re-calculate the areas again.
+tiles overflows, you will have to re-calculate the areas again.
 
 The ''areas.poly'' file contains the bounding polygon of the calculated areas.
-See option --polygon-file how this can be used.
 
 The ''densities-out.txt'' file is written when no split-file is given and
 contains debugging information only. 
@@ -167,14 +166,14 @@ will be printed because this combination rarely makes sense.
 ;--polygon-file
 :  The name of a file containing a bounding polygon in the
 [http://wiki.openstreetmap.org/wiki/Osmosis/Polygon_Filter_File_Format osmosis polygon file format].
-Splitter uses this fie when calculating the areas. It first calculates a grid
+Splitter uses this file when calculating the areas. It first calculates a grid
 using the given --resolution. The input file is read and for each node, a
 counter is increased for the related grid area. If the input file contains a
 bounding box, this is applied to the grid so that nodes outside of the
 bounding box are ignored. Next, if specified, the bounding polygon is used to
-zero those grid elements outside of the bounding polygon area. If the polygon
-area(s) describe(s) a rectilinear area with no more than 40 vertices, splitter
-will try to create output files that fit exactly into the area, otherwise it
+zero those grid elements outside of the bounding polygon area. If the polygon-file
+describes one or more rectilinear areas with no more than 40 vertices, splitter
+will try to create output files that fit exactly into each area, otherwise it
 will approximate the polygon area with rectangles. 
 
 ;--precomp-sea

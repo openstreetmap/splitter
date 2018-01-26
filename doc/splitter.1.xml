@@ -51,7 +51,7 @@
       way.
       This doesn't sound a lot but there are about 1700 million nodes in the
       whole planet file and so you cannot process the whole planet in one pass
-      file on a 32 bit machine using this utility as the maximum java heap
+      on a 32 bit machine using this utility as the maximum java heap
       space is 2G.
       It is possible with 64 bit java and about 7GB of heap or with multiple
       passes.
@@ -59,7 +59,7 @@
     <para>
       The Europe extract from Cloudmade or Geofabrik can be processed within
       the 2G limit if you have sufficient memory.
-      With the default options europe is split into about 750 tiles.
+      With the default options Europe is split into about 750 tiles.
       The Europe extract is about half of the size of the complete planet file.
     </para>
     <para>
@@ -97,7 +97,7 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
       The <filename>template.args</filename> file is a file that can
       be used with the <option>-c</option> option of
       <command>mkgmap</command> that will compile all the files.
-      You can use it as is or you can copy it and edit it to include
+      You can use it as is or you can edit it to include
       your own options.
       For example instead of each description being "OSM Map" it could
       be "NW Scotland" as appropriate.
@@ -105,7 +105,7 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
     <para>
       The <filename>areas.list</filename> file is the list of bounding
       boxes that were calculated.
-      If you want you can use this on a subsequent call the the
+      If you want, you can use this on subsequent calls of
       splitter using the <option>--split-file</option> option to use
       exactly the same areas as last time.
       This might be useful if you produce a map regularly and want to
@@ -113,7 +113,7 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
       It is also useful to avoid the time it takes to regenerate the
       file each time (currently about a third of the overall time
       taken to perform the split).
-      Of course if the map grows enough that one of the tiles overflows
+      Of course if the map grows enough that one of the tiles overflows,
       you will have to re-calculate the areas again.
     </para>
     <para>
@@ -400,9 +400,9 @@ JAVA_OPTS="<replaceable>-Xmx512m</replaceable>" <command>mkgmap-splitter</comman
             grid so that nodes outside of the bounding box are ignored.
             Next, if specified, the bounding polygon is used to zero those
             grid elements outside of the bounding polygon area.
-            If the polygon area(s) describe(s) a rectilinear area with no more
+            If the polygon-file describes one or more rectilinear areas with no more
             than 40 vertices, <command>mkgmap-splitter</command> will try to
-            create output files that fit exactly into the area, otherwise it
+            create output files that fit exactly into each area, otherwise it
             will approximate the polygon area with rectangles.
           </para>
         </listitem>
