@@ -123,8 +123,4 @@ public interface SplitterParams {
 	@Option(defaultValue = "false", description = "Specify if splitter should ignore bounds tags in input files")
 	boolean getIgnoreOsmBounds();
 
-	@Option(defaultValue = "-1", description = "Align tiles to hgt raster. Valid values are 1200 (3'') or 3600(1''). " 
-			+ "-1 means that tiles are aligned as described in option resolution.")
-	int getAlignForDem();
-
 }

@@ -15,7 +15,6 @@ package uk.me.parabola.splitter;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -25,7 +24,6 @@ import uk.me.parabola.splitter.args.ParamParser;
 import uk.me.parabola.splitter.args.SplitterParams;
 import uk.me.parabola.splitter.kml.KmlWriter;
 import uk.me.parabola.splitter.solver.AreasCalculator;
-import uk.me.parabola.splitter.solver.PolygonDesc;
 import uk.me.parabola.splitter.writer.AbstractOSMWriter;
 import uk.me.parabola.splitter.writer.BinaryMapWriter;
 import uk.me.parabola.splitter.writer.O5mMapWriter;
@@ -206,14 +204,10 @@ public class Main {
 			writeAreas = true;
 			int alignment = 1 << (24 - resolution);
 			System.out.println("Map is being split for resolution " + resolution + ':');
-			if (mainOptions.getAlignForDem() < 0) {
-				System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units ("
-						+ Utils.toDegrees(alignment) + " degrees)");
-				System.out.println(
-						" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
-			} else {
-				System.out.println(" - area boundaries are aligned to 1/" + mainOptions.getAlignForDem() + " degrees");
-			}
+			System.out.println(" - area boundaries are aligned to 0x" + Integer.toHexString(alignment) + " map units ("
+					+ Utils.toDegrees(alignment) + " degrees)");
+			System.out.println(
+					" - areas are multiples of 0x" + Integer.toHexString(alignment) + " map units wide and high");
 			areasCalculator.fillDensityMap(osmFileHandler, fileOutputDir);
 			areaList.setAreas(areasCalculator.calcAreas());
 			if (areaList.getAreas().isEmpty()) {
@@ -227,11 +221,8 @@ public class Main {
 			if (mapId + areaList.getAreas().size() > 99999999) {
 				throw new SplitFailedException("Too many areas for initial mapid " + mapId);
 			}
-			if (mainOptions.getAlignForDem() > 0)
-				areaList.realignForDem(mainOptions.getAlignForDem());
 			areaList.setMapIds(mapId);
 		}
-		
 		areaList.setAreaNames();
 		if (writeAreas) {
 			areaList.write(new File(fileOutputDir, "areas.list").getPath());
@@ -250,15 +241,7 @@ public class Main {
 		String outputType = mainOptions.getOutput();
 		
 		if (!areasCalculator.getPolygons().isEmpty()) {
-			List<PolygonDesc> polygons = areasCalculator.getPolygons();
-			if (mainOptions.getAlignForDem() > 0) {
-				ArrayList<PolygonDesc> aligned = new ArrayList<>();
-				for (PolygonDesc pd : polygons) {
-					aligned.add(pd.realignForDem(mainOptions.getAlignForDem()));
-				}
-				polygons = aligned;
-			}
-			areaList.writeListFiles(outputDir, polygons, kmlOutputFile, outputType);
+			areaList.writeListFiles(outputDir, areasCalculator.getPolygons(), kmlOutputFile, outputType);
 		}
 		areaList.writeArgsFile(new File(fileOutputDir, "template.args").getPath(), outputType, -1);
 		areaList.dumpHex();
@@ -362,11 +345,6 @@ public class Main {
 		int resolution = params.getResolution();
 		if (resolution < 1 || resolution > 24) {
 			System.err.println("The --resolution parameter must be a value between 1 and 24. Reasonable values are close to 13.");
-			throw new IllegalArgumentException();
-		}
-		int alignDem = params.getAlignForDem();
-		if (alignDem != -1 && alignDem != 1200 && alignDem != 3600) {
-			System.err.println("The --align-dem parameter must be a either -1, 1200, or 3600.");
 			throw new IllegalArgumentException();
 		}
 
