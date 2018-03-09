@@ -15,6 +15,8 @@ package uk.me.parabola.splitter;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -101,7 +103,7 @@ public class Main {
 			healthMonitor.start();
 		}
 
-		long start = System.currentTimeMillis();
+		Instant start = Instant.now();
 		System.out.println("Time started: " + new Date());
 		try {
 			// configure the input file handler
@@ -149,7 +151,20 @@ public class Main {
 			return 1;
 		}
 		System.out.println("Time finished: " + new Date());
-		System.out.println("Total time taken: " + (System.currentTimeMillis() - start) / 1000 + 's');
+		Duration duration = Duration.between(start, Instant.now());
+		long seconds = duration.getSeconds();
+		if (seconds > 0) {
+			long hours = seconds / 3600;
+			seconds -= hours * 3600;
+			long minutes = seconds / 60;
+			seconds -= minutes * 60;
+			System.out.println("Total time taken: " + 
+													(hours > 0 ? hours + (hours > 1 ? " hours " : " hour ") : "") +
+													(minutes > 0 ? minutes + (minutes > 1 ? " minutes " : " minute ") : "") +
+													(seconds > 0 ? seconds + (seconds > 1 ? " seconds" : " second") : ""));
+        }
+		else
+			System.out.println("Total time taken: " + duration.getNano() / 1000000 + " ms");
 		return rc;
 	}
 
