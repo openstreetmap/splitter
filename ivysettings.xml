@@ -10,16 +10,19 @@
 
 	<resolvers>
 		<chain name="custom" returnFirst="true">
-
 			<resolver ref="default" />
 
 			<url name="mkgmap">
 				<ivy pattern="${mkgmap.ivy.repo}/[organisation]/[module]/[revision]/ivys/ivy.xml" />
 				<artifact pattern="${mkgmap.ivy.repo}/[organisation]/[module]/[revision]/[type]s/[artifact].[ext]" />
 			</url>
-
 		</chain>
 
+		<ibiblio name="OneBusAway" m2compatible="true" root="http://nexus.onebusaway.org/nexus/content/repositories/public/"/>
 	</resolvers>
+
+	<modules>
+		<module organisation="crosby.binary" resolver="OneBusAway"/>
+	</modules>
 
 </ivysettings>

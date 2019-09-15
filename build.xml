@@ -45,9 +45,6 @@
 
 	<property name="project.jar" value="${dist}/${project.name}.jar"/>
 
-  <!-- Third party libraries -->
-	<property name="xpp.jar" location="${lib}/compile/xpp3-1.1.4c.jar"/>
-
 	<!-- the project's build timestamp -->
 	<tstamp>
 		<format property="build.timestamp" pattern="yyyy-MM-dd'T'HH:mm:ssZ" />
@@ -57,7 +54,7 @@
 	<property name="ivy.version" value="2.4.0"/>
 	<property name="ivy.lib.dir" value="${basedir}/lib" />
 	<property name="ivy.jar.dir" value="${ivy.lib.dir}/build" />
-	<property name="ivy.retrieve.pattern" value="${ivy.lib.dir}/[conf]/[artifact]-[revision].[ext]" />
+	<property name="ivy.retrieve.pattern" value="${ivy.lib.dir}/[conf]/[artifact]-[type]-[revision].[ext]" />
 	<property name="ivy.distrib.dir" value="ivy-distrib" />
 
 	<!-- A place to keep a local copy of the test input data.  The test files
