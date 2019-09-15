@@ -1,0 +1,21 @@
+---
+dist: xenial
+
+addons:
+  apt:
+    packages:
+      - ant
+      - ant-optional
+
+jdk:
+  - openjdk8
+  - openjdk10
+  - openjdk11
+
+install:
+  - ant resolve
+
+script:
+  - ant compile
+  - ant run.tests
+  - ant run.func-tests

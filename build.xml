@@ -54,7 +54,7 @@
 	</tstamp>
 
 	<!-- ivy dependency support -->
-	<property name="ivy.version" value="2.2.0"/>
+	<property name="ivy.version" value="2.4.0"/>
 	<property name="ivy.lib.dir" value="${basedir}/lib" />
 	<property name="ivy.jar.dir" value="${ivy.lib.dir}/build" />
 	<property name="ivy.retrieve.pattern" value="${ivy.lib.dir}/[conf]/[artifact]-[revision].[ext]" />
