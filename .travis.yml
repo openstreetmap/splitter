@@ -16,6 +16,4 @@ install:
   - ant resolve
 
 script:
-  - ant compile
-  - ant run.tests
-  - ant run.func-tests
+  - ./gradlew build --scan --stacktrace

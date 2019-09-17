@@ -53,25 +53,21 @@ public class SolverAndProblemGeneratorTest extends Base {
 	 * @throws IOException 
 	 */
 	@Test
-	@Ignore("Temporarily ignoring due to SIZE missmatch")
 	public void testHamburg() throws Exception {
 		runSplitter(Args.expectedHamburg, "--stop-after=gen-problem-list", Args.HAMBURG);
 	}
 
 	@Test
-	@Ignore("Temporarily ignoring due to SIZE missmatch")
 	public void testAlaska() throws Exception {
 		runSplitter(Args.expectedAlaska,"--stop-after=gen-problem-list", Args.ALASKA);
 	}
 
 	@Test
-	@Ignore("Temporarily ignoring due to SIZE missmatch")
 	public void testAlaskaOverlap() throws Exception {
 		runSplitter(Args.expectedAlaskaOverlap,"--stop-after=split","--keep-complete=false", Args.ALASKA);
 	}
 
 	@Test
-	@Ignore("Temporarily ignoring due to SIZE missmatch")
 	/** verifies that --max-areas has no effect on the output */
 	public void testAlaskaMaxAreas7() throws Exception {
 		runSplitter(Args.expectedAlaska,"--stop-after=gen-problem-list","--max-areas=5", Args.ALASKA);

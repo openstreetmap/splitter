@@ -3,7 +3,9 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/splitter.iml" filepath="$PROJECT_DIR$/splitter.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/splitter.integrationTest.iml" filepath="$PROJECT_DIR$/.idea/modules/splitter.integrationTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/splitter.main.iml" filepath="$PROJECT_DIR$/.idea/modules/splitter.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/splitter.test.iml" filepath="$PROJECT_DIR$/.idea/modules/splitter.test.iml" />
     </modules>
   </component>
 </project>
-
