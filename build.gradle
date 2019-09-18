@@ -14,8 +14,8 @@
 plugins {
     id 'idea'
     id 'java'
-    id "org.sonarqube"
-    id 'com.gradle.build-scan'
+    id "org.sonarqube" version "2.7.1"
+    id 'com.gradle.build-scan' version '2.4.2'
 }
 
 
