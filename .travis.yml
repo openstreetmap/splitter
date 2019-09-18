@@ -14,4 +14,3 @@ jdk:
 
 script:
   - ./gradlew build --scan --stacktrace
-  - sonar-scanner
