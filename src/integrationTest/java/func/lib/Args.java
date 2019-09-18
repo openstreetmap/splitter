@@ -20,32 +20,31 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Useful constants that are used for arguments etc. in the functional
- * tests.
+ * Useful constants that are used for arguments etc. in the functional tests.
  *
  * @author Gerd Petermann
  */
 public interface Args {
-	public static final String TEST_RESOURCE_OSM = "test/resources/in/osm/";
+	String TEST_RESOURCE_OSM = "test/resources/in/osm/";
 
-	public static final String DEF_TEMPLATE = "template.args";
-	public static final String DEF_DENSITIES = "densities-out.txt";
-	public static final String DEF_AREAS_KML = "areas.kml";
-	public static final String DEF_AREAS_LIST = "areas.list";
-	public static final String DEF_AREAS_POLY = "areas.poly";
-	public static final String DEF_PROBLEM_LIST = "problem.list";
+	String DEF_TEMPLATE = "template.args";
+	String DEF_DENSITIES = "densities-out.txt";
+	String DEF_AREAS_KML = "areas.kml";
+	String DEF_AREAS_LIST = "areas.list";
+	String DEF_AREAS_POLY = "areas.poly";
+	String DEF_PROBLEM_LIST = "problem.list";
 	
-	public static final String[] MAIN_ARGS = { "--status-freq=0", 
+	String[] MAIN_ARGS = { "--status-freq=0",
 			"--write-kml=" + DEF_AREAS_KML,
 			"--problem-report=" + DEF_PROBLEM_LIST,
 			"--max-nodes=500000", 
 			};
 	
-	public static final String ALASKA = TEST_RESOURCE_OSM + "alaska-2016-12-27.osm.pbf";
-	public static final String HAMBURG = TEST_RESOURCE_OSM + "hamburg-2016-12-26.osm.pbf";
+	String ALASKA = TEST_RESOURCE_OSM + "alaska-2016-12-27.osm.pbf";
+	String HAMBURG = TEST_RESOURCE_OSM + "hamburg-2016-12-26.osm.pbf";
 
 	/** expected summed line sizes for ALASKA file */
-	public static final Map<String, Integer> expectedAlaska = new LinkedHashMap<String, Integer>() {
+	Map<String, Integer> expectedAlaska = new LinkedHashMap<String, Integer>() {
 		{
 			put(DEF_AREAS_KML, 5158);
 			put(DEF_AREAS_LIST, 1076);
@@ -57,7 +56,7 @@ public interface Args {
 	};
 
 	/** expected summed line sizes for ALASKA file */
-	public static final Map<String, Integer> expectedAlaskaOverlap = new LinkedHashMap<String, Integer>() {
+	Map<String, Integer> expectedAlaskaOverlap = new LinkedHashMap<String, Integer>() {
 		{
 			putAll(expectedAlaska);
 			remove(DEF_PROBLEM_LIST);
@@ -65,7 +64,7 @@ public interface Args {
 	};
 
 	/** expected summed line sizes for HAMBURG file */
-	public static final Map<String, Integer> expectedHamburg = new LinkedHashMap<String, Integer>() {
+	Map<String, Integer> expectedHamburg = new LinkedHashMap<String, Integer>() {
 		{
 			put(DEF_AREAS_KML, 3143);
 			put(DEF_AREAS_LIST, 616);

@@ -32,54 +32,12 @@ public class Outputs {
 		this.err = err;
 	}
 
-	protected String getOut() {
-		return out;
-	}
-
 	protected String getErr() {
 		return err;
 	}
 
-	/**
-	 * Check that the standard error is empty.
-	 */
 	public void checkNoError() {
 		assertEquals("no error output", "", getErr());
 	}
 
-	/**
-	 * Check that the output contains the given strings.  You can specify
-	 * any number of strings.
-	 * @param strings The list of strings to check.
-	 */
-	public void checkOutput(String... strings) {
-		String out = getOut();
-		for (String s : strings) {
-			if (!out.contains(s)) {
-				// Test has failed.  Construct an assertion that will print
-				// something that is useful to show the problem.
-				assertEquals("contains '" + s + "'",
-						"..." + s + "...",
-						out);
-			}
-		}
-	}
-
-	/**
-	 * Check that the output contains the given strings.  You can specify
-	 * any number of strings.
-	 * @param strings The list of strings to check.
-	 */
-	public void checkError(String... strings) {
-		String err = getErr();
-		for (String s : strings) {
-			if (!err.contains(s)) {
-				// Test has failed.  Construct an assertion that will print
-				// something that is useful to show the problem.
-				assertEquals("contains '" + s + "'",
-						"..." + s + "...",
-						err);
-			}
-		}
-	}
 }

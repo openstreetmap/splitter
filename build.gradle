@@ -11,8 +11,12 @@
  * GNU General Public License for more details.
  */
 
-apply plugin: 'idea'
-apply plugin: 'java'
+plugins {
+    id 'idea'
+    id 'java'
+    id 'com.gradle.build-scan' version '2.4.2'
+}
+
 
 apply from: "$rootDir/integration-test.gradle"
 
@@ -41,8 +45,22 @@ dependencies {
 
     integrationTestImplementation 'org.junit.jupiter:junit-jupiter-api:5.5.2'
     integrationTestRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
-    integrationTestImplementation 'junit:junit:4.12'
-    integrationTestRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.5.2'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'uk.me.parabola.splitter.Main'
+    }
+}
+
+task fatJar(type: Jar) {
+    description = 'Generates a JAR with depdendencies included'
+    manifest {
+        attributes 'Main-Class': 'uk.me.parabola.splitter.Main'
+    }
+    archiveAppendix = 'with-dependencies'
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
 }
 
 test {
@@ -53,30 +71,11 @@ integrationTest {
     useJUnitPlatform()
 }
 
-//        <target name="obtain-test-input-files" description="download the input files for the functional tests">
-//        <!-- Local cache, if it doesn't exist then it is not a problem the files
-//will be downloaded in the next step -->
-//        <copy todir="src/test/resources/in/" failonerror="false">
-//        <fileset dir="${test.input.cache}" includes="osm/*.osm.pbf" />
-//        </copy>
-//		<mkdir dir="src/test/resources/in/osm"/>
-//        <get src="http://www.mkgmap.org.uk/testinput/osm/alaska-2016-12-27.osm.pbf"
-//dest="src/test/resources/in/osm/alaska-2016-12-27.osm.pbf" usetimestamp="true"
-//ignoreerrors="true"/>
-//        <get src="http://www.mkgmap.org.uk/testinput/osm/hamburg-2016-12-26.osm.pbf"
-//dest="src/test/resources/in/osm/hamburg-2016-12-26.osm.pbf" usetimestamp="true"
-//ignoreerrors="true"/>
-//        </target>
+buildScan {
+    termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+    termsOfServiceAgree = 'yes'
 
-//        <!-- Make the jar -->
-//        <jar basedir="${build.classes}" jarfile="${dist}/splitter.jar">
-//        <manifest>
-//        <attribute name="Main-Class" value="uk.me.parabola.splitter.Main" />
-//        <attribute name="Class-Path" value="${manifest_cp}" />
-//        <attribute name="Implementation-Version" value="${project.version}" />
-//        </manifest>
-//			<include name="**/*.class"/>
-//        <include name="*.csv"/>
-//        <include name="*.properties"/>
-//        <zipfileset src="${xpp.jar}" includes="**/*.class,META-INF/services/**"/>
-//        </jar>
+    publishAlways()
+}
+
+build.dependsOn fatJar

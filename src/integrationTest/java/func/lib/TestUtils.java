@@ -51,11 +51,7 @@ public class TestUtils {
 		files.add(Args.DEF_DENSITIES);
 		files.add(Args.DEF_TEMPLATE);
 
-		Runnable r = new Runnable() {
-			public void run() {
-				deleteOutputFiles();
-			}
-		};
+		Runnable r = TestUtils::deleteOutputFiles;
 		Thread t = new Thread(r);
 		Runtime.getRuntime().addShutdownHook(t);
 	}
@@ -81,14 +77,6 @@ public class TestUtils {
 				e.printStackTrace();
 			}
 		}
-	}
-
-	public static void registerFile(String ... names) {
-		Collections.addAll(files, names);
-	}
-
-	public static void registerFile(Closeable... fileList) {
-		Collections.addAll(open, fileList);
 	}
 
 	/**
@@ -130,5 +118,4 @@ public class TestUtils {
 
 		return new Outputs(outsink.toString(), errsink.toString());
 	}
-
 }
