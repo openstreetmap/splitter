@@ -14,8 +14,8 @@
 plugins {
     id 'idea'
     id 'java'
-    id "org.sonarqube" version "2.7.1"
-    id 'com.gradle.build-scan' version '2.4.2'
+    id "org.sonarqube"
+    id 'com.gradle.build-scan'
 }
 
 
@@ -81,7 +81,7 @@ buildScan {
 
 sonarqube {
     properties {
-        property 'sonar.projectKey', 'openstreetmap-splitter'
+        property 'sonar.projectKey', 'expeditioneer_splitter'
     }
 }
 
