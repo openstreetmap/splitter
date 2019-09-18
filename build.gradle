@@ -83,5 +83,6 @@ sonarqube {
     properties {
         property 'sonar.projectKey', 'openstreetmap-splitter'
     }
+}
 
 build.dependsOn fatJar
