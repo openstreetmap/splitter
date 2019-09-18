@@ -2,18 +2,16 @@
 dist: xenial
 
 addons:
-  apt:
-    packages:
-      - ant
-      - ant-optional
+  sonarcloud:
+    organization: "openstreetmap-splitter"
+    token:
+      secure: "A14PCNuOVerpuKwjfaEobAJl0OmqlvlouxVbE26k/513k04lJ+6W/QsSBbCGQuGutD+t7NyDXyfOGBNvYeCfcPnT7zfHmwMmjGnCQ4azkLMAb5U6ffPFNZBwUxodeGiHIGDg4ATk3B+3DGjZya3RyYgz5AuyFZO/9x5hoy7fsW74MAXWqXuKa2I6+++UCJk+SHdgegjjh/wqr1xxb/69cO/7R/lhUSDU0/nhwi20aYp1ZGhUmtiYlrHmAlByhUrIvTWnJlijdwKo6xj4qbceO5+12BGFmsjYzQZZ8cx8UmZNCm4DccK4wnCP8xt1paSsyKrL0Rf1g52/vEQkJZw7/3MXnrwxBktMjRWEuVDYVV+XRzLHxucQ4kvJxTOF327uAUB1PUQBXHXECT9WKGnXlCERBgcoy7NdyC8DFPrvOJyVsvaunVQOXZZqR51k5h1Wq8wHKcH78pkbKW03YF+nZadwsawl7Sdfwlq0ErNuXip8P2ooUASQUwbUmkuK7cENcJ1xmf4ol+dH0p4xeXBtYoqlT2HLRl1Ah5eGjUzgoR8FIAp3AvxaWAyZPndBTqrrtA1714vg80XFR2BvZTKaI8bfL8YXQt/AjB3fCLeqSSGPbTih6+IteESRGKeV7FVNJQJEnEPNVPE30RdkDX2YWPBYsXasceb9Jy35o3xfHqk="
 
 jdk:
   - openjdk8
   - openjdk10
   - openjdk11
 
-install:
-  - ant resolve
-
 script:
   - ./gradlew build --scan --stacktrace
+  - sonar-scanner
